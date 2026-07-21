@@ -1,0 +1,15 @@
+{
+  "name": "@football-ai/sync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@football-ai/api-football": "1.0.0",
+    "@football-ai/database": "1.0.0",
+    "@football-ai/engine": "1.0.0"
+  }
+}
