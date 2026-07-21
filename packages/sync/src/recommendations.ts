@@ -8,7 +8,13 @@ import {
   RecommendationStatus,
   type InputJsonValue,
 } from '@football-ai/database';
-import { getFixtureHoursAhead, getOverUnderConsensusRules } from './config.js';
+import {
+  getFixtureHoursAhead,
+  getLineupAnalysisRules,
+  getLineupHistoryLookback,
+  getOverUnderConsensusRules,
+} from './config.js';
+import { getFixtureLineupAnalysis } from './lineup-analysis.js';
 import { runTrackedSync, type SyncSummary } from './tracking.js';
 
 interface RawOddsRow {
@@ -61,6 +67,8 @@ export async function generateRecommendations(): Promise<SyncSummary> {
     const now = new Date();
     const maximum = new Date(now.getTime() + getFixtureHoursAhead() * 3_600_000);
     const rules = getOverUnderConsensusRules();
+    const lineupRules = getLineupAnalysisRules();
+    const lineupHistoryLookback = getLineupHistoryLookback();
 
     const fixtures = await prisma.fixture.findMany({
       where: {
@@ -68,6 +76,8 @@ export async function generateRecommendations(): Promise<SyncSummary> {
         kickoffAt: { gte: now, lte: maximum },
       },
       include: {
+        homeTeam: true,
+        awayTeam: true,
         oddsSnapshots: {
           where: { isLive: false },
           include: { bookmaker: true, market: true },
@@ -80,14 +90,29 @@ export async function generateRecommendations(): Promise<SyncSummary> {
     let inserted = 0;
     let processed = 0;
     let noBetFixtures = 0;
+    let lineupBlockedFixtures = 0;
 
     for (const fixture of fixtures) {
       processed += 1;
       const latestOdds = latestOverUnderOddsRows(fixture.oddsSnapshots, rules.lineValue);
+      const lineupAnalysis = await getFixtureLineupAnalysis({
+        fixtureId: fixture.id,
+        homeTeamId: fixture.homeTeamId,
+        homeTeamName: fixture.homeTeam.name,
+        awayTeamId: fixture.awayTeamId,
+        awayTeamName: fixture.awayTeam.name,
+        kickoffAt: fixture.kickoffAt,
+        asOf: now,
+        historyLookback: lineupHistoryLookback,
+        rules: lineupRules,
+      });
+      if (lineupAnalysis.blockRecommendation) lineupBlockedFixtures += 1;
+
       const candidates = buildOddsConsensusOverUnderCandidates({
         odds: latestOdds,
         rules,
         now,
+        lineupAnalysis,
       });
 
       await prisma.recommendation.updateMany({
@@ -134,7 +159,9 @@ export async function generateRecommendations(): Promise<SyncSummary> {
             dataQualityScore: candidate.dataQualityScore,
             recommendationScore: candidate.recommendationScore,
             rankNumber: index + 1,
-            modelVersion: 'odds-consensus-leave-one-out-ou-v1',
+            modelVersion: lineupAnalysis.available
+              ? 'odds-consensus-lineup-ou-v1'
+              : 'odds-consensus-leave-one-out-ou-v1',
             reasons: candidate.reasons as InputJsonValue,
             generatedAt: now,
             expiresAt,
@@ -162,6 +189,8 @@ export async function generateRecommendations(): Promise<SyncSummary> {
         mode: 'ODDS_CONSENSUS',
         market: 'TOTAL_GOALS_2_5',
         line: rules.lineValue,
+        lineupBlockedFixtures,
+        lineupAnalysisEnabled: lineupRules.enabled,
       },
     };
   });

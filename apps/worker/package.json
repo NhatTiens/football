@@ -1,6 +1,6 @@
 {
   "name": "@football-ai/worker",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@football-ai/database": "1.0.0",
-    "@football-ai/sync": "1.0.0",
+    "@football-ai/database": "1.2.0",
+    "@football-ai/sync": "1.2.0",
     "dotenv": "^17.2.3",
     "node-cron": "^4.2.1"
   }

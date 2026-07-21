@@ -3,6 +3,7 @@ import type {
   ApiFootballResult,
   FixtureResponse,
   LeagueResponse,
+  LineupResponse,
   OddsResponse,
   PredictionResponse,
   RateLimitInfo,
@@ -152,5 +153,9 @@ export class ApiFootballClient {
 
   getPredictions(fixture: number) {
     return this.request<PredictionResponse>('predictions', { fixture });
+  }
+
+  getFixtureLineups(fixture: number) {
+    return this.request<LineupResponse>('fixtures/lineups', { fixture });
   }
 }

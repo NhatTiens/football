@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  analyzeFixtureLineups,
   buildOddsConsensusOverUnderCandidates,
   buildRecommendationCandidates,
   deriveMarketProbabilities,
@@ -146,5 +147,81 @@ describe('odds-only over/under consensus', () => {
     expect(candidates[0]!.selectionCode).toBe('OVER');
     expect(candidates[0]!.bookmakerName).toBe('C');
     expect(candidates[0]!.expectedValue).toBeGreaterThan(0);
+  });
+});
+
+
+describe('lineup impact', () => {
+  it('blocks recommendations when confirmed lineups are required but missing', () => {
+    const baseTeam = {
+      teamId: 1,
+      teamName: 'Team A',
+      confirmed: false,
+      starterCount: 0,
+      formation: null,
+      historyMatches: 8,
+      previousLineupOverlap: null,
+      rotationCount: null,
+      missingRegulars: [],
+    };
+    const result = analyzeFixtureLineups({
+      home: baseTeam,
+      away: { ...baseTeam, teamId: 2, teamName: 'Team B' },
+      rules: {
+        enabled: true,
+        requireConfirmed: true,
+        minimumHistoryMatches: 5,
+        rotationWarningThreshold: 4,
+        probabilityAdjustmentEnabled: true,
+        maximumProbabilityAdjustment: 0.025,
+      },
+    });
+    expect(result.blockRecommendation).toBe(true);
+  });
+
+  it('moves Over probability upward when a regular goalkeeper is absent', () => {
+    const result = analyzeFixtureLineups({
+      home: {
+        teamId: 1,
+        teamName: 'Team A',
+        confirmed: true,
+        starterCount: 11,
+        formation: '4-3-3',
+        historyMatches: 10,
+        previousLineupOverlap: 10,
+        rotationCount: 1,
+        missingRegulars: [
+          {
+            playerId: 10,
+            playerName: 'Regular goalkeeper',
+            positionGroup: 'GOALKEEPER',
+            starts: 9,
+            historyMatches: 10,
+            startRate: 0.9,
+          },
+        ],
+      },
+      away: {
+        teamId: 2,
+        teamName: 'Team B',
+        confirmed: true,
+        starterCount: 11,
+        formation: '4-2-3-1',
+        historyMatches: 10,
+        previousLineupOverlap: 11,
+        rotationCount: 0,
+        missingRegulars: [],
+      },
+      rules: {
+        enabled: true,
+        requireConfirmed: true,
+        minimumHistoryMatches: 5,
+        rotationWarningThreshold: 4,
+        probabilityAdjustmentEnabled: true,
+        maximumProbabilityAdjustment: 0.025,
+      },
+    });
+    expect(result.blockRecommendation).toBe(false);
+    expect(result.overProbabilityAdjustment).toBeGreaterThan(0);
   });
 });

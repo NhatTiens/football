@@ -1,3 +1,4 @@
+import type { LineupAdjustment } from './lineup.js';
 import {
   clamp,
   expectedValue,
@@ -167,7 +168,9 @@ export function buildOddsConsensusOverUnderCandidates(input: {
   odds: OverUnderQuote[];
   rules: OverUnderConsensusRules;
   now: Date;
+  lineupAnalysis?: LineupAdjustment;
 }): OverUnderConsensusCandidate[] {
+  if (input.lineupAnalysis?.blockRecommendation) return [];
   const pairs = buildPairs(input.odds, input.rules.lineValue);
   if (pairs.length < input.rules.minimumCompleteBookmakers) return [];
 
@@ -179,20 +182,26 @@ export function buildOddsConsensusOverUnderCandidates(input: {
     for (const selection of ['OVER', 'UNDER'] as const) {
       const quote = quoteFor(candidatePair, selection);
       const referenceProbabilities = references.map((pair) => fairFor(pair, selection));
-      const consensusProbability = median(referenceProbabilities);
+      const marketConsensusProbability = median(referenceProbabilities);
+      const lineupAdjustment = input.lineupAnalysis?.overProbabilityAdjustment ?? 0;
+      const consensusProbability = clamp(
+        marketConsensusProbability + (selection === 'OVER' ? lineupAdjustment : -lineupAdjustment),
+        0.01,
+        0.99,
+      );
       const probabilityStddev = standardDeviation(referenceProbabilities);
       const bookmakerFairProbability = fairFor(candidatePair, selection);
       const selectionEdge = consensusProbability - bookmakerFairProbability;
       const selectionEv = expectedValue(consensusProbability, quote.decimalOdds);
       const oddsAgeMinutes = (input.now.getTime() - quote.capturedAt.getTime()) / 60_000;
-      const dataQualityScore = calculateDataQuality({
+      const baseDataQualityScore = calculateDataQuality({
         completeBookmakers: pairs.length,
         referenceBookmakers: references.length,
         probabilityStddev,
         oddsAgeMinutes,
         maximumOddsAgeMinutes: input.rules.maximumOddsAgeMinutes,
       });
-      const confidenceScore = calculateConfidence({
+      const baseConfidenceScore = calculateConfidence({
         referenceBookmakers: references.length,
         probabilityStddev,
         oddsAgeMinutes,
@@ -200,6 +209,16 @@ export function buildOddsConsensusOverUnderCandidates(input: {
         expectedValue: selectionEv,
         edge: selectionEdge,
       });
+      const dataQualityScore = clamp(
+        baseDataQualityScore * (input.lineupAnalysis?.dataQualityMultiplier ?? 1),
+        0,
+        1,
+      );
+      const confidenceScore = clamp(
+        baseConfidenceScore * (input.lineupAnalysis?.confidenceMultiplier ?? 1),
+        0,
+        1,
+      );
       const stabilityMultiplier = clamp(
         1 - probabilityStddev / input.rules.maximumProbabilityStddev,
         0,
@@ -244,7 +263,13 @@ export function buildOddsConsensusOverUnderCandidates(input: {
         probabilityStddev,
         oddsAgeMinutes,
         reasons: [
-          `Consensus ${selection} ${(consensusProbability * 100).toFixed(1)}% từ ${references.length} nhà cái tham chiếu.`,
+          `Consensus thị trường ${selection} ${(marketConsensusProbability * 100).toFixed(1)}% từ ${references.length} nhà cái tham chiếu.`,
+          ...(input.lineupAnalysis?.available
+            ? [
+                `Xác suất sau phân tích đội hình: ${(consensusProbability * 100).toFixed(1)}%.`,
+                ...input.lineupAnalysis.reasons,
+              ]
+            : []),
           `Không dùng odds của ${quote.bookmakerName} khi tạo xác suất tham chiếu.`,
           `Edge ${(selectionEdge * 100).toFixed(2)} điểm %, EV ${(selectionEv * 100).toFixed(2)}%.`,
           `Độ phân tán xác suất ${(probabilityStddev * 100).toFixed(2)}%.`,

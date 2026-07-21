@@ -2,9 +2,9 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'Football Value AI API',
-    version: '1.1.0',
+    version: '1.2.0',
     description:
-      'REST API for fixtures, odds-driven value recommendations, point-in-time backtests and synchronization.',
+      'REST API for fixtures, confirmed lineups, odds-driven value recommendations, point-in-time backtests and synchronization.',
   },
   servers: [{ url: '/api' }],
   paths: {
@@ -25,7 +25,7 @@ export const openApiDocument = {
     },
     '/fixtures/{id}': {
       get: {
-        summary: 'Fixture detail with latest odds and recommendations',
+        summary: 'Fixture detail with latest odds, lineups, lineup impact and recommendations',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
         responses: { '200': { description: 'Fixture' }, '404': { description: 'Not found' } },
       },
@@ -53,6 +53,36 @@ export const openApiDocument = {
         summary: 'Backtest detail, bet log, market summary and equity curve',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
         responses: { '200': { description: 'Backtest detail' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/admin/sync/lineups': {
+      post: {
+        summary: 'Synchronize fixture lineups or explicitly import historical lineups',
+        parameters: [
+          {
+            name: 'x-admin-token',
+            in: 'header',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  fixtureIds: { type: 'array', items: { type: 'integer' } },
+                  includeHistory: { type: 'boolean' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Lineup sync summary' },
+          '401': { description: 'Invalid admin token' },
+        },
       },
     },
     '/admin/backtests/run': {

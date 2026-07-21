@@ -72,6 +72,7 @@ model Team {
   updatedAt     DateTime  @updatedAt
   homeFixtures  Fixture[] @relation("HomeTeam")
   awayFixtures  Fixture[] @relation("AwayTeam")
+  lineupSnapshots FixtureLineupSnapshot[]
 }
 
 model Fixture {
@@ -102,11 +103,65 @@ model Fixture {
   externalPrediction    ExternalPrediction?
   recommendations       Recommendation[]
   backtestBets           BacktestBet[]
+  lineupSnapshots        FixtureLineupSnapshot[]
 
   @@index([kickoffAt])
   @@index([leagueId, status, kickoffAt])
   @@index([homeTeamId, kickoffAt])
   @@index([awayTeamId, kickoffAt])
+}
+
+
+model Player {
+  id             Int                   @id @default(autoincrement())
+  apiPlayerId    Int                   @unique
+  name           String
+  photoUrl       String?               @db.Text
+  defaultPosition String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  lineupEntries  FixtureLineupPlayer[]
+
+  @@index([name])
+}
+
+model FixtureLineupSnapshot {
+  id              Int                   @id @default(autoincrement())
+  fixtureId       Int
+  teamId          Int
+  formation       String?
+  coachApiId      Int?
+  coachName       String?
+  isConfirmed     Boolean               @default(false)
+  starterCount    Int                   @default(0)
+  substituteCount Int                   @default(0)
+  contentHash     String
+  capturedAt      DateTime              @default(now())
+  rawPayload      Json?
+  fixture         Fixture               @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  team            Team                  @relation(fields: [teamId], references: [id])
+  players         FixtureLineupPlayer[]
+
+  @@unique([fixtureId, teamId, contentHash])
+  @@index([fixtureId, teamId, capturedAt])
+  @@index([teamId, capturedAt])
+}
+
+model FixtureLineupPlayer {
+  id               Int                    @id @default(autoincrement())
+  lineupSnapshotId Int
+  playerId         Int
+  isStarter        Boolean
+  shirtNumber      Int?
+  position         String?
+  grid             String?
+  lineupOrder      Int?
+  lineupSnapshot   FixtureLineupSnapshot  @relation(fields: [lineupSnapshotId], references: [id], onDelete: Cascade)
+  player           Player                 @relation(fields: [playerId], references: [id])
+
+  @@unique([lineupSnapshotId, playerId])
+  @@index([playerId, isStarter])
+  @@index([lineupSnapshotId, isStarter])
 }
 
 model Bookmaker {

@@ -1,0 +1,41 @@
+{
+  "name": "football-ai-platform",
+  "version": "1.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/run-with-env.mjs npm run dev:raw",
+    "dev:api": "npm run dev -w @football-ai/api",
+    "dev:worker": "npm run dev -w @football-ai/worker",
+    "dev:web": "npm run dev -w @football-ai/web",
+    "build": "npm run build -w @football-ai/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:generate": "node scripts/run-with-env.mjs npx prisma generate --schema packages/database/prisma/schema.prisma",
+    "db:push": "node scripts/run-with-env.mjs npx prisma db push --schema packages/database/prisma/schema.prisma",
+    "db:migrate": "node scripts/run-with-env.mjs npx prisma migrate dev --schema packages/database/prisma/schema.prisma",
+    "db:deploy": "node scripts/run-with-env.mjs npx prisma migrate deploy --schema packages/database/prisma/schema.prisma",
+    "db:seed": "node scripts/run-with-env.mjs npx tsx packages/database/prisma/seed.ts",
+    "db:studio": "node scripts/run-with-env.mjs npx prisma studio --schema packages/database/prisma/schema.prisma",
+    "worker": "node scripts/run-with-env.mjs npm run cli -w @football-ai/worker --",
+    "format": "prettier --write .",
+    "verify": "npm run typecheck && npm test && npm run lint && npm run build",
+    "setup:windows": "powershell -ExecutionPolicy Bypass -File ./scripts/windows-clean-install.ps1",
+    "dev:raw": "concurrently -n api,worker,web -c auto \"npm run dev -w @football-ai/api\" \"npm run dev -w @football-ai/worker\" \"npm run dev -w @football-ai/web\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "concurrently": "^9.2.1",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

@@ -11,8 +11,15 @@ import {
   settleSelection,
   type OverUnderConsensusRules,
 } from '@football-ai/engine';
-import { getOverUnderConsensusRules } from './config.js';
+import {
+  getLineupAnalysisRules,
+  getLineupHistoryLookback,
+  getOverUnderConsensusRules,
+} from './config.js';
+import { getFixtureLineupAnalysis } from './lineup-analysis.js';
 import { latestOverUnderOddsRows } from './recommendations.js';
+
+type BacktestOddsRow = Parameters<typeof latestOverUnderOddsRows>[0][number];
 
 export interface BacktestOptions {
   name?: string;
@@ -82,22 +89,39 @@ export async function runBacktest(options: BacktestOptions = {}): Promise<Backte
     ...getOverUnderConsensusRules(),
     ...options.rules,
   };
-  const modelVersion = 'odds-consensus-leave-one-out-ou-backtest-v1';
+  const lineupRules = getLineupAnalysisRules();
+  const lineupHistoryLookback = getLineupHistoryLookback();
+  const modelVersion = 'odds-consensus-lineup-ou-backtest-v1';
 
   if (dateFrom >= dateTo) throw new Error('Backtest dateFrom must be earlier than dateTo.');
+
+  const requestedLeagueId = options.leagueId;
+  const selectedLeague = requestedLeagueId
+    ? await prisma.league.findFirst({
+        where: {
+          OR: [{ id: requestedLeagueId }, { apiLeagueId: requestedLeagueId }],
+        },
+        orderBy: { id: 'asc' },
+      })
+    : null;
+
+  if (requestedLeagueId && !selectedLeague) {
+    throw new Error(`League not found for internal id or API league id: ${requestedLeagueId}`);
+  }
+  const resolvedLeagueId = selectedLeague?.id;
 
   const run = await prisma.backtestRun.create({
     data: {
       name:
         options.name?.trim() ||
         `OU odds consensus ${dateFrom.toISOString().slice(0, 10)} → ${dateTo.toISOString().slice(0, 10)}`,
-      leagueId: options.leagueId,
+      leagueId: resolvedLeagueId,
       dateFrom,
       dateTo,
       fixtureLimit,
       stakeUnits,
       modelVersion,
-      rules: rules as unknown as InputJsonValue,
+      rules: { odds: rules, lineup: lineupRules } as unknown as InputJsonValue,
       status: BacktestStatus.RUNNING,
     },
   });
@@ -109,9 +133,11 @@ export async function runBacktest(options: BacktestOptions = {}): Promise<Backte
         kickoffAt: { gte: dateFrom, lte: dateTo },
         homeGoals: { not: null },
         awayGoals: { not: null },
-        ...(options.leagueId ? { leagueId: options.leagueId } : {}),
+        ...(resolvedLeagueId ? { leagueId: resolvedLeagueId } : {}),
       },
       include: {
+        homeTeam: true,
+        awayTeam: true,
         oddsSnapshots: {
           where: { isLive: false },
           include: { bookmaker: true, market: true },
@@ -134,7 +160,9 @@ export async function runBacktest(options: BacktestOptions = {}): Promise<Backte
     let totalBets = 0;
 
     for (const fixture of fixtures) {
-      const pointInTimeOdds = fixture.oddsSnapshots.filter(
+      const pointInTimeOdds = (
+        fixture.oddsSnapshots as BacktestOddsRow[]
+      ).filter(
         (row) => row.capturedAt.getTime() < fixture.kickoffAt.getTime(),
       );
       const latestOdds = latestOverUnderOddsRows(pointInTimeOdds, rules.lineValue);
@@ -143,10 +171,22 @@ export async function runBacktest(options: BacktestOptions = {}): Promise<Backte
       const predictedAt = new Date(
         Math.max(...latestOdds.map((row) => row.capturedAt.getTime())),
       );
+      const lineupAnalysis = await getFixtureLineupAnalysis({
+        fixtureId: fixture.id,
+        homeTeamId: fixture.homeTeamId,
+        homeTeamName: fixture.homeTeam.name,
+        awayTeamId: fixture.awayTeamId,
+        awayTeamName: fixture.awayTeam.name,
+        kickoffAt: fixture.kickoffAt,
+        asOf: predictedAt,
+        historyLookback: lineupHistoryLookback,
+        rules: lineupRules,
+      });
       const candidates = buildOddsConsensusOverUnderCandidates({
         odds: latestOdds,
         rules,
         now: predictedAt,
+        lineupAnalysis,
       });
       if (candidates.length === 0) continue;
       eligibleFixtures += 1;

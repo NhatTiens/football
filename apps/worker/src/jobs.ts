@@ -4,12 +4,15 @@ import {
   settleRecommendations,
   syncFixtures,
   syncOdds,
+  syncLineups,
   syncPredictions,
 } from '@football-ai/sync';
 
 export type WorkerCommand =
   | 'sync-fixtures'
   | 'sync-odds'
+  | 'sync-lineups'
+  | 'sync-lineups-history'
   | 'sync-predictions'
   | 'generate'
   | 'settle'
@@ -30,6 +33,8 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
     let result: unknown;
     if (command === 'sync-fixtures') result = await syncFixtures();
     else if (command === 'sync-odds') result = await syncOdds();
+    else if (command === 'sync-lineups') result = await syncLineups();
+    else if (command === 'sync-lineups-history') result = await syncLineups({ includeHistory: true });
     else if (command === 'sync-predictions') result = await syncPredictions();
     else if (command === 'generate') result = await generateRecommendations();
     else if (command === 'settle') result = await settleRecommendations();
@@ -51,6 +56,7 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
       result = {
         fixtures: await syncFixtures(),
         odds: await syncOdds(),
+        lineups: await syncLineups(),
         predictions: await syncPredictions(),
         recommendations: await generateRecommendations(),
         settlement: await settleRecommendations(),

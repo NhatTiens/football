@@ -1,8 +1,20 @@
-# Football Value AI — Scientific UI + Point-in-time Backtest
+# Football Value AI — Odds + Lineup Analysis + Point-in-time Backtest
 
 MVP dùng **Next.js + React + Node.js/Express + MySQL/Prisma** để lưu odds, ước lượng xác suất, tính edge/EV và kiểm định recommendation bằng backtest không dùng dữ liệu tương lai.
 
 > Đây là công cụ hỗ trợ nghiên cứu xác suất. Không bảo đảm lợi nhuận, không tự động đặt cược và không thay thế việc đánh giá pháp lý/dữ liệu tại thị trường vận hành.
+
+
+## Bản 1.2 bổ sung đội hình
+
+- Đồng bộ `fixtures/lineups` thành snapshot, không ghi đè lịch sử.
+- Lưu cầu thủ đá chính, dự bị, vị trí, số áo, sơ đồ và huấn luyện viên.
+- Phân tích độ ổn định đội hình, số vị trí xoay tua và cầu thủ thường xuyên đá chính bị vắng.
+- Có thể yêu cầu đủ đội hình chính thức của cả hai đội trước khi tạo Over/Under recommendation.
+- Điều chỉnh xác suất đội hình có giới hạn và hiển thị rõ trong reasons.
+- Backtest chỉ dùng lineup snapshot tồn tại trước `predictedAt`, tránh data leakage.
+
+Xem `docs/LINEUPS.md`.
 
 ## Bản 1.1 bổ sung
 

@@ -1,0 +1,67 @@
+import {
+  generateRecommendations,
+  runBacktest,
+  settleRecommendations,
+  syncFixtures,
+  syncOdds,
+  syncPredictions,
+} from '@football-ai/sync';
+
+export type WorkerCommand =
+  | 'sync-fixtures'
+  | 'sync-odds'
+  | 'sync-predictions'
+  | 'generate'
+  | 'settle'
+  | 'backtest'
+  | 'full';
+
+let running = false;
+
+export async function executeJob(command: WorkerCommand): Promise<unknown> {
+  if (running) {
+    console.warn(`Skipping ${command}; another worker job is already running.`);
+    return { skipped: true };
+  }
+  running = true;
+  const startedAt = Date.now();
+  try {
+    console.log(`[worker] starting ${command}`);
+    let result: unknown;
+    if (command === 'sync-fixtures') result = await syncFixtures();
+    else if (command === 'sync-odds') result = await syncOdds();
+    else if (command === 'sync-predictions') result = await syncPredictions();
+    else if (command === 'generate') result = await generateRecommendations();
+    else if (command === 'settle') result = await settleRecommendations();
+    else if (command === 'backtest') {
+      result = await runBacktest({
+        from: process.env.BACKTEST_FROM,
+        to: process.env.BACKTEST_TO,
+        leagueId: process.env.BACKTEST_LEAGUE_ID
+          ? Number(process.env.BACKTEST_LEAGUE_ID)
+          : undefined,
+        fixtureLimit: process.env.BACKTEST_FIXTURE_LIMIT
+          ? Number(process.env.BACKTEST_FIXTURE_LIMIT)
+          : undefined,
+        stakeUnits: process.env.BACKTEST_STAKE_UNITS
+          ? Number(process.env.BACKTEST_STAKE_UNITS)
+          : undefined,
+      });
+    } else {
+      result = {
+        fixtures: await syncFixtures(),
+        odds: await syncOdds(),
+        predictions: await syncPredictions(),
+        recommendations: await generateRecommendations(),
+        settlement: await settleRecommendations(),
+      };
+    }
+    console.log(`[worker] completed ${command} in ${Date.now() - startedAt}ms`, result);
+    return result;
+  } catch (error) {
+    console.error(`[worker] failed ${command}`, error);
+    throw error;
+  } finally {
+    running = false;
+  }
+}

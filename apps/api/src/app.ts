@@ -7,10 +7,14 @@ import swaggerUi from 'swagger-ui-express';
 import { BacktestStatus, FixtureStatus, prisma, RecommendationStatus, SettlementResult } from '@football-ai/database';
 import {
   generateRecommendations,
+  getFixtureLineupAnalysis,
+  getLineupAnalysisRules,
+  getLineupHistoryLookback,
   runBacktest,
   settleRecommendations,
   syncFixtures,
   syncOdds,
+  syncLineups,
   syncPredictions,
 } from '@football-ai/sync';
 import { env } from './env.js';
@@ -149,6 +153,17 @@ app.get(
           orderBy: { capturedAt: 'desc' },
           take: 200,
         },
+        lineupSnapshots: {
+          include: {
+            team: true,
+            players: {
+              include: { player: true },
+              orderBy: [{ isStarter: 'desc' }, { lineupOrder: 'asc' }],
+            },
+          },
+          orderBy: { capturedAt: 'desc' },
+          take: 20,
+        },
         recommendations: {
           include: { bookmaker: true },
           orderBy: [{ status: 'asc' }, { rankNumber: 'asc' }],
@@ -166,6 +181,22 @@ app.get(
       if (!latestOdds.has(key)) latestOdds.set(key, row);
     }
 
+    const latestLineups = new Map<number, (typeof fixture.lineupSnapshots)[number]>();
+    for (const row of fixture.lineupSnapshots) {
+      if (!latestLineups.has(row.teamId)) latestLineups.set(row.teamId, row);
+    }
+    const lineupAnalysis = await getFixtureLineupAnalysis({
+      fixtureId: fixture.id,
+      homeTeamId: fixture.homeTeamId,
+      homeTeamName: fixture.homeTeam.name,
+      awayTeamId: fixture.awayTeamId,
+      awayTeamName: fixture.awayTeam.name,
+      kickoffAt: fixture.kickoffAt,
+      asOf: new Date(),
+      historyLookback: getLineupHistoryLookback(),
+      rules: getLineupAnalysisRules(),
+    });
+
     response.json({
       ...fixtureSummary(fixture),
       referee: fixture.referee,
@@ -181,6 +212,37 @@ app.get(
         odds: row.decimalOdds,
         capturedAt: row.capturedAt,
       })),
+      lineups: [...latestLineups.values()].map((lineup: any) => ({
+        id: lineup.id,
+        team: { id: lineup.team.id, name: lineup.team.name },
+        formation: lineup.formation,
+        coachName: lineup.coachName,
+        isConfirmed: lineup.isConfirmed,
+        starterCount: lineup.starterCount,
+        substituteCount: lineup.substituteCount,
+        capturedAt: lineup.capturedAt,
+        starters: lineup.players
+          .filter((entry: any) => entry.isStarter)
+          .map((entry: any) => ({
+            id: entry.player.id,
+            apiPlayerId: entry.player.apiPlayerId,
+            name: entry.player.name,
+            shirtNumber: entry.shirtNumber,
+            position: entry.position,
+            grid: entry.grid,
+          })),
+        substitutes: lineup.players
+          .filter((entry: any) => !entry.isStarter)
+          .map((entry: any) => ({
+            id: entry.player.id,
+            apiPlayerId: entry.player.apiPlayerId,
+            name: entry.player.name,
+            shirtNumber: entry.shirtNumber,
+            position: entry.position,
+            grid: entry.grid,
+          })),
+      })),
+      lineupAnalysis,
       recommendations: fixture.recommendations.map(recommendationDto),
     });
   }),
@@ -347,6 +409,21 @@ app.post(
   requireAdmin,
   asyncRoute(async (_request, response) => {
     response.json(await syncOdds());
+  }),
+);
+
+app.post(
+  '/api/admin/sync/lineups',
+  requireAdmin,
+  asyncRoute(async (request, response) => {
+    response.json(
+      await syncLineups({
+        fixtureIds: Array.isArray(request.body?.fixtureIds)
+          ? request.body.fixtureIds.map(Number).filter(Number.isInteger)
+          : undefined,
+        includeHistory: Boolean(request.body?.includeHistory),
+      }),
+    );
   }),
 );
 

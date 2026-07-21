@@ -11,6 +11,7 @@ if (!enabled) {
   const schedules = [
     [process.env.FIXTURE_SYNC_CRON ?? '0 */6 * * *', 'sync-fixtures'],
     [process.env.ODDS_SYNC_CRON ?? '*/15 * * * *', 'sync-odds'],
+    [process.env.LINEUP_SYNC_CRON ?? '*/10 * * * *', 'sync-lineups'],
     [process.env.PREDICTION_SYNC_CRON ?? '5 */1 * * *', 'sync-predictions'],
     [process.env.RECOMMENDATION_CRON ?? '*/15 * * * *', 'generate'],
     [process.env.SETTLEMENT_CRON ?? '10 */1 * * *', 'settle'],

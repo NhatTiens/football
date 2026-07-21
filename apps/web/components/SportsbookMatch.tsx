@@ -47,6 +47,9 @@ export function SportsbookMatch({ fixture }: { fixture: FixtureDetailDto }) {
   const [betSlip, setBetSlip] = useState<BestSelection[]>([]);
   const [stake, setStake] = useState('1');
 
+  const homeLineup = fixture.lineups.find((item) => item.team.id === fixture.homeTeam.id);
+  const awayLineup = fixture.lineups.find((item) => item.team.id === fixture.awayTeam.id);
+
   const selections = useMemo(() => {
     const recommendations = new Map(
       fixture.recommendations.map((item) => [
@@ -147,6 +150,68 @@ export function SportsbookMatch({ fixture }: { fixture: FixtureDetailDto }) {
           <div><span>Markets</span><strong>{markets.length}</strong></div>
           <div><span>Value picks</span><strong>{fixture.recommendations.length}</strong></div>
         </div>
+      </section>
+
+
+      <section className="lineup-lab-panel">
+        <div className="lineup-analysis-head">
+          <div>
+            <span className="eyebrow">LINEUP IMPACT</span>
+            <strong>Phân tích đội hình ra sân</strong>
+          </div>
+          <div className="lineup-impact-metrics">
+            <span>Over shift <b>{signedPercent(fixture.lineupAnalysis.overProbabilityAdjustment)}</b></span>
+            <span>Confidence × <b>{fixture.lineupAnalysis.confidenceMultiplier.toFixed(2)}</b></span>
+            <span className={fixture.lineupAnalysis.blockRecommendation ? 'blocked' : 'ready'}>
+              {fixture.lineupAnalysis.blockRecommendation ? 'Chờ đội hình' : 'Đã đánh giá'}
+            </span>
+          </div>
+        </div>
+
+        <div className="lineup-grid">
+          {[
+            { team: fixture.homeTeam, lineup: homeLineup, evidence: fixture.lineupAnalysis.home },
+            { team: fixture.awayTeam, lineup: awayLineup, evidence: fixture.lineupAnalysis.away },
+          ].map(({ team, lineup, evidence }) => (
+            <article className="lineup-team-card" key={team.id}>
+              <header>
+                <div>
+                  <small>{team.id === fixture.homeTeam.id ? 'HOME XI' : 'AWAY XI'}</small>
+                  <strong>{team.name}</strong>
+                </div>
+                <span className={lineup?.isConfirmed ? 'confirmed' : 'pending'}>
+                  {lineup?.isConfirmed ? 'Chính thức' : 'Chưa xác nhận'}
+                </span>
+              </header>
+              <div className="lineup-facts">
+                <span>Sơ đồ <b>{lineup?.formation ?? '—'}</b></span>
+                <span>Đổi vị trí <b>{evidence.rotationCount ?? '—'}</b></span>
+                <span>Lịch sử <b>{evidence.historyMatches} trận</b></span>
+              </div>
+              <ol className="starter-list">
+                {(lineup?.starters ?? []).map((player) => (
+                  <li key={player.id}>
+                    <span>{player.shirtNumber ?? '—'}</span>
+                    <strong>{player.name}</strong>
+                    <small>{player.position ?? '—'}</small>
+                  </li>
+                ))}
+              </ol>
+              {!lineup ? <p className="muted">Chưa có dữ liệu đội hình từ API.</p> : null}
+              {evidence.missingRegulars.length > 0 ? (
+                <p className="lineup-warning">
+                  Vắng thường xuyên đá chính: {evidence.missingRegulars.map((item) => item.playerName).join(', ')}
+                </p>
+              ) : null}
+            </article>
+          ))}
+        </div>
+
+        <ul className="lineup-reasons">
+          {fixture.lineupAnalysis.reasons.slice(0, 6).map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
       </section>
 
       <div className="sportsbook-layout">

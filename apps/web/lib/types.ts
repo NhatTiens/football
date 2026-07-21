@@ -86,6 +86,59 @@ export interface DashboardStats {
   }>;
 }
 
+
+export interface LineupPlayerDto {
+  id: number;
+  apiPlayerId: number;
+  name: string;
+  shirtNumber?: number | null;
+  position?: string | null;
+  grid?: string | null;
+}
+
+export interface FixtureLineupDto {
+  id: number;
+  team: { id: number; name: string };
+  formation?: string | null;
+  coachName?: string | null;
+  isConfirmed: boolean;
+  starterCount: number;
+  substituteCount: number;
+  capturedAt: string;
+  starters: LineupPlayerDto[];
+  substitutes: LineupPlayerDto[];
+}
+
+export interface TeamLineupEvidenceDto {
+  teamId: number;
+  teamName: string;
+  confirmed: boolean;
+  starterCount: number;
+  formation?: string | null;
+  historyMatches: number;
+  previousLineupOverlap?: number | null;
+  rotationCount?: number | null;
+  missingRegulars: Array<{
+    playerId: number;
+    playerName: string;
+    positionGroup: string;
+    starts: number;
+    historyMatches: number;
+    startRate: number;
+  }>;
+}
+
+export interface LineupAnalysisDto {
+  available: boolean;
+  blockRecommendation: boolean;
+  overProbabilityAdjustment: number;
+  confidenceMultiplier: number;
+  dataQualityMultiplier: number;
+  reasons: string[];
+  home: TeamLineupEvidenceDto;
+  away: TeamLineupEvidenceDto;
+}
+
 export interface FixtureDetailDto extends FixtureDto {
   referee?: string | null;
   externalPrediction?: {
@@ -107,6 +160,8 @@ export interface FixtureDetailDto extends FixtureDto {
     odds: number;
     capturedAt: string;
   }>;
+  lineups: FixtureLineupDto[];
+  lineupAnalysis: LineupAnalysisDto;
   recommendations: RecommendationDto[];
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@football-ai/api",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@football-ai/database": "1.0.0",
-    "@football-ai/sync": "1.0.0",
+    "@football-ai/database": "1.2.0",
+    "@football-ai/sync": "1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",

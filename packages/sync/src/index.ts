@@ -5,3 +5,5 @@ export * from './predictions.js';
 export * from './recommendations.js';
 export * from './settlement.js';
 export * from './backtest.js';
+export * from './lineups.js';
+export * from './lineup-analysis.js';

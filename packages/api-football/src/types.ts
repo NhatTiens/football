@@ -85,3 +85,31 @@ export interface PredictionResponse {
     percent?: { home?: string; draw?: string; away?: string };
   };
 }
+
+export interface LineupPlayerResponse {
+  player: {
+    id: number;
+    name: string;
+    number?: number | null;
+    pos?: string | null;
+    grid?: string | null;
+    photo?: string | null;
+  };
+}
+
+export interface LineupResponse {
+  team: {
+    id: number;
+    name: string;
+    logo?: string | null;
+    colors?: Record<string, unknown>;
+  };
+  formation?: string | null;
+  coach?: {
+    id?: number | null;
+    name?: string | null;
+    photo?: string | null;
+  };
+  startXI?: LineupPlayerResponse[];
+  substitutes?: LineupPlayerResponse[];
+}

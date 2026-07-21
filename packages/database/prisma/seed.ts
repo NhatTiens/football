@@ -75,7 +75,7 @@ async function createOdds(input: {
   for (let bookmakerIndex = 0; bookmakerIndex < input.bookmakers.length; bookmakerIndex += 1) {
     const bookmaker = input.bookmakers[bookmakerIndex]!;
     const capturedAt = new Date(
-      input.kickoffAt.getTime() - (8 - bookmakerIndex) * 3_600_000,
+      input.kickoffAt.getTime() - (90 - bookmakerIndex * 15) * 60_000,
     );
     const featuredSelection = (input.fixtureIndex + bookmakerIndex) % 7;
     const boost = (selectionIndex: number) => (featuredSelection === selectionIndex ? 1.1 : 1);
@@ -109,12 +109,99 @@ async function createOdds(input: {
   }
 }
 
+
+function demoPlayerPosition(index: number): string {
+  if (index === 0 || index === 13) return 'G';
+  if ([1, 2, 3, 4, 12, 14].includes(index)) return 'D';
+  if ([5, 6, 7, 15, 16].includes(index)) return 'M';
+  return 'F';
+}
+
+function demoGrid(position: string, order: number): string | null {
+  if (position === 'G') return '1:1';
+  if (position === 'D') return `2:${Math.max(1, Math.min(4, order))}`;
+  if (position === 'M') return `3:${Math.max(1, Math.min(3, order))}`;
+  if (position === 'F') return `4:${Math.max(1, Math.min(3, order))}`;
+  return null;
+}
+
+async function createDemoLineup(input: {
+  fixtureId: number;
+  teamId: number;
+  kickoffAt: Date;
+  fixtureIndex: number;
+  players: Array<{ id: number; name: string; defaultPosition: string | null }>;
+  sideSalt: number;
+}): Promise<void> {
+  const starterIndexes = Array.from({ length: 11 }, (_, index) => index);
+  if ((input.fixtureIndex + input.sideSalt) % 4 === 0) starterIndexes[10] = 11;
+  if ((input.fixtureIndex + input.sideSalt) % 5 === 0) starterIndexes[4] = 12;
+  if ((input.fixtureIndex + input.sideSalt) % 9 === 0) starterIndexes[0] = 13;
+
+  const starterSet = new Set(starterIndexes);
+  const substituteIndexes = input.players
+    .map((_, index) => index)
+    .filter((index) => !starterSet.has(index))
+    .slice(0, 7);
+  const capturedAt = new Date(input.kickoffAt.getTime() - 70 * 60_000);
+
+  await prisma.fixtureLineupSnapshot.create({
+    data: {
+      fixtureId: input.fixtureId,
+      teamId: input.teamId,
+      formation: '4-3-3',
+      coachName: 'Demo Coach',
+      isConfirmed: true,
+      starterCount: 11,
+      substituteCount: substituteIndexes.length,
+      contentHash: `demo-${input.fixtureId}-${input.teamId}-${starterIndexes.join('-')}`,
+      capturedAt,
+      rawPayload: { demo: true },
+      players: {
+        create: [
+          ...starterIndexes.map((playerIndex, order) => {
+            const player = input.players[playerIndex]!;
+            const position = player.defaultPosition ?? demoPlayerPosition(playerIndex);
+            const positionOrder =
+              starterIndexes
+                .slice(0, order + 1)
+                .map((index) => input.players[index]!.defaultPosition ?? demoPlayerPosition(index))
+                .filter((value) => value === position).length;
+            return {
+              playerId: player.id,
+              isStarter: true,
+              shirtNumber: playerIndex + 1,
+              position,
+              grid: demoGrid(position, positionOrder),
+              lineupOrder: order + 1,
+            };
+          }),
+          ...substituteIndexes.map((playerIndex, order) => {
+            const player = input.players[playerIndex]!;
+            return {
+              playerId: player.id,
+              isStarter: false,
+              shirtNumber: playerIndex + 1,
+              position: player.defaultPosition ?? demoPlayerPosition(playerIndex),
+              grid: null,
+              lineupOrder: order + 1,
+            };
+          }),
+        ],
+      },
+    },
+  });
+}
+
 async function main(): Promise<void> {
   await prisma.backtestBet.deleteMany();
   await prisma.backtestRun.deleteMany();
   await prisma.recommendation.deleteMany();
   await prisma.oddsSnapshot.deleteMany();
   await prisma.externalPrediction.deleteMany();
+  await prisma.fixtureLineupPlayer.deleteMany();
+  await prisma.fixtureLineupSnapshot.deleteMany();
+  await prisma.player.deleteMany();
   await prisma.fixture.deleteMany();
   await prisma.bettingMarket.deleteMany();
   await prisma.bookmaker.deleteMany();
@@ -145,6 +232,26 @@ async function main(): Promise<void> {
         },
       }),
     );
+  }
+
+  const teamPlayers = new Map<number, Array<{ id: number; name: string; defaultPosition: string | null }>>();
+  for (let teamIndex = 0; teamIndex < createdTeams.length; teamIndex += 1) {
+    const team = createdTeams[teamIndex]!;
+    const profile = teams[teamIndex]!;
+    const players = [];
+    for (let playerIndex = 0; playerIndex < 18; playerIndex += 1) {
+      const position = demoPlayerPosition(playerIndex);
+      players.push(
+        await prisma.player.create({
+          data: {
+            apiPlayerId: profile.apiTeamId * 1000 + playerIndex + 1,
+            name: `${profile.code} Player ${playerIndex + 1}`,
+            defaultPosition: position,
+          },
+        }),
+      );
+    }
+    teamPlayers.set(team.id, players);
   }
 
   const bookmakers = [];
@@ -226,6 +333,22 @@ async function main(): Promise<void> {
         capturedAt: new Date(kickoffAt.getTime() - 10 * 3_600_000),
       },
     });
+    await createDemoLineup({
+      fixtureId: fixture.id,
+      teamId: fixture.homeTeamId,
+      kickoffAt,
+      fixtureIndex: index,
+      players: teamPlayers.get(fixture.homeTeamId)!,
+      sideSalt: 1,
+    });
+    await createDemoLineup({
+      fixtureId: fixture.id,
+      teamId: fixture.awayTeamId,
+      kickoffAt,
+      fixtureIndex: index,
+      players: teamPlayers.get(fixture.awayTeamId)!,
+      sideSalt: 3,
+    });
   }
 
   const upcomingPairs = [[0, 1], [2, 3], [4, 5], [6, 7]] as const;
@@ -275,6 +398,22 @@ async function main(): Promise<void> {
         capturedAt: new Date(kickoffAt.getTime() - 10 * 3_600_000),
       },
     });
+    await createDemoLineup({
+      fixtureId: fixture.id,
+      teamId: fixture.homeTeamId,
+      kickoffAt,
+      fixtureIndex: historicalCount + index,
+      players: teamPlayers.get(fixture.homeTeamId)!,
+      sideSalt: 1,
+    });
+    await createDemoLineup({
+      fixtureId: fixture.id,
+      teamId: fixture.awayTeamId,
+      kickoffAt,
+      fixtureIndex: historicalCount + index,
+      players: teamPlayers.get(fixture.awayTeamId)!,
+      sideSalt: 3,
+    });
   }
 
   await prisma.appSetting.upsert({
@@ -283,7 +422,7 @@ async function main(): Promise<void> {
     create: { key: 'demo_mode', value: true },
   });
 
-  console.log(`Seeded ${historicalCount} completed fixtures, historical odds, and ${upcomingPairs.length} upcoming fixtures.`);
+  console.log(`Seeded ${historicalCount} completed fixtures, odds, confirmed lineups, and ${upcomingPairs.length} upcoming fixtures.`);
 }
 
 main()
