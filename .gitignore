@@ -8,3 +8,5 @@ coverage
 *.log
 .DS_Store
 packages/database/prisma/dev.db
+
+.prediction-v6-backup/
