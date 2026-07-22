@@ -16,16 +16,10 @@ import {
   RecommendationStatus,
   type InputJsonValue,
 } from '@football-ai/database';
-import {
-  getFixtureHoursAhead,
-  getLineupAnalysisRules,
-  getRecommendationRules,
-} from './config.js';
-import { getFixtureLineupAnalysis } from './lineup-analysis.js';
+import { getFixtureHoursAhead, getRecommendationRules } from './config.js';
 import { runTrackedSync, type SyncSummary } from './tracking.js';
 
 type OverUnderSelection = 'OVER' | 'UNDER';
-type FixtureLineupAnalysis = Awaited<ReturnType<typeof getFixtureLineupAnalysis>>;
 
 interface OddsSnapshotRow {
   id: number;
@@ -477,9 +471,7 @@ function buildCandidatesForLine(input: {
   rules: OddsDrivenOverUnderRules;
   now: Date;
   lineValue: number;
-  lineupAnalysis?: FixtureLineupAnalysis;
 }): OddsDrivenOverUnderCandidate[] {
-  if (input.lineupAnalysis?.blockRecommendation) return [];
   const completeMarkets = buildCompleteOverUnderMarkets(
     input.odds,
     input.lineValue,
@@ -514,14 +506,7 @@ function buildCandidatesForLine(input: {
           ? market.fairOverProbability
           : market.fairUnderProbability,
       );
-      const marketConsensusProbability = median(referenceProbabilities);
-      const lineupAdjustment = input.lineupAnalysis?.overProbabilityAdjustment ?? 0;
-      const consensusProbability = clamp(
-        marketConsensusProbability +
-          (selectionCode === 'OVER' ? lineupAdjustment : -lineupAdjustment),
-        0.01,
-        0.99,
-      );
+      const consensusProbability = median(referenceProbabilities);
       const probabilityStddev = standardDeviation(referenceProbabilities);
       const oddsAgeMinutes = pairAgeMinutes(candidateMarket, input.now);
       const selectionEdge = consensusProbability - candidateFairProbability;
@@ -529,19 +514,14 @@ function buildCandidatesForLine(input: {
         consensusProbability,
         candidateQuote.decimalOdds,
       );
-      const baseConfidenceScore = calculateOddsConfidence({
+      const confidenceScore = calculateOddsConfidence({
         referenceBookmakerCount: referenceMarkets.length,
         probabilityStddev,
         oddsAgeMinutes,
         maximumProbabilityStddev: input.rules.maximumProbabilityStddev,
         maximumOddsAgeMinutes: input.rules.maximumOddsAgeMinutes,
       });
-      const confidenceScore = clamp(
-        baseConfidenceScore * (input.lineupAnalysis?.confidenceMultiplier ?? 1),
-        0,
-        1,
-      );
-      const baseDataQualityScore = calculateOddsDataQuality({
+      const dataQualityScore = calculateOddsDataQuality({
         completeBookmakerCount: freshMarkets.length,
         referenceBookmakerCount: referenceMarkets.length,
         probabilityStddev,
@@ -549,11 +529,6 @@ function buildCandidatesForLine(input: {
         maximumProbabilityStddev: input.rules.maximumProbabilityStddev,
         maximumOddsAgeMinutes: input.rules.maximumOddsAgeMinutes,
       });
-      const dataQualityScore = clamp(
-        baseDataQualityScore * (input.lineupAnalysis?.dataQualityMultiplier ?? 1),
-        0,
-        1,
-      );
       const recommendationScore =
         Math.max(0, selectionExpectedValue) * confidenceScore * dataQualityScore;
 
@@ -600,14 +575,6 @@ function buildCandidatesForLine(input: {
           `EV ${(selectionExpectedValue * 100).toFixed(1)}%, edge ${(selectionEdge * 100).toFixed(1)} điểm %.`,
           `Odds ${candidateQuote.decimalOdds.toFixed(2)} tại ${candidateQuote.bookmakerName}.`,
           `Độ lệch xác suất ${(probabilityStddev * 100).toFixed(2)}%, confidence ${(confidenceScore * 100).toFixed(0)}%.`,
-          ...(input.lineupAnalysis?.available
-            ? [
-                `Điều chỉnh đội hình cho Over: ${(
-                  input.lineupAnalysis.overProbabilityAdjustment * 100
-                ).toFixed(1)} điểm %.`,
-                ...input.lineupAnalysis.reasons,
-              ]
-            : []),
         ],
       });
     }
@@ -634,9 +601,7 @@ export function buildOddsDrivenOverUnderCandidates(input: {
   odds: LatestOdds[];
   rules: OddsDrivenOverUnderRules;
   now: Date;
-  lineupAnalysis?: FixtureLineupAnalysis;
 }): OddsDrivenOverUnderCandidate[] {
-  if (input.lineupAnalysis?.blockRecommendation) return [];
   const lineValues = getOverUnderLineValues(
     input.odds,
     input.rules.allowedLineValues,
@@ -649,7 +614,6 @@ export function buildOddsDrivenOverUnderCandidates(input: {
       rules: input.rules,
       now: input.now,
       lineValue,
-      lineupAnalysis: input.lineupAnalysis,
     });
 
     if (input.rules.maximumRecommendationsPerLine === 0) {
@@ -689,8 +653,6 @@ export async function generateRecommendations(): Promise<SyncSummary> {
         },
       },
       include: {
-        homeTeam: true,
-        awayTeam: true,
         oddsSnapshots: {
           where: {
             isLive: false,
@@ -722,32 +684,10 @@ export async function generateRecommendations(): Promise<SyncSummary> {
         latestOdds,
         rules.allowedLineValues,
       ).length;
-      const lineupAnalysis = await getFixtureLineupAnalysis({
-        fixtureId: fixture.id,
-        homeTeamId: fixture.homeTeamId,
-        homeTeamName: fixture.homeTeam.name,
-        awayTeamId: fixture.awayTeamId,
-        awayTeamName: fixture.awayTeam.name,
-        kickoffAt: fixture.kickoffAt,
-        asOf: now,
-        historyLookback: Math.max(1, Number(process.env.LINEUP_HISTORY_LOOKBACK ?? 20)),
-        rules: getLineupAnalysisRules(),
-      });
-      console.log('[recommendation-lineup]', {
-        fixtureId: fixture.id,
-        available: lineupAnalysis.available,
-        blockRecommendation: lineupAnalysis.blockRecommendation,
-        overProbabilityAdjustment: lineupAnalysis.overProbabilityAdjustment,
-        confidenceMultiplier: lineupAnalysis.confidenceMultiplier,
-        dataQualityMultiplier: lineupAnalysis.dataQualityMultiplier,
-        reasons: lineupAnalysis.reasons,
-      });
-
       const candidates = buildOddsDrivenOverUnderCandidates({
         odds: latestOdds,
         rules,
         now,
-        lineupAnalysis,
       });
 
       // Recommendation cũ phải hết hiệu lực trước khi ghi kết quả mới.
@@ -803,7 +743,7 @@ export async function generateRecommendations(): Promise<SyncSummary> {
             dataQualityScore: candidate.dataQualityScore,
             recommendationScore: candidate.recommendationScore,
             rankNumber: index + 1,
-            modelVersion: 'odds-ou-all-lines-lineup-v3',
+            modelVersion: 'odds-ou-all-lines-leave-one-out-v2',
             reasons: candidate.reasons as InputJsonValue,
             generatedAt: now,
             expiresAt,
@@ -838,7 +778,7 @@ export async function generateRecommendations(): Promise<SyncSummary> {
         maximumRecommendationsPerLine: rules.maximumRecommendationsPerLine,
         maximumRecommendationsPerFixture:
           rules.maximumRecommendationsPerFixture,
-        modelVersion: 'odds-ou-all-lines-lineup-v3',
+        modelVersion: 'odds-ou-all-lines-leave-one-out-v2',
       },
     };
   });

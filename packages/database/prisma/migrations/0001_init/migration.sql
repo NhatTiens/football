@@ -102,7 +102,7 @@ CREATE TABLE `OddsSnapshot` (
   `capturedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `rawPayload` JSON NULL,
   INDEX `OddsSnapshot_fixtureId_marketId_capturedAt_idx` (`fixtureId`, `marketId`, `capturedAt`),
-  INDEX `OddsSnapshot_fixtureId_bookmakerId_marketId_selectionCode_capturedAt_idx` (`fixtureId`, `bookmakerId`, `marketId`, `selectionCode`, `capturedAt`),
+  INDEX `OddsSnapshot_fixture_bookmaker_market_selection_captured_idx` (`fixtureId`, `bookmakerId`, `marketId`, `selectionCode`, `capturedAt`),
   PRIMARY KEY (`id`),
   CONSTRAINT `OddsSnapshot_fixtureId_fkey` FOREIGN KEY (`fixtureId`) REFERENCES `Fixture` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `OddsSnapshot_bookmakerId_fkey` FOREIGN KEY (`bookmakerId`) REFERENCES `Bookmaker` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -201,3 +201,4 @@ CREATE TABLE `AppSetting` (
   `updatedAt` DATETIME(3) NOT NULL,
   PRIMARY KEY (`key`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
