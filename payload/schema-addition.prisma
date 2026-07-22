@@ -1,0 +1,57 @@
+
+model FixtureTeamMetric {
+  id                  Int      @id @default(autoincrement())
+  fixtureId           Int
+  teamId              Int
+  expectedGoals       Float?
+  expectedGoalsSource String?
+  shots               Int?
+  shotsOnGoal         Int?
+  possession          Float?
+  corners             Int?
+  fouls               Int?
+  yellowCards         Int?
+  redCards            Int?
+  capturedAt          DateTime @default(now())
+  rawPayload          Json?
+
+  @@unique([fixtureId, teamId])
+  @@index([teamId, fixtureId])
+  @@index([capturedAt])
+}
+
+model FixtureInjury {
+  id          Int      @id @default(autoincrement())
+  fixtureId   Int
+  teamId      Int
+  apiPlayerId Int
+  playerName  String
+  reason      String?
+  injuryType  String?
+  capturedAt  DateTime @default(now())
+  rawPayload  Json?
+
+  @@unique([fixtureId, teamId, apiPlayerId])
+  @@index([teamId, fixtureId])
+  @@index([capturedAt])
+}
+
+model TeamElo {
+  teamId    Int      @id
+  leagueId  Int
+  rating    Float    @default(1500)
+  matches   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@index([leagueId, rating])
+}
+
+model FixtureScientificCoverage {
+  fixtureId            Int       @id
+  statisticsFetchedAt DateTime?
+  injuriesFetchedAt   DateTime?
+  updatedAt            DateTime  @updatedAt
+
+  @@index([statisticsFetchedAt])
+  @@index([injuriesFetchedAt])
+}

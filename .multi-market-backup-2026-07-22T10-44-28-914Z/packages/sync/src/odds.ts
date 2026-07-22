@@ -33,16 +33,14 @@ function normalizeMarket(betName: string, value: string): NormalizedMarket | nul
 
   if (market.includes('goals over/under') || market.includes('over/under')) {
     const match = selection.match(/(over|under)\s*([0-9.]+)/i);
-    if (!match) return null;
-    const lineValue = Number(match[2]);
-    if (!Number.isFinite(lineValue) || lineValue < 0) return null;
+    if (!match || Number(match[2]) !== 2.5) return null;
     return {
       marketCode: 'TOTAL_GOALS_2_5',
-      marketName: `Goals Over/Under ${lineValue}`,
+      marketName: 'Goals Over/Under 2.5',
       marketGroup: 'TOTALS',
       selectionCode: match[1]!.toUpperCase(),
       selectionName: value,
-      lineValue,
+      lineValue: 2.5,
     };
   }
 

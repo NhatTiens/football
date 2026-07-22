@@ -7,8 +7,3 @@ export * from './settlement.js';
 export * from './backtest.js';
 export * from './lineups.js';
 export * from './lineup-analysis.js';
-export * from './scientific-model.js';
-export * from './scientific-features.js';
-export * from './scientific-sync.js';
-export * from './scientific-recommendations.js';
-export * from './scientific-backtest.js';

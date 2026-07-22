@@ -1,4 +1,3 @@
-import { generateScientificRecommendations } from './scientific-recommendations.js';
 import {
   clamp,
   expectedValue,
@@ -673,6 +672,174 @@ export function buildOddsDrivenOverUnderCandidates(input: {
   return candidates.slice(0, input.rules.maximumRecommendationsPerFixture);
 }
 
-export async function generateRecommendations() {
-  return generateScientificRecommendations();
+export async function generateRecommendations(): Promise<SyncSummary> {
+  return runTrackedSync('generate-recommendations', async () => {
+    const now = new Date();
+    const maximumKickoff = new Date(
+      now.getTime() + getFixtureHoursAhead() * 3_600_000,
+    );
+    const rules = getOddsDrivenOverUnderRules();
+
+    const fixtures = await prisma.fixture.findMany({
+      where: {
+        status: FixtureStatus.UPCOMING,
+        kickoffAt: {
+          gte: now,
+          lte: maximumKickoff,
+        },
+      },
+      include: {
+        homeTeam: true,
+        awayTeam: true,
+        oddsSnapshots: {
+          where: {
+            isLive: false,
+          },
+          include: {
+            bookmaker: true,
+            market: true,
+          },
+          orderBy: {
+            capturedAt: 'desc',
+          },
+        },
+      },
+      orderBy: {
+        kickoffAt: 'asc',
+      },
+    });
+
+    let processed = 0;
+    let inserted = 0;
+    let noBetFixtures = 0;
+    let totalLinesFound = 0;
+
+    for (const fixture of fixtures) {
+      processed += 1;
+
+      const latestOdds = latestOddsRows(fixture.oddsSnapshots);
+      totalLinesFound += getOverUnderLineValues(
+        latestOdds,
+        rules.allowedLineValues,
+      ).length;
+      const lineupAnalysis = await getFixtureLineupAnalysis({
+        fixtureId: fixture.id,
+        homeTeamId: fixture.homeTeamId,
+        homeTeamName: fixture.homeTeam.name,
+        awayTeamId: fixture.awayTeamId,
+        awayTeamName: fixture.awayTeam.name,
+        kickoffAt: fixture.kickoffAt,
+        asOf: now,
+        historyLookback: Math.max(1, Number(process.env.LINEUP_HISTORY_LOOKBACK ?? 20)),
+        rules: getLineupAnalysisRules(),
+      });
+      console.log('[recommendation-lineup]', {
+        fixtureId: fixture.id,
+        available: lineupAnalysis.available,
+        blockRecommendation: lineupAnalysis.blockRecommendation,
+        overProbabilityAdjustment: lineupAnalysis.overProbabilityAdjustment,
+        confidenceMultiplier: lineupAnalysis.confidenceMultiplier,
+        dataQualityMultiplier: lineupAnalysis.dataQualityMultiplier,
+        reasons: lineupAnalysis.reasons,
+      });
+
+      const candidates = buildOddsDrivenOverUnderCandidates({
+        odds: latestOdds,
+        rules,
+        now,
+        lineupAnalysis,
+      });
+
+      // Recommendation cũ phải hết hiệu lực trước khi ghi kết quả mới.
+      await prisma.recommendation.updateMany({
+        where: {
+          fixtureId: fixture.id,
+          status: RecommendationStatus.ACTIVE,
+        },
+        data: {
+          status: RecommendationStatus.EXPIRED,
+        },
+      });
+
+      if (candidates.length === 0) {
+        noBetFixtures += 1;
+        continue;
+      }
+
+      const expiryByFreshness =
+        now.getTime() + Math.min(30, rules.maximumOddsAgeMinutes) * 60_000;
+      const expiryBeforeKickoff = fixture.kickoffAt.getTime() - 60_000;
+      const expiresAt = new Date(
+        Math.max(
+          now.getTime(),
+          Math.min(expiryByFreshness, expiryBeforeKickoff),
+        ),
+      );
+
+      for (let index = 0; index < candidates.length; index += 1) {
+        const candidate = candidates[index]!;
+
+        await prisma.recommendation.create({
+          data: {
+            fixtureId: fixture.id,
+            bookmakerId: candidate.bookmakerId,
+            oddsSnapshotId: candidate.oddsSnapshotId,
+            marketCode: candidate.marketCode,
+            marketName: candidate.marketName,
+            marketGroup: candidate.marketGroup,
+            selectionCode: candidate.selectionCode,
+            selectionName: candidate.selectionName,
+            lineValue: candidate.lineValue,
+            decimalOdds: candidate.decimalOdds,
+
+            // Không đổi schema để tránh migration:
+            // modelProbability hiện mang nghĩa consensus probability.
+            modelProbability: candidate.consensusProbability,
+            fairMarketProbability: candidate.candidateFairProbability,
+            impliedProbability: candidate.impliedProbability,
+            edge: candidate.edge,
+            expectedValue: candidate.expectedValue,
+            confidenceScore: candidate.confidenceScore,
+            dataQualityScore: candidate.dataQualityScore,
+            recommendationScore: candidate.recommendationScore,
+            rankNumber: index + 1,
+            modelVersion: 'odds-ou-all-lines-lineup-v3',
+            reasons: candidate.reasons as InputJsonValue,
+            generatedAt: now,
+            expiresAt,
+          },
+        });
+
+        inserted += 1;
+      }
+    }
+
+    await prisma.recommendation.updateMany({
+      where: {
+        status: RecommendationStatus.ACTIVE,
+        expiresAt: {
+          lte: now,
+        },
+      },
+      data: {
+        status: RecommendationStatus.EXPIRED,
+      },
+    });
+
+    return {
+      processed,
+      inserted,
+      updated: 0,
+      metadata: {
+        fixtures: fixtures.length,
+        noBetFixtures,
+        totalLinesFound,
+        allowedLineValues: rules.allowedLineValues ?? 'ALL',
+        maximumRecommendationsPerLine: rules.maximumRecommendationsPerLine,
+        maximumRecommendationsPerFixture:
+          rules.maximumRecommendationsPerFixture,
+        modelVersion: 'odds-ou-all-lines-lineup-v3',
+      },
+    };
+  });
 }

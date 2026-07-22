@@ -1,16 +1,11 @@
 import {
   generateRecommendations,
-  rebuildScientificElo,
   runBacktest,
-  runScientificBacktest,
   settleRecommendations,
   syncFixtures,
-  syncLineups,
   syncOdds,
+  syncLineups,
   syncPredictions,
-  syncScientificInjuries,
-  syncScientificStatistics,
-  trainScientificModel,
 } from '@football-ai/sync';
 
 export type WorkerCommand =
@@ -19,15 +14,9 @@ export type WorkerCommand =
   | 'sync-lineups'
   | 'sync-lineups-history'
   | 'sync-predictions'
-  | 'sync-scientific-stats'
-  | 'sync-scientific-injuries'
-  | 'rebuild-elo'
-  | 'train-scientific'
   | 'generate'
   | 'settle'
   | 'backtest'
-  | 'scientific-backtest'
-  | 'scientific-full'
   | 'full';
 
 let running = false;
@@ -37,26 +26,16 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
     console.warn(`Skipping ${command}; another worker job is already running.`);
     return { skipped: true };
   }
-
   running = true;
   const startedAt = Date.now();
-
   try {
     console.log(`[worker] starting ${command}`);
     let result: unknown;
-
     if (command === 'sync-fixtures') result = await syncFixtures();
     else if (command === 'sync-odds') result = await syncOdds();
     else if (command === 'sync-lineups') result = await syncLineups();
-    else if (command === 'sync-lineups-history') {
-      result = await syncLineups({ includeHistory: true });
-    } else if (command === 'sync-predictions') result = await syncPredictions();
-    else if (command === 'sync-scientific-stats') {
-      result = await syncScientificStatistics();
-    } else if (command === 'sync-scientific-injuries') {
-      result = await syncScientificInjuries();
-    } else if (command === 'rebuild-elo') result = await rebuildScientificElo();
-    else if (command === 'train-scientific') result = await trainScientificModel();
+    else if (command === 'sync-lineups-history') result = await syncLineups({ includeHistory: true });
+    else if (command === 'sync-predictions') result = await syncPredictions();
     else if (command === 'generate') result = await generateRecommendations();
     else if (command === 'settle') result = await settleRecommendations();
     else if (command === 'backtest') {
@@ -73,28 +52,6 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
           ? Number(process.env.BACKTEST_STAKE_UNITS)
           : undefined,
       });
-    } else if (command === 'scientific-backtest') {
-      result = await runScientificBacktest({
-        from: process.env.BACKTEST_FROM,
-        to: process.env.BACKTEST_TO,
-        leagueId: process.env.BACKTEST_LEAGUE_ID
-          ? Number(process.env.BACKTEST_LEAGUE_ID)
-          : undefined,
-        fixtureLimit: process.env.BACKTEST_FIXTURE_LIMIT
-          ? Number(process.env.BACKTEST_FIXTURE_LIMIT)
-          : undefined,
-        stakeUnits: process.env.BACKTEST_STAKE_UNITS
-          ? Number(process.env.BACKTEST_STAKE_UNITS)
-          : undefined,
-      });
-    } else if (command === 'scientific-full') {
-      result = {
-        statistics: await syncScientificStatistics(),
-        injuries: await syncScientificInjuries(),
-        elo: await rebuildScientificElo(),
-        training: await trainScientificModel(),
-        recommendations: await generateRecommendations(),
-      };
     } else {
       result = {
         fixtures: await syncFixtures(),
@@ -105,11 +62,7 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
         settlement: await settleRecommendations(),
       };
     }
-
-    console.log(
-      `[worker] completed ${command} in ${Date.now() - startedAt}ms`,
-      result,
-    );
+    console.log(`[worker] completed ${command} in ${Date.now() - startedAt}ms`, result);
     return result;
   } catch (error) {
     console.error(`[worker] failed ${command}`, error);

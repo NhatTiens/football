@@ -1,0 +1,316 @@
+import {
+  clamp,
+  expectedValue,
+  impliedProbability,
+  median,
+  removeVig,
+  standardDeviation,
+  type LatestOdds,
+  type RecommendationRules,
+} from '@football-ai/engine';
+
+type GenericMarketCode = 'MATCH_WINNER' | 'BTTS';
+
+type LineupSignal = {
+  available: boolean;
+  blockRecommendation: boolean;
+  overProbabilityAdjustment: number;
+  confidenceMultiplier: number;
+  dataQualityMultiplier: number;
+  reasons: string[];
+};
+
+export interface GenericMarketCandidate {
+  oddsSnapshotId: number;
+  bookmakerId: number;
+  bookmakerName: string;
+  marketCode: GenericMarketCode;
+  marketName: string;
+  marketGroup: string;
+  selectionCode: string;
+  selectionName: string;
+  lineValue: number | null;
+  decimalOdds: number;
+  consensusProbability: number;
+  candidateFairProbability: number;
+  impliedProbability: number;
+  edge: number;
+  expectedValue: number;
+  confidenceScore: number;
+  dataQualityScore: number;
+  recommendationScore: number;
+  referenceBookmakerCount: number;
+  probabilityStddev: number;
+  reasons: string[];
+}
+
+type CompleteBookmakerMarket = {
+  bookmakerId: number;
+  bookmakerName: string;
+  quotes: Map<string, LatestOdds>;
+  fairProbabilities: Map<string, number>;
+  ageMinutes: number;
+};
+
+function numberEnvironment(name: string, fallback: number): number {
+  const parsed = Number(process.env[name]);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function integerEnvironment(name: string, fallback: number): number {
+  return Math.max(0, Math.floor(numberEnvironment(name, fallback)));
+}
+
+function enabledMarkets(): GenericMarketCode[] {
+  const raw = process.env.GENERIC_MARKETS?.trim() || 'MATCH_WINNER,BTTS';
+  const allowed = new Set<GenericMarketCode>(['MATCH_WINNER', 'BTTS']);
+  return raw
+    .split(',')
+    .map((value) => value.trim().toUpperCase())
+    .filter((value): value is GenericMarketCode => allowed.has(value as GenericMarketCode));
+}
+
+function requiredSelections(marketCode: GenericMarketCode): string[] {
+  return marketCode === 'MATCH_WINNER' ? ['HOME', 'DRAW', 'AWAY'] : ['YES', 'NO'];
+}
+
+function completeMarkets(input: {
+  odds: LatestOdds[];
+  marketCode: GenericMarketCode;
+  now: Date;
+  maximumOddsAgeMinutes: number;
+}): CompleteBookmakerMarket[] {
+  const required = requiredSelections(input.marketCode);
+  const byBookmaker = new Map<number, LatestOdds[]>();
+
+  for (const row of input.odds) {
+    if (row.marketCode !== input.marketCode) continue;
+    if (!required.includes(row.selectionCode)) continue;
+    if (!Number.isFinite(row.decimalOdds) || row.decimalOdds <= 1) continue;
+    byBookmaker.set(row.bookmakerId, [...(byBookmaker.get(row.bookmakerId) ?? []), row]);
+  }
+
+  const result: CompleteBookmakerMarket[] = [];
+  for (const rows of byBookmaker.values()) {
+    const quotes = new Map<string, LatestOdds>();
+    for (const selection of required) {
+      const row = rows.find((candidate) => candidate.selectionCode === selection);
+      if (row) quotes.set(selection, row);
+    }
+    if (quotes.size !== required.length) continue;
+
+    const fair = removeVig(
+      required.map((selection) => ({
+        code: selection,
+        odds: quotes.get(selection)!.decimalOdds,
+      })),
+    );
+    const fairProbabilities = new Map(
+      fair.map((selection) => [selection.code, selection.fairProbability]),
+    );
+    if (fairProbabilities.size !== required.length) continue;
+
+    const oldest = Math.min(...[...quotes.values()].map((quote) => quote.capturedAt.getTime()));
+    const ageMinutes = Math.max(0, (input.now.getTime() - oldest) / 60_000);
+    if (ageMinutes > input.maximumOddsAgeMinutes) continue;
+
+    const representative = quotes.get(required[0])!;
+    result.push({
+      bookmakerId: representative.bookmakerId,
+      bookmakerName: representative.bookmakerName,
+      quotes,
+      fairProbabilities,
+      ageMinutes,
+    });
+  }
+  return result;
+}
+
+function confidenceScore(input: {
+  references: number;
+  probabilityStddev: number;
+  oddsAgeMinutes: number;
+  maximumProbabilityStddev: number;
+  maximumOddsAgeMinutes: number;
+}): number {
+  const bookmakerScore = clamp(input.references / 5, 0, 1);
+  const stabilityScore = clamp(
+    1 - input.probabilityStddev / Math.max(input.maximumProbabilityStddev, 0.0001),
+    0,
+    1,
+  );
+  const freshnessScore = clamp(
+    1 - input.oddsAgeMinutes / Math.max(input.maximumOddsAgeMinutes, 1),
+    0,
+    1,
+  );
+  return clamp(bookmakerScore * 0.4 + stabilityScore * 0.4 + freshnessScore * 0.2, 0, 1);
+}
+
+function dataQualityScore(input: {
+  completeMarkets: number;
+  references: number;
+  probabilityStddev: number;
+  oddsAgeMinutes: number;
+  maximumProbabilityStddev: number;
+  maximumOddsAgeMinutes: number;
+}): number {
+  const completeScore = clamp(input.completeMarkets / 5, 0, 1);
+  const referenceScore = clamp(input.references / 4, 0, 1);
+  const stabilityScore = clamp(
+    1 - input.probabilityStddev / Math.max(input.maximumProbabilityStddev, 0.0001),
+    0,
+    1,
+  );
+  const freshnessScore = clamp(
+    1 - input.oddsAgeMinutes / Math.max(input.maximumOddsAgeMinutes, 1),
+    0,
+    1,
+  );
+  return clamp(
+    completeScore * 0.35 + referenceScore * 0.25 + stabilityScore * 0.25 + freshnessScore * 0.15,
+    0,
+    1,
+  );
+}
+
+export function buildGenericMarketConsensusCandidates(input: {
+  odds: LatestOdds[];
+  rules: RecommendationRules;
+  now: Date;
+  lineupAnalysis?: LineupSignal;
+}): GenericMarketCandidate[] {
+  if (input.lineupAnalysis?.blockRecommendation) return [];
+
+  const minimumCompleteBookmakers = Math.max(
+    2,
+    integerEnvironment('GENERIC_MIN_COMPLETE_BOOKMAKERS', Math.max(3, input.rules.minimumBookmakers)),
+  );
+  const minimumReferenceBookmakers = Math.max(
+    1,
+    integerEnvironment('GENERIC_MIN_REFERENCE_BOOKMAKERS', 2),
+  );
+  const maximumProbabilityStddev = numberEnvironment('GENERIC_MAX_PROBABILITY_STDDEV', 0.05);
+  const maxPerMarket = integerEnvironment('GENERIC_MAX_RECOMMENDATIONS_PER_MARKET', 1);
+  const maxPerFixture = integerEnvironment('GENERIC_MAX_RECOMMENDATIONS_PER_FIXTURE', 2);
+
+  const allCandidates: GenericMarketCandidate[] = [];
+  for (const marketCode of enabledMarkets()) {
+    const complete = completeMarkets({
+      odds: input.odds,
+      marketCode,
+      now: input.now,
+      maximumOddsAgeMinutes: input.rules.maximumOddsAgeMinutes,
+    });
+    if (complete.length < minimumCompleteBookmakers) continue;
+
+    const marketCandidates: GenericMarketCandidate[] = [];
+    for (const candidateMarket of complete) {
+      const references = complete.filter(
+        (market) => market.bookmakerId !== candidateMarket.bookmakerId,
+      );
+      if (references.length < minimumReferenceBookmakers) continue;
+
+      for (const selectionCode of requiredSelections(marketCode)) {
+        const quote = candidateMarket.quotes.get(selectionCode);
+        const candidateFairProbability = candidateMarket.fairProbabilities.get(selectionCode);
+        if (!quote || candidateFairProbability == null) continue;
+
+        const referenceProbabilities = references
+          .map((market) => market.fairProbabilities.get(selectionCode))
+          .filter((value): value is number => value != null && Number.isFinite(value));
+        if (referenceProbabilities.length < minimumReferenceBookmakers) continue;
+
+        let consensusProbability = median(referenceProbabilities);
+        if (marketCode === 'BTTS') {
+          const adjustment = (input.lineupAnalysis?.overProbabilityAdjustment ?? 0) * 0.6;
+          consensusProbability = clamp(
+            consensusProbability + (selectionCode === 'YES' ? adjustment : -adjustment),
+            0.01,
+            0.99,
+          );
+        }
+
+        const probabilityStddev = standardDeviation(referenceProbabilities);
+        const selectionEdge = consensusProbability - candidateFairProbability;
+        const selectionExpectedValue = expectedValue(consensusProbability, quote.decimalOdds);
+        const baseConfidence = confidenceScore({
+          references: references.length,
+          probabilityStddev,
+          oddsAgeMinutes: candidateMarket.ageMinutes,
+          maximumProbabilityStddev,
+          maximumOddsAgeMinutes: input.rules.maximumOddsAgeMinutes,
+        });
+        const confidence = clamp(
+          baseConfidence * (input.lineupAnalysis?.confidenceMultiplier ?? 1),
+          0,
+          1,
+        );
+        const baseDataQuality = dataQualityScore({
+          completeMarkets: complete.length,
+          references: references.length,
+          probabilityStddev,
+          oddsAgeMinutes: candidateMarket.ageMinutes,
+          maximumProbabilityStddev,
+          maximumOddsAgeMinutes: input.rules.maximumOddsAgeMinutes,
+        });
+        const dataQuality = clamp(
+          baseDataQuality * (input.lineupAnalysis?.dataQualityMultiplier ?? 1),
+          0,
+          1,
+        );
+
+        if (
+          quote.decimalOdds < input.rules.minimumOdds ||
+          quote.decimalOdds > input.rules.maximumOdds ||
+          selectionExpectedValue < input.rules.minimumExpectedValue ||
+          selectionEdge < input.rules.minimumEdge ||
+          confidence < input.rules.minimumConfidence ||
+          dataQuality < input.rules.minimumDataQuality ||
+          probabilityStddev > maximumProbabilityStddev
+        ) {
+          continue;
+        }
+
+        marketCandidates.push({
+          oddsSnapshotId: quote.id,
+          bookmakerId: quote.bookmakerId,
+          bookmakerName: quote.bookmakerName,
+          marketCode,
+          marketName: quote.marketName,
+          marketGroup: quote.marketGroup,
+          selectionCode,
+          selectionName: quote.selectionName,
+          lineValue: null,
+          decimalOdds: quote.decimalOdds,
+          consensusProbability,
+          candidateFairProbability,
+          impliedProbability: impliedProbability(quote.decimalOdds),
+          edge: selectionEdge,
+          expectedValue: selectionExpectedValue,
+          confidenceScore: confidence,
+          dataQualityScore: dataQuality,
+          recommendationScore: Math.max(0, selectionExpectedValue) * confidence * dataQuality,
+          referenceBookmakerCount: references.length,
+          probabilityStddev,
+          reasons: [
+            'Consensus ' + marketCode + ' from ' + references.length + ' reference bookmakers.',
+            'Candidate odds ' + quote.decimalOdds.toFixed(2) + ' at ' + quote.bookmakerName + '.',
+            'Edge ' + (selectionEdge * 100).toFixed(2) + '%, EV ' + (selectionExpectedValue * 100).toFixed(2) + '%.',
+            ...(input.lineupAnalysis?.available ? input.lineupAnalysis.reasons : []),
+          ],
+        });
+      }
+    }
+
+    marketCandidates.sort(
+      (left, right) => right.recommendationScore - left.recommendationScore,
+    );
+    allCandidates.push(...(maxPerMarket === 0 ? marketCandidates : marketCandidates.slice(0, maxPerMarket)));
+  }
+
+  allCandidates.sort(
+    (left, right) => right.recommendationScore - left.recommendationScore,
+  );
+  return maxPerFixture === 0 ? allCandidates : allCandidates.slice(0, maxPerFixture);
+}

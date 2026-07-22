@@ -43,67 +43,67 @@ enum BacktestStatus {
 }
 
 model League {
-  id            Int       @id @default(autoincrement())
-  apiLeagueId   Int
-  season        Int
-  name          String
-  country       String?
-  logoUrl       String?   @db.Text
-  coverage      Json?
-  enabled       Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  fixtures      Fixture[]
-  backtestRuns  BacktestRun[]
+  id           Int           @id @default(autoincrement())
+  apiLeagueId  Int
+  season       Int
+  name         String
+  country      String?
+  logoUrl      String?       @db.Text
+  coverage     Json?
+  enabled      Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  fixtures     Fixture[]
+  backtestRuns BacktestRun[]
 
   @@unique([apiLeagueId, season])
   @@index([enabled])
 }
 
 model Team {
-  id            Int       @id @default(autoincrement())
-  apiTeamId     Int       @unique
-  name          String
-  code          String?
-  country       String?
-  logoUrl       String?   @db.Text
-  venueName     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  homeFixtures  Fixture[] @relation("HomeTeam")
-  awayFixtures  Fixture[] @relation("AwayTeam")
+  id              Int                     @id @default(autoincrement())
+  apiTeamId       Int                     @unique
+  name            String
+  code            String?
+  country         String?
+  logoUrl         String?                 @db.Text
+  venueName       String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  homeFixtures    Fixture[]               @relation("HomeTeam")
+  awayFixtures    Fixture[]               @relation("AwayTeam")
   lineupSnapshots FixtureLineupSnapshot[]
 }
 
 model Fixture {
-  id                    Int                  @id @default(autoincrement())
-  apiFixtureId          Int                  @unique
-  leagueId              Int
-  homeTeamId            Int
-  awayTeamId            Int
-  kickoffAt             DateTime
-  timezone              String?
-  round                 String?
-  venueName             String?
-  referee               String?
-  status                FixtureStatus        @default(UPCOMING)
-  apiStatusShort        String?
-  elapsedMinutes        Int?
-  homeGoals             Int?
-  awayGoals             Int?
-  halftimeHomeGoals     Int?
-  halftimeAwayGoals     Int?
-  rawPayload            Json?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  league                League               @relation(fields: [leagueId], references: [id])
-  homeTeam              Team                 @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeam              Team                 @relation("AwayTeam", fields: [awayTeamId], references: [id])
-  oddsSnapshots         OddsSnapshot[]
-  externalPrediction    ExternalPrediction?
-  recommendations       Recommendation[]
-  backtestBets           BacktestBet[]
-  lineupSnapshots        FixtureLineupSnapshot[]
+  id                 Int                     @id @default(autoincrement())
+  apiFixtureId       Int                     @unique
+  leagueId           Int
+  homeTeamId         Int
+  awayTeamId         Int
+  kickoffAt          DateTime
+  timezone           String?
+  round              String?
+  venueName          String?
+  referee            String?
+  status             FixtureStatus           @default(UPCOMING)
+  apiStatusShort     String?
+  elapsedMinutes     Int?
+  homeGoals          Int?
+  awayGoals          Int?
+  halftimeHomeGoals  Int?
+  halftimeAwayGoals  Int?
+  rawPayload         Json?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  league             League                  @relation(fields: [leagueId], references: [id])
+  homeTeam           Team                    @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam           Team                    @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  oddsSnapshots      OddsSnapshot[]
+  externalPrediction ExternalPrediction?
+  recommendations    Recommendation[]
+  backtestBets       BacktestBet[]
+  lineupSnapshots    FixtureLineupSnapshot[]
 
   @@index([kickoffAt])
   @@index([leagueId, status, kickoffAt])
@@ -111,16 +111,15 @@ model Fixture {
   @@index([awayTeamId, kickoffAt])
 }
 
-
 model Player {
-  id             Int                   @id @default(autoincrement())
-  apiPlayerId    Int                   @unique
-  name           String
-  photoUrl       String?               @db.Text
+  id              Int                   @id @default(autoincrement())
+  apiPlayerId     Int                   @unique
+  name            String
+  photoUrl        String?               @db.Text
   defaultPosition String?
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  lineupEntries  FixtureLineupPlayer[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  lineupEntries   FixtureLineupPlayer[]
 
   @@index([name])
 }
@@ -148,7 +147,7 @@ model FixtureLineupSnapshot {
 }
 
 model FixtureLineupPlayer {
-  id               Int                    @id @default(autoincrement())
+  id               Int                   @id @default(autoincrement())
   lineupSnapshotId Int
   playerId         Int
   isStarter        Boolean
@@ -156,8 +155,8 @@ model FixtureLineupPlayer {
   position         String?
   grid             String?
   lineupOrder      Int?
-  lineupSnapshot   FixtureLineupSnapshot  @relation(fields: [lineupSnapshotId], references: [id], onDelete: Cascade)
-  player           Player                 @relation(fields: [playerId], references: [id])
+  lineupSnapshot   FixtureLineupSnapshot @relation(fields: [lineupSnapshotId], references: [id], onDelete: Cascade)
+  player           Player                @relation(fields: [playerId], references: [id])
 
   @@unique([lineupSnapshotId, playerId])
   @@index([playerId, isStarter])
@@ -165,46 +164,46 @@ model FixtureLineupPlayer {
 }
 
 model Bookmaker {
-  id            Int              @id @default(autoincrement())
-  apiBookmakerId Int             @unique
-  name          String
-  enabled       Boolean          @default(true)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  oddsSnapshots OddsSnapshot[]
+  id              Int              @id @default(autoincrement())
+  apiBookmakerId  Int              @unique
+  name            String
+  enabled         Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  oddsSnapshots   OddsSnapshot[]
   recommendations Recommendation[]
   backtestBets    BacktestBet[]
 }
 
 model BettingMarket {
-  id            Int              @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   apiBetId      Int?
-  marketCode    String           @unique
+  marketCode    String         @unique
   name          String
   marketGroup   String
   lineValue     Float?
-  enabled       Boolean          @default(true)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  enabled       Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   oddsSnapshots OddsSnapshot[]
 }
 
 model OddsSnapshot {
-  id            Int           @id @default(autoincrement())
-  fixtureId     Int
-  bookmakerId   Int
-  marketId      Int
-  selectionCode String
-  selectionName String
-  lineValue     Float?
-  decimalOdds   Float
-  isLive        Boolean       @default(false)
-  apiUpdatedAt  DateTime?
-  capturedAt    DateTime      @default(now())
-  rawPayload    Json?
-  fixture       Fixture       @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
-  bookmaker     Bookmaker     @relation(fields: [bookmakerId], references: [id])
-  market        BettingMarket @relation(fields: [marketId], references: [id])
+  id              Int              @id @default(autoincrement())
+  fixtureId       Int
+  bookmakerId     Int
+  marketId        Int
+  selectionCode   String
+  selectionName   String
+  lineValue       Float?
+  decimalOdds     Float
+  isLive          Boolean          @default(false)
+  apiUpdatedAt    DateTime?
+  capturedAt      DateTime         @default(now())
+  rawPayload      Json?
+  fixture         Fixture          @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  bookmaker       Bookmaker        @relation(fields: [bookmakerId], references: [id])
+  market          BettingMarket    @relation(fields: [marketId], references: [id])
   recommendations Recommendation[]
   backtestBets    BacktestBet[]
 
@@ -213,17 +212,17 @@ model OddsSnapshot {
 }
 
 model ExternalPrediction {
-  id            Int      @id @default(autoincrement())
-  fixtureId     Int      @unique
+  id              Int      @id @default(autoincrement())
+  fixtureId       Int      @unique
   homeProbability Float?
   drawProbability Float?
   awayProbability Float?
-  advice        String?  @db.Text
+  advice          String?  @db.Text
   predictedWinner String?
-  rawPayload    Json?
-  capturedAt    DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  fixture       Fixture  @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  rawPayload      Json?
+  capturedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  fixture         Fixture  @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
 }
 
 model Recommendation {
@@ -250,14 +249,14 @@ model Recommendation {
   modelVersion          String
   reasons               Json
   status                RecommendationStatus @default(ACTIVE)
-  settlementResult      SettlementResult      @default(PENDING)
+  settlementResult      SettlementResult     @default(PENDING)
   simulatedProfitUnits  Float?
   generatedAt           DateTime             @default(now())
   expiresAt             DateTime
   settledAt             DateTime?
   fixture               Fixture              @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
   bookmaker             Bookmaker            @relation(fields: [bookmakerId], references: [id])
-  oddsSnapshot          OddsSnapshot          @relation(fields: [oddsSnapshotId], references: [id])
+  oddsSnapshot          OddsSnapshot         @relation(fields: [oddsSnapshotId], references: [id])
 
   @@index([status, generatedAt])
   @@index([fixtureId, status])
@@ -265,32 +264,32 @@ model Recommendation {
 }
 
 model SyncRun {
-  id          Int        @id @default(autoincrement())
-  jobName     String
-  status      SyncStatus @default(RUNNING)
-  startedAt   DateTime   @default(now())
-  finishedAt  DateTime?
-  processed   Int        @default(0)
-  inserted    Int        @default(0)
-  updated     Int        @default(0)
-  errorMessage String?   @db.Text
-  metadata    Json?
+  id           Int        @id @default(autoincrement())
+  jobName      String
+  status       SyncStatus @default(RUNNING)
+  startedAt    DateTime   @default(now())
+  finishedAt   DateTime?
+  processed    Int        @default(0)
+  inserted     Int        @default(0)
+  updated      Int        @default(0)
+  errorMessage String?    @db.Text
+  metadata     Json?
 
   @@index([jobName, startedAt])
   @@index([status])
 }
 
 model ApiUsage {
-  id                Int      @id @default(autoincrement())
-  endpoint          String
-  requestDate       DateTime @default(now())
-  responseStatus    Int
-  dailyLimit        Int?
-  dailyRemaining    Int?
-  minuteLimit       Int?
-  minuteRemaining   Int?
-  durationMs        Int?
-  errorMessage      String?  @db.Text
+  id              Int      @id @default(autoincrement())
+  endpoint        String
+  requestDate     DateTime @default(now())
+  responseStatus  Int
+  dailyLimit      Int?
+  dailyRemaining  Int?
+  minuteLimit     Int?
+  minuteRemaining Int?
+  durationMs      Int?
+  errorMessage    String?  @db.Text
 
   @@index([requestDate])
   @@index([endpoint, requestDate])
@@ -303,36 +302,36 @@ model AppSetting {
 }
 
 model BacktestRun {
-  id                 Int            @id @default(autoincrement())
-  name               String
-  leagueId           Int?
-  dateFrom           DateTime
-  dateTo             DateTime
-  fixtureLimit       Int
-  stakeUnits         Float          @default(1)
-  modelVersion       String
-  rules              Json
-  status             BacktestStatus @default(RUNNING)
-  startedAt          DateTime       @default(now())
-  finishedAt         DateTime?
-  totalFixtures      Int            @default(0)
-  eligibleFixtures   Int            @default(0)
-  totalBets          Int            @default(0)
-  wins               Int            @default(0)
-  losses             Int            @default(0)
-  pushes             Int            @default(0)
-  voids              Int            @default(0)
-  hitRate            Float?
-  profitUnits        Float          @default(0)
-  roi                 Float?
-  yieldRate           Float?
-  averageOdds         Float?
+  id                   Int            @id @default(autoincrement())
+  name                 String
+  leagueId             Int?
+  dateFrom             DateTime
+  dateTo               DateTime
+  fixtureLimit         Int
+  stakeUnits           Float          @default(1)
+  modelVersion         String
+  rules                Json
+  status               BacktestStatus @default(RUNNING)
+  startedAt            DateTime       @default(now())
+  finishedAt           DateTime?
+  totalFixtures        Int            @default(0)
+  eligibleFixtures     Int            @default(0)
+  totalBets            Int            @default(0)
+  wins                 Int            @default(0)
+  losses               Int            @default(0)
+  pushes               Int            @default(0)
+  voids                Int            @default(0)
+  hitRate              Float?
+  profitUnits          Float          @default(0)
+  roi                  Float?
+  yieldRate            Float?
+  averageOdds          Float?
   averageExpectedValue Float?
-  maximumDrawdown     Float?
-  brierScore          Float?
-  errorMessage       String?        @db.Text
-  league             League?        @relation(fields: [leagueId], references: [id])
-  bets               BacktestBet[]
+  maximumDrawdown      Float?
+  brierScore           Float?
+  errorMessage         String?        @db.Text
+  league               League?        @relation(fields: [leagueId], references: [id])
+  bets                 BacktestBet[]
 
   @@index([startedAt])
   @@index([status])
@@ -379,3 +378,59 @@ model BacktestBet {
   @@index([fixtureId])
 }
 
+model FixtureTeamMetric {
+  id                  Int      @id @default(autoincrement())
+  fixtureId           Int
+  teamId              Int
+  expectedGoals       Float?
+  expectedGoalsSource String?
+  shots               Int?
+  shotsOnGoal         Int?
+  possession          Float?
+  corners             Int?
+  fouls               Int?
+  yellowCards         Int?
+  redCards            Int?
+  capturedAt          DateTime @default(now())
+  rawPayload          Json?
+
+  @@unique([fixtureId, teamId])
+  @@index([teamId, fixtureId])
+  @@index([capturedAt])
+}
+
+model FixtureInjury {
+  id          Int      @id @default(autoincrement())
+  fixtureId   Int
+  teamId      Int
+  apiPlayerId Int
+  playerName  String
+  reason      String?
+  injuryType  String?
+  capturedAt  DateTime @default(now())
+  rawPayload  Json?
+
+  @@unique([fixtureId, teamId, apiPlayerId])
+  @@index([teamId, fixtureId])
+  @@index([capturedAt])
+}
+
+model TeamElo {
+  teamId    Int      @id
+  leagueId  Int
+  rating    Float    @default(1500)
+  matches   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@index([leagueId, rating])
+}
+
+model FixtureScientificCoverage {
+  fixtureId           Int       @id
+  statisticsFetchedAt DateTime?
+  injuriesFetchedAt   DateTime?
+  updatedAt           DateTime  @updatedAt
+
+  @@index([statisticsFetchedAt])
+  @@index([injuriesFetchedAt])
+}

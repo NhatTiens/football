@@ -9,20 +9,14 @@ const supported: WorkerCommand[] = [
   'sync-lineups',
   'sync-lineups-history',
   'sync-predictions',
-  'sync-scientific-stats',
-  'sync-scientific-injuries',
-  'rebuild-elo',
-  'train-scientific',
   'generate',
   'settle',
   'backtest',
-  'scientific-backtest',
-  'scientific-full',
   'full',
 ];
 
 if (!supported.includes(command)) {
-  console.error(`Unknown command: ${command}.\nSupported: ${supported.join(', ')}`);
+  console.error(`Unknown command: ${command}. Supported: ${supported.join(', ')}`);
   process.exitCode = 1;
 } else {
   executeJob(command)
