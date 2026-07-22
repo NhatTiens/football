@@ -570,36 +570,17 @@ export async function getScientificFixtureAnalysis(input: {
   );
   const eloProbabilities = eloMatchWinnerProbabilities(elo.home, elo.away);
   const externalProbabilities = externalPredictionRecord(external);
-  // PREDICTION_AI_V6_FEATURE_BLEND: hạ trọng số ML khi mẫu ít hoặc ensemble bất đồng.
-  const modelUncertainty = modelPrediction?.uncertainty;
-  const modelSampleReliability = clamp(
-    Math.log10(Math.max(10, artifact?.sampleSize ?? 10)) / 3,
-    0.35,
-    1,
-  );
-  const mlWinnerWeight = modelPrediction
-    ? clamp(
-        0.38 *
-          modelSampleReliability *
-          (1 - (modelUncertainty?.matchWinner ?? 0) * 4),
-        0.14,
-        0.42,
-      )
-    : 0;
-  const poissonWinnerWeight = modelPrediction
-    ? clamp(0.46 - mlWinnerWeight * 0.3, 0.31, 0.46)
-    : 0.48;
   const matchWinnerComponents: Array<{
     probabilities: Record<'HOME' | 'DRAW' | 'AWAY', number>;
     weight: number;
   }> = [
-    { probabilities: poisson25.matchWinner, weight: poissonWinnerWeight },
+    { probabilities: poisson25.matchWinner, weight: 0.34 },
     { probabilities: eloProbabilities, weight: 0.24 },
   ];
   if (modelPrediction) {
     matchWinnerComponents.push({
       probabilities: modelPrediction.matchWinner,
-      weight: mlWinnerWeight,
+      weight: 0.34,
     });
   }
   if (externalProbabilities) {
@@ -611,27 +592,16 @@ export async function getScientificFixtureAnalysis(input: {
     lineProbability: poisson25.total.overConditional,
     poissonOver25: poisson25.total.overConditional,
     modelOver25: modelPrediction?.over25.OVER,
-    calibrationWeight: 0.58,
-    modelUncertainty: modelUncertainty?.over25,
-    dataQuality: modelSampleReliability,
+    calibrationWeight: 0.55,
   });
   const over25 = normalizeProbabilities({
     OVER: over25Over,
     UNDER: 1 - over25Over,
   });
-  const bttsMlWeight = modelPrediction
-    ? clamp(
-        0.48 *
-          modelSampleReliability *
-          (1 - (modelUncertainty?.btts ?? 0) * 4),
-        0.15,
-        0.48,
-      )
-    : 0;
   const btts = modelPrediction
     ? weightedRecordBlend([
-        { probabilities: poisson25.btts, weight: 1 - bttsMlWeight },
-        { probabilities: modelPrediction.btts, weight: bttsMlWeight },
+        { probabilities: poisson25.btts, weight: 0.55 },
+        { probabilities: modelPrediction.btts, weight: 0.45 },
       ])
     : poisson25.btts;
 

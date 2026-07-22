@@ -289,9 +289,7 @@ function scientificProbabilities(
     lineProbability: poisson.total.overConditional,
     poissonOver25: poisson25.total.overConditional,
     modelOver25: analysis.modelPrediction?.over25.OVER,
-    calibrationWeight: 0.4,
-    modelUncertainty: analysis.modelPrediction?.uncertainty?.over25,
-    dataQuality: analysis.dataQualityScore,
+    calibrationWeight: 0.35,
   });
   return {
     probabilities: normalizeProbabilities({
@@ -416,25 +414,7 @@ export function buildScientificCandidates(input: {
       for (const selectionCode of requiredSelections(representative.marketCode)) {
         const quote = candidateMarket.rows.get(selectionCode);
         const candidateFair = candidateMarket.fairProbabilities.get(selectionCode);
-        const rawModelProbability = blended[selectionCode];
-      // PREDICTION_AI_V6_RAW_PROBABILITY_GUARD: skip incomplete probability maps before arithmetic.
-      if (rawModelProbability === undefined) continue;
-      // PREDICTION_AI_V6_CONSERVATIVE_EV: chỉ nhận value còn tồn tại sau khi trừ độ bất định.
-      const predictionUncertainty =
-        representative.marketCode === 'MATCH_WINNER'
-          ? input.analysis.modelPrediction?.uncertainty?.matchWinner ?? 0
-          : representative.marketCode === 'BTTS'
-            ? input.analysis.modelPrediction?.uncertainty?.btts ?? 0
-            : input.analysis.modelPrediction?.uncertainty?.over25 ?? 0;
-      const uncertaintyPenalty = numberEnvironment(
-        'SCIENTIFIC_UNCERTAINTY_PENALTY',
-        0.65,
-      );
-      const modelProbability = clamp(
-        rawModelProbability - predictionUncertainty * uncertaintyPenalty,
-        0.001,
-        0.999,
-      );
+        const modelProbability = blended[selectionCode];
         const scientificProbability = scientific.probabilities[selectionCode];
         const marketProbability = referenceConsensus[selectionCode];
         if (
@@ -531,7 +511,7 @@ export function buildScientificCandidates(input: {
           recommendationScore,
           reasons: [
             `Mô hình khoa học ${(scientificProbability * 100).toFixed(1)}%, consensus tham chiếu ${(marketProbability * 100).toFixed(1)}%.`,
-            `Xác suất tổng hợp thô ${(rawModelProbability * 100).toFixed(1)}%, sau phạt bất định ${(modelProbability * 100).toFixed(1)}%, fair của nhà cái ${(candidateFair * 100).toFixed(1)}%.`,
+            `Xác suất tổng hợp ${(modelProbability * 100).toFixed(1)}%, fair của nhà cái ${(candidateFair * 100).toFixed(1)}%.`,
             `EV ${(expectedValue * 100).toFixed(1)}%, edge ${(edge * 100).toFixed(1)} điểm %.`,
             `Loại ${quote.bookmakerName} khỏi consensus; dùng ${references.length} nhà cái tham chiếu.`,
             ...(scientific.pushProbability > 0.001

@@ -692,19 +692,11 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       };
     }
 
-    // PREDICTION_AI_V6_TRAINING_DEFAULTS: Adam + nonlinear ensemble cần learning rate thấp hơn và regularization cao hơn.
-  const artifact = trainScientificArtifact({
+    const artifact = trainScientificArtifact({
       samples,
-      epochs: numberEnvironment('SCIENTIFIC_TRAINING_EPOCHS', 360),
-      learningRate: numberEnvironment('SCIENTIFIC_TRAINING_RATE', 0.018),
-      l2: numberEnvironment('SCIENTIFIC_TRAINING_L2', 0.01),
-    randomSeed: Math.floor(
-      numberEnvironment('SCIENTIFIC_TRAINING_SEED', 20260722),
-    ),
-    ensembleMembers: Math.max(
-      1,
-      Math.floor(numberEnvironment('SCIENTIFIC_ENSEMBLE_MEMBERS', 3)),
-    ),
+      epochs: numberEnvironment('SCIENTIFIC_TRAINING_EPOCHS', 280),
+      learningRate: numberEnvironment('SCIENTIFIC_TRAINING_RATE', 0.035),
+      l2: numberEnvironment('SCIENTIFIC_TRAINING_L2', 0.002),
     });
     const existing = await prisma.appSetting.findUnique({
       where: { key: SCIENTIFIC_MODEL_KEY },

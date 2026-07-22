@@ -1,0 +1,34 @@
+﻿[
+    {
+        "path":  "packages\\sync\\src\\scientific-model.ts",
+        "existed":  true
+    },
+    {
+        "path":  "packages\\sync\\src\\scientific-features.ts",
+        "existed":  true
+    },
+    {
+        "path":  "packages\\sync\\src\\scientific-recommendations.ts",
+        "existed":  true
+    },
+    {
+        "path":  "packages\\sync\\src\\scientific-backtest.ts",
+        "existed":  true
+    },
+    {
+        "path":  "packages\\sync\\src\\scientific-sync.ts",
+        "existed":  true
+    },
+    {
+        "path":  "packages\\sync\\tests\\scientific-model-v6.test.ts",
+        "existed":  false
+    },
+    {
+        "path":  "packages\\sync\\package.json",
+        "existed":  true
+    },
+    {
+        "path":  "PREDICTION_AI_V6.md",
+        "existed":  false
+    }
+]

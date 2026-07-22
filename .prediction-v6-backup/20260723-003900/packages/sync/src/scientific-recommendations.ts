@@ -417,8 +417,6 @@ export function buildScientificCandidates(input: {
         const quote = candidateMarket.rows.get(selectionCode);
         const candidateFair = candidateMarket.fairProbabilities.get(selectionCode);
         const rawModelProbability = blended[selectionCode];
-      // PREDICTION_AI_V6_RAW_PROBABILITY_GUARD: skip incomplete probability maps before arithmetic.
-      if (rawModelProbability === undefined) continue;
       // PREDICTION_AI_V6_CONSERVATIVE_EV: chỉ nhận value còn tồn tại sau khi trừ độ bất định.
       const predictionUncertainty =
         representative.marketCode === 'MATCH_WINNER'

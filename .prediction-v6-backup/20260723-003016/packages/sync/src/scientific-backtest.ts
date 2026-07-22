@@ -20,7 +20,6 @@ export interface ScientificBacktestOptions {
   to?: Date | string;
   fixtureLimit?: number;
   stakeUnits?: number;
-  horizonMinutes?: number;
 }
 
 function parseDate(value: Date | string | undefined, fallback: Date): Date {
@@ -70,14 +69,6 @@ export async function runScientificBacktest(
     0.01,
     options.stakeUnits ?? Number(process.env.BACKTEST_STAKE_UNITS ?? 1),
   );
-  // PREDICTION_AI_V6_FIXED_HORIZON: mọi trận được dự đoán tại cùng khoảng cách trước giờ bóng lăn.
-  const horizonMinutes = Math.max(
-    5,
-    Math.floor(
-      options.horizonMinutes ??
-        Number(process.env.SCIENTIFIC_BACKTEST_HORIZON_MINUTES ?? 90),
-    ),
-  );
   if (dateFrom >= dateTo) {
     throw new Error('Scientific backtest dateFrom must be earlier than dateTo.');
   }
@@ -87,7 +78,7 @@ export async function runScientificBacktest(
     data: {
       name:
         options.name?.trim() ||
-        `Scientific v6 ${dateFrom.toISOString().slice(0, 10)} → ${dateTo.toISOString().slice(0, 10)}`,
+        `Scientific v5 ${dateFrom.toISOString().slice(0, 10)} → ${dateTo.toISOString().slice(0, 10)}`,
       leagueId: options.leagueId,
       dateFrom,
       dateTo,
@@ -96,7 +87,6 @@ export async function runScientificBacktest(
       modelVersion,
       rules: {
         machineLearningLeakageGuard: true,
-        fixedDecisionHorizonMinutes: horizonMinutes,
         description:
           'ML is only used when model.trainedThrough is earlier than predictedAt.',
       } as InputJsonValue,
@@ -138,15 +128,15 @@ export async function runScientificBacktest(
     const profits: number[] = [];
 
     for (const fixture of fixtures) {
-      const predictedAt = new Date(
-        fixture.kickoffAt.getTime() - horizonMinutes * 60_000,
-      );
       const pointInTimeRows = fixture.oddsSnapshots.filter(
         (row: (typeof fixture.oddsSnapshots)[number]) =>
-          row.capturedAt.getTime() <= predictedAt.getTime(),
+          row.capturedAt.getTime() < fixture.kickoffAt.getTime(),
       );
       const odds = latestScientificOddsRows(pointInTimeRows);
       if (odds.length === 0) continue;
+      const predictedAt = new Date(
+        Math.max(...odds.map((row) => row.capturedAt.getTime())),
+      );
       const analysis = await getScientificFixtureAnalysis({
         fixtureId: fixture.id,
         leagueId: fixture.leagueId,

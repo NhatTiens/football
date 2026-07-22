@@ -5,8 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test:prediction-v6": "vitest run tests/scientific-model-v6.test.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",
