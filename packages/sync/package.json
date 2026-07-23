@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit",
     "test:prediction-v6": "vitest run tests/scientific-model-v6.test.ts",
     "test:prediction-v61": "vitest run tests/scientific-model-v6.test.ts tests/scientific-v61.test.ts",
-    "test:prediction-v62": "vitest run tests/scientific-model-v6.test.ts tests/scientific-v61.test.ts tests/scientific-bankroll.test.ts"
+    "test:prediction-v62": "vitest run tests/scientific-model-v6.test.ts tests/scientific-v61.test.ts tests/scientific-bankroll.test.ts",
+    "test": "vitest run",
+    "test:point-in-time": "vitest run tests/point-in-time.test.ts"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",

@@ -1,11 +1,15 @@
-import {
-  clamp,
-  normalizeProbabilities,
-  type LineupAdjustment,
-} from '@football-ai/engine';
+import { clamp, normalizeProbabilities, type LineupAdjustment } from '@football-ai/engine';
 import { FixtureStatus, prisma } from '@football-ai/database';
 import { getLineupAnalysisRules } from './config.js';
 import { getFixtureLineupAnalysis } from './lineup-analysis.js';
+import {
+  PointInTimeAudit,
+  createPredictionContext,
+  estimateFixtureResultAvailableAt,
+  isAvailableAtOrBefore,
+  type PointInTimeAuditSummary,
+  type PredictionMode,
+} from './point-in-time.js';
 import {
   SCIENTIFIC_FEATURE_NAMES,
   SCIENTIFIC_MODEL_KEY,
@@ -31,6 +35,7 @@ interface MetricRow {
   teamId: number;
   expectedGoals: number | null;
   shotsOnGoal: number | null;
+  capturedAt: Date;
 }
 
 interface TeamMatchRecord {
@@ -58,7 +63,10 @@ interface TeamSummary {
 
 export interface ScientificFixtureAnalysis {
   fixtureId: number;
+  /** @deprecated Use predictionAsOf. */
   asOf: Date;
+  predictionAsOf: Date;
+  pointInTimeAudit: PointInTimeAuditSummary;
   homeExpectedGoals: number;
   awayExpectedGoals: number;
   featureVector: number[];
@@ -157,9 +165,18 @@ function summarizeTeam(
 
   return {
     matches: selected.length,
-    pointsPerGame: average(selected.map((row) => row.points), 1.35),
-    goalsFor: average(selected.map((row) => row.goalsFor), fallbackHomeXg),
-    goalsAgainst: average(selected.map((row) => row.goalsAgainst), 1.25),
+    pointsPerGame: average(
+      selected.map((row) => row.points),
+      1.35,
+    ),
+    goalsFor: average(
+      selected.map((row) => row.goalsFor),
+      fallbackHomeXg,
+    ),
+    goalsAgainst: average(
+      selected.map((row) => row.goalsAgainst),
+      1.25,
+    ),
     expectedGoalsFor: average(
       selected.map((row) => row.expectedGoalsFor),
       fallbackHomeXg,
@@ -168,7 +185,10 @@ function summarizeTeam(
       selected.map((row) => row.expectedGoalsAgainst),
       1.25,
     ),
-    shotsOnGoal: average(selected.map((row) => row.shotsOnGoal), 4.2),
+    shotsOnGoal: average(
+      selected.map((row) => row.shotsOnGoal),
+      4.2,
+    ),
     restDays,
     metricMatches: selected.filter((row) => metricsAreInformative(row)).length,
   };
@@ -197,17 +217,9 @@ function calculateEloAsOf(
     if (fixture.homeGoals == null || fixture.awayGoals == null) continue;
     const homeRating = ratings.get(fixture.homeTeamId) ?? 1500;
     const awayRating = ratings.get(fixture.awayTeamId) ?? 1500;
-    const expectedHome =
-      1 /
-      (1 +
-        10 **
-          ((awayRating - (homeRating + homeAdvantage)) / 400));
+    const expectedHome = 1 / (1 + 10 ** ((awayRating - (homeRating + homeAdvantage)) / 400));
     const actualHome =
-      fixture.homeGoals > fixture.awayGoals
-        ? 1
-        : fixture.homeGoals === fixture.awayGoals
-          ? 0.5
-          : 0;
+      fixture.homeGoals > fixture.awayGoals ? 1 : fixture.homeGoals === fixture.awayGoals ? 0.5 : 0;
     const movement = kFactor * (actualHome - expectedHome);
     ratings.set(fixture.homeTeamId, homeRating + movement);
     ratings.set(fixture.awayTeamId, awayRating - movement);
@@ -224,8 +236,7 @@ function eloMatchWinnerProbabilities(
   awayElo: number,
 ): Record<'HOME' | 'DRAW' | 'AWAY', number> {
   const homeAdvantage = numberEnvironment('ELO_HOME_ADVANTAGE', 60);
-  const expectedHome =
-    1 / (1 + 10 ** ((awayElo - (homeElo + homeAdvantage)) / 400));
+  const expectedHome = 1 / (1 + 10 ** ((awayElo - (homeElo + homeAdvantage)) / 400));
   const difference = Math.abs(homeElo + homeAdvantage - awayElo);
   const drawProbability = clamp(0.29 - difference / 2600, 0.16, 0.3);
   const decisiveMass = 1 - drawProbability;
@@ -312,11 +323,13 @@ function weightedRecordBlend<K extends string>(
   return normalizeProbabilities(result);
 }
 
-function externalPredictionRecord(external: {
-  homeProbability: number | null;
-  drawProbability: number | null;
-  awayProbability: number | null;
-} | null): Record<'HOME' | 'DRAW' | 'AWAY', number> | null {
+function externalPredictionRecord(
+  external: {
+    homeProbability: number | null;
+    drawProbability: number | null;
+    awayProbability: number | null;
+  } | null,
+): Record<'HOME' | 'DRAW' | 'AWAY', number> | null {
   if (
     external?.homeProbability == null ||
     external.drawProbability == null ||
@@ -343,20 +356,40 @@ export async function getScientificFixtureAnalysis(input: {
   homeTeamName: string;
   awayTeamName: string;
   kickoffAt: Date;
-  asOf: Date;
+  predictionAsOf?: Date;
+  /** @deprecated Use predictionAsOf. */
+  asOf?: Date;
+  mode?: PredictionMode;
   useMachineLearning?: boolean;
 }): Promise<ScientificFixtureAnalysis> {
-  const historyLimit = Math.max(
-    3,
-    Math.floor(numberEnvironment('SCIENTIFIC_HISTORY_MATCHES', 10)),
+  const predictionAsOf = input.predictionAsOf ?? input.asOf;
+  if (!predictionAsOf) {
+    throw new TypeError('getScientificFixtureAnalysis requires predictionAsOf.');
+  }
+
+  const context = createPredictionContext({
+    fixtureId: input.fixtureId,
+    kickoffAt: input.kickoffAt,
+    predictionAsOf,
+    mode: input.mode ?? 'LIVE',
+  });
+  const audit = new PointInTimeAudit(context);
+  const resultAvailabilityLagMinutes = Math.max(
+    0,
+    numberEnvironment('POINT_IN_TIME_RESULT_LAG_MINUTES', 180),
   );
+  const historyAvailableBefore = new Date(
+    predictionAsOf.getTime() - resultAvailabilityLagMinutes * 60_000,
+  );
+
+  const historyLimit = Math.max(3, Math.floor(numberEnvironment('SCIENTIFIC_HISTORY_MATCHES', 10)));
   const historyPool = Math.max(120, historyLimit * 35);
 
   const history = (await prisma.fixture.findMany({
     where: {
       leagueId: input.leagueId,
       status: FixtureStatus.FINISHED,
-      kickoffAt: { lt: input.kickoffAt },
+      kickoffAt: { lt: historyAvailableBefore },
       homeGoals: { not: null },
       awayGoals: { not: null },
     },
@@ -375,12 +408,16 @@ export async function getScientificFixtureAnalysis(input: {
   const fixtureIds = history.map((fixture) => fixture.id);
   const metricRows = fixtureIds.length
     ? ((await prisma.fixtureTeamMetric.findMany({
-        where: { fixtureId: { in: fixtureIds } },
+        where: {
+          fixtureId: { in: fixtureIds },
+          capturedAt: { lte: predictionAsOf },
+        },
         select: {
           fixtureId: true,
           teamId: true,
           expectedGoals: true,
           shotsOnGoal: true,
+          capturedAt: true,
         },
       })) as MetricRow[])
     : [];
@@ -390,18 +427,20 @@ export async function getScientificFixtureAnalysis(input: {
 
   const leagueHomeXg = average(
     history
-      .map((fixture) =>
-        metricMap.get(metricKey(fixture.id, fixture.homeTeamId))?.expectedGoals ??
-        fixture.homeGoals,
+      .map(
+        (fixture) =>
+          metricMap.get(metricKey(fixture.id, fixture.homeTeamId))?.expectedGoals ??
+          fixture.homeGoals,
       )
       .filter((value): value is number => value != null),
     1.45,
   );
   const leagueAwayXg = average(
     history
-      .map((fixture) =>
-        metricMap.get(metricKey(fixture.id, fixture.awayTeamId))?.expectedGoals ??
-        fixture.awayGoals,
+      .map(
+        (fixture) =>
+          metricMap.get(metricKey(fixture.id, fixture.awayTeamId))?.expectedGoals ??
+          fixture.awayGoals,
       )
       .filter((value): value is number => value != null),
     1.2,
@@ -409,18 +448,8 @@ export async function getScientificFixtureAnalysis(input: {
 
   const homeRecords = buildTeamRecords(history, metricMap, input.homeTeamId);
   const awayRecords = buildTeamRecords(history, metricMap, input.awayTeamId);
-  const homeSummary = summarizeTeam(
-    homeRecords,
-    historyLimit,
-    input.kickoffAt,
-    leagueHomeXg,
-  );
-  const awaySummary = summarizeTeam(
-    awayRecords,
-    historyLimit,
-    input.kickoffAt,
-    leagueAwayXg,
-  );
+  const homeSummary = summarizeTeam(homeRecords, historyLimit, input.kickoffAt, leagueHomeXg);
+  const awaySummary = summarizeTeam(awayRecords, historyLimit, input.kickoffAt, leagueAwayXg);
 
   const [lineupAnalysis, injuryRows, coverage, currentLineups, external, setting] =
     await Promise.all([
@@ -431,16 +460,13 @@ export async function getScientificFixtureAnalysis(input: {
         awayTeamId: input.awayTeamId,
         awayTeamName: input.awayTeamName,
         kickoffAt: input.kickoffAt,
-        asOf: input.asOf,
-        historyLookback: Math.max(
-          3,
-          Math.floor(numberEnvironment('LINEUP_HISTORY_LOOKBACK', 10)),
-        ),
+        asOf: predictionAsOf,
+        historyLookback: Math.max(3, Math.floor(numberEnvironment('LINEUP_HISTORY_LOOKBACK', 10))),
         rules: getLineupAnalysisRules(),
       }),
       prisma.fixtureInjury.findMany({
-        where: { fixtureId: input.fixtureId, capturedAt: { lte: input.asOf } },
-        select: { teamId: true, apiPlayerId: true },
+        where: { fixtureId: input.fixtureId, capturedAt: { lte: predictionAsOf } },
+        select: { teamId: true, apiPlayerId: true, capturedAt: true },
       }),
       prisma.fixtureScientificCoverage.findUnique({
         where: { fixtureId: input.fixtureId },
@@ -449,23 +475,84 @@ export async function getScientificFixtureAnalysis(input: {
         where: {
           fixtureId: input.fixtureId,
           teamId: { in: [input.homeTeamId, input.awayTeamId] },
-          capturedAt: { lte: input.asOf },
+          capturedAt: { lte: predictionAsOf },
         },
         select: { teamId: true, formation: true, capturedAt: true },
         orderBy: { capturedAt: 'desc' },
       }),
-      prisma.externalPrediction.findUnique({
-        where: { fixtureId: input.fixtureId },
+      prisma.externalPrediction.findFirst({
+        where: {
+          fixtureId: input.fixtureId,
+          capturedAt: { lte: predictionAsOf },
+        },
         select: {
           homeProbability: true,
           drawProbability: true,
           awayProbability: true,
+          capturedAt: true,
         },
+        orderBy: { capturedAt: 'desc' },
       }),
       prisma.appSetting.findUnique({ where: { key: SCIENTIFIC_MODEL_KEY } }),
     ]);
 
-  const injuries = injuryRows as Array<{ teamId: number; apiPlayerId: number }>;
+  const injuriesCoverageAvailable =
+    coverage?.injuriesFetchedAt != null &&
+    isAvailableAtOrBefore(coverage.injuriesFetchedAt, predictionAsOf);
+  const statisticsCoverageAvailable =
+    coverage?.statisticsFetchedAt != null &&
+    isAvailableAtOrBefore(coverage.statisticsFetchedAt, predictionAsOf);
+
+  audit.registerMany(
+    'FIXTURE_RESULT',
+    history.map((fixture) => ({
+      key: `fixture:${fixture.id}`,
+      availableAt: estimateFixtureResultAvailableAt(
+        fixture.kickoffAt,
+        resultAvailabilityLagMinutes,
+      ),
+    })),
+  );
+  audit.registerMany(
+    'TEAM_METRIC',
+    metricRows.map((metric) => ({
+      key: `fixture:${metric.fixtureId}:team:${metric.teamId}`,
+      availableAt: metric.capturedAt,
+    })),
+  );
+  audit.registerMany(
+    'INJURY',
+    injuryRows.map((injury: { teamId: number; apiPlayerId: number; capturedAt: Date }) => ({
+      key: `fixture:${input.fixtureId}:team:${injury.teamId}:player:${injury.apiPlayerId}`,
+      availableAt: injury.capturedAt,
+    })),
+  );
+  audit.registerMany(
+    'LINEUP',
+    currentLineups.map((lineup: { teamId: number; capturedAt: Date }) => ({
+      key: `fixture:${input.fixtureId}:team:${lineup.teamId}`,
+      availableAt: lineup.capturedAt,
+    })),
+  );
+  if (external) {
+    audit.register('EXTERNAL_PREDICTION', `fixture:${input.fixtureId}`, external.capturedAt);
+  }
+  if (injuriesCoverageAvailable && coverage?.injuriesFetchedAt) {
+    audit.register('COVERAGE', `fixture:${input.fixtureId}:injuries`, coverage.injuriesFetchedAt);
+  }
+  if (statisticsCoverageAvailable && coverage?.statisticsFetchedAt) {
+    audit.register(
+      'COVERAGE',
+      `fixture:${input.fixtureId}:statistics`,
+      coverage.statisticsFetchedAt,
+    );
+  }
+
+  const injuries = injuryRows as Array<{
+    teamId: number;
+    apiPlayerId: number;
+    capturedAt: Date;
+  }>;
   const homeInjuries = injuries.filter(
     (row: { teamId: number; apiPlayerId: number }) => row.teamId === input.homeTeamId,
   );
@@ -476,12 +563,12 @@ export async function getScientificFixtureAnalysis(input: {
     countRegularInjuries({
       teamId: input.homeTeamId,
       apiPlayerIds: homeInjuries.map((row: { apiPlayerId: number }) => row.apiPlayerId),
-      asOf: input.asOf,
+      asOf: predictionAsOf,
     }),
     countRegularInjuries({
       teamId: input.awayTeamId,
       apiPlayerIds: awayInjuries.map((row: { apiPlayerId: number }) => row.apiPlayerId),
-      asOf: input.asOf,
+      asOf: predictionAsOf,
     }),
   ]);
 
@@ -497,10 +584,7 @@ export async function getScientificFixtureAnalysis(input: {
   const awayTacticalScore = formationScore(awayFormation);
 
   const injuryScale = numberEnvironment('SCIENTIFIC_INJURY_XG_PENALTY', 0.018);
-  const regularScale = numberEnvironment(
-    'SCIENTIFIC_REGULAR_INJURY_XG_PENALTY',
-    0.035,
-  );
+  const regularScale = numberEnvironment('SCIENTIFIC_REGULAR_INJURY_XG_PENALTY', 0.035);
   const homeInjuryPenalty = clamp(
     homeInjuries.length * injuryScale + homeRegulars * regularScale,
     0,
@@ -523,11 +607,7 @@ export async function getScientificFixtureAnalysis(input: {
   awayExpectedGoals *= 1 - awayInjuryPenalty;
   homeExpectedGoals *= 1 + homeTacticalScore - awayTacticalScore * 0.25;
   awayExpectedGoals *= 1 + awayTacticalScore - homeTacticalScore * 0.25;
-  const lineupTotalMultiplier = clamp(
-    1 + lineupAnalysis.overProbabilityAdjustment * 4,
-    0.82,
-    1.18,
-  );
+  const lineupTotalMultiplier = clamp(1 + lineupAnalysis.overProbabilityAdjustment * 4, 0.82, 1.18);
   homeExpectedGoals *= lineupTotalMultiplier;
   awayExpectedGoals *= lineupTotalMultiplier;
   homeExpectedGoals = clamp(homeExpectedGoals, 0.2, 4.5);
@@ -553,21 +633,31 @@ export async function getScientificFixtureAnalysis(input: {
     1,
   ];
 
-  const artifact = parseStoredArtifact(setting?.value);
-  const modelAllowedByTime = artifact
-    ? new Date(artifact.trainedThrough).getTime() < input.asOf.getTime()
-    : false;
+  const storedArtifact = parseStoredArtifact(setting?.value);
+  const modelTrainedAt = storedArtifact ? new Date(storedArtifact.trainedAt) : null;
+  const modelTrainedThrough = storedArtifact ? new Date(storedArtifact.trainedThrough) : null;
+  const modelAllowedByTime =
+    storedArtifact != null &&
+    modelTrainedAt != null &&
+    modelTrainedThrough != null &&
+    Number.isFinite(modelTrainedAt.getTime()) &&
+    Number.isFinite(modelTrainedThrough.getTime()) &&
+    modelTrainedAt.getTime() <= predictionAsOf.getTime() &&
+    modelTrainedThrough.getTime() < predictionAsOf.getTime();
+  const artifact = modelAllowedByTime ? storedArtifact : null;
+
+  if (artifact && modelTrainedAt) {
+    audit.register('MODEL_ARTIFACT', artifact.version, modelTrainedAt, {
+      sampleSize: artifact.sampleSize,
+      trainedThrough: artifact.trainedThrough,
+    });
+  }
+
   const useMachineLearning = input.useMachineLearning ?? true;
   const modelPrediction =
-    artifact && modelAllowedByTime && useMachineLearning
-      ? predictScientificModel(artifact, featureVector)
-      : null;
+    artifact && useMachineLearning ? predictScientificModel(artifact, featureVector) : null;
 
-  const poisson25 = poissonGoalMarkets(
-    homeExpectedGoals,
-    awayExpectedGoals,
-    2.5,
-  );
+  const poisson25 = poissonGoalMarkets(homeExpectedGoals, awayExpectedGoals, 2.5);
   const eloProbabilities = eloMatchWinnerProbabilities(elo.home, elo.away);
   const externalProbabilities = externalPredictionRecord(external);
   // PREDICTION_AI_V6_FEATURE_BLEND: hạ trọng số ML khi mẫu ít hoặc ensemble bất đồng.
@@ -579,9 +669,7 @@ export async function getScientificFixtureAnalysis(input: {
   );
   const mlWinnerWeight = modelPrediction
     ? clamp(
-        0.38 *
-          modelSampleReliability *
-          (1 - (modelUncertainty?.matchWinner ?? 0) * 4),
+        0.38 * modelSampleReliability * (1 - (modelUncertainty?.matchWinner ?? 0) * 4),
         0.14,
         0.42,
       )
@@ -620,13 +708,7 @@ export async function getScientificFixtureAnalysis(input: {
     UNDER: 1 - over25Over,
   });
   const bttsMlWeight = modelPrediction
-    ? clamp(
-        0.48 *
-          modelSampleReliability *
-          (1 - (modelUncertainty?.btts ?? 0) * 4),
-        0.15,
-        0.48,
-      )
+    ? clamp(0.48 * modelSampleReliability * (1 - (modelUncertainty?.btts ?? 0) * 4), 0.15, 0.48)
     : 0;
   const btts = modelPrediction
     ? weightedRecordBlend([
@@ -644,10 +726,8 @@ export async function getScientificFixtureAnalysis(input: {
     1,
   );
   const lineupQuality = lineupAnalysis.available ? 1 : 0.45;
-  const injuryCoverage = coverage?.injuriesFetchedAt ? 1 : 0.35;
-  const modelQuality = modelPrediction
-    ? clamp((artifact?.sampleSize ?? 0) / 600, 0.35, 1)
-    : 0.35;
+  const injuryCoverage = injuriesCoverageAvailable ? 1 : 0.35;
+  const modelQuality = modelPrediction ? clamp((artifact?.sampleSize ?? 0) / 600, 0.35, 1) : 0.35;
   const dataQualityScore = clamp(
     historyQuality * 0.3 +
       metricCoverage * 0.25 +
@@ -675,7 +755,7 @@ export async function getScientificFixtureAnalysis(input: {
     `Chiến thuật/đội hình: ${homeFormation ?? 'chưa rõ'} - ${awayFormation ?? 'chưa rõ'}.`,
     modelPrediction
       ? `Machine learning ${artifact?.version ?? ''}, mẫu huấn luyện ${artifact?.sampleSize ?? 0}.`
-      : artifact && !modelAllowedByTime
+      : storedArtifact && !modelAllowedByTime
         ? 'Không dùng machine learning vì model được huấn luyện sau thời điểm phân tích (chống data leakage).'
         : 'Chưa có model machine learning đủ điều kiện; dùng xG, phong độ, Elo và odds consensus.',
     ...lineupAnalysis.reasons,
@@ -683,7 +763,9 @@ export async function getScientificFixtureAnalysis(input: {
 
   return {
     fixtureId: input.fixtureId,
-    asOf: input.asOf,
+    asOf: predictionAsOf,
+    predictionAsOf,
+    pointInTimeAudit: audit.summary(),
     homeExpectedGoals,
     awayExpectedGoals,
     featureVector,
@@ -702,7 +784,7 @@ export async function getScientificFixtureAnalysis(input: {
       away: awayInjuries.length,
       homeRegulars,
       awayRegulars,
-      coverageAvailable: Boolean(coverage?.injuriesFetchedAt),
+      coverageAvailable: injuriesCoverageAvailable,
     },
     elo,
     form: {

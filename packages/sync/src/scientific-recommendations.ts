@@ -15,7 +15,10 @@ import {
   type InputJsonValue,
 } from '@football-ai/database';
 import { getFixtureHoursAhead, getRecommendationRules } from './config.js';
-import { getScientificFixtureAnalysis, type ScientificFixtureAnalysis } from './scientific-features.js';
+import {
+  getScientificFixtureAnalysis,
+  type ScientificFixtureAnalysis,
+} from './scientific-features.js';
 import {
   SCIENTIFIC_MODEL_VERSION,
   calibrateTotalProbability,
@@ -118,16 +121,8 @@ function integerEnvironment(name: string, fallback: number): number {
 
 export function getScientificRules(): ScientificRecommendationRules {
   const base = getRecommendationRules();
-  const modelWeight = clamp(
-    numberEnvironment('SCIENTIFIC_MODEL_WEIGHT', 0.65),
-    0,
-    1,
-  );
-  const marketWeight = clamp(
-    numberEnvironment('SCIENTIFIC_MARKET_WEIGHT', 0.35),
-    0,
-    1,
-  );
+  const modelWeight = clamp(numberEnvironment('SCIENTIFIC_MODEL_WEIGHT', 0.65), 0, 1);
+  const marketWeight = clamp(numberEnvironment('SCIENTIFIC_MARKET_WEIGHT', 0.35), 0, 1);
   const weightTotal = Math.max(0.0001, modelWeight + marketWeight);
   return {
     minimumOdds: numberEnvironment('SCIENTIFIC_MIN_ODDS', base.minimumOdds),
@@ -136,10 +131,7 @@ export function getScientificRules(): ScientificRecommendationRules {
       'SCIENTIFIC_MIN_EV',
       Math.min(base.minimumExpectedValue, 0.035),
     ),
-    minimumEdge: numberEnvironment(
-      'SCIENTIFIC_MIN_EDGE',
-      Math.min(base.minimumEdge, 0.02),
-    ),
+    minimumEdge: numberEnvironment('SCIENTIFIC_MIN_EDGE', Math.min(base.minimumEdge, 0.02)),
     minimumConfidence: numberEnvironment(
       'SCIENTIFIC_MIN_CONFIDENCE',
       Math.min(base.minimumConfidence, 0.45),
@@ -160,28 +152,16 @@ export function getScientificRules(): ScientificRecommendationRules {
       1,
       integerEnvironment('SCIENTIFIC_MIN_REFERENCE_BOOKMAKERS', 2),
     ),
-    maximumProbabilityStddev: numberEnvironment(
-      'SCIENTIFIC_MAX_PROBABILITY_STDDEV',
-      0.055,
-    ),
+    maximumProbabilityStddev: numberEnvironment('SCIENTIFIC_MAX_PROBABILITY_STDDEV', 0.055),
     modelWeight: modelWeight / weightTotal,
     marketWeight: marketWeight / weightTotal,
-    maximumPerFixture: Math.max(
-      1,
-      integerEnvironment('SCIENTIFIC_MAX_PER_FIXTURE', 3),
-    ),
-    maximumPerMarket: Math.max(
-      1,
-      integerEnvironment('SCIENTIFIC_MAX_PER_MARKET', 1),
-    ),
+    maximumPerFixture: Math.max(1, integerEnvironment('SCIENTIFIC_MAX_PER_FIXTURE', 3)),
+    maximumPerMarket: Math.max(1, integerEnvironment('SCIENTIFIC_MAX_PER_MARKET', 1)),
     maximumPerCorrelationCluster: Math.max(
       1,
       integerEnvironment('SCIENTIFIC_MAX_PER_CORRELATION_CLUSTER', 1),
     ),
-    allowQuarterLines: booleanEnvironment(
-      'SCIENTIFIC_ALLOW_ASIAN_QUARTER_LINES',
-      false,
-    ),
+    allowQuarterLines: booleanEnvironment('SCIENTIFIC_ALLOW_ASIAN_QUARTER_LINES', false),
   };
 }
 
@@ -254,9 +234,7 @@ function buildCompleteMarkets(rows: LatestOdds[]): CompleteMarket[] {
       bookmakerRows.find((row) => row.selectionCode === selectionCode),
     );
     if (selectionRows.some((row) => row === undefined)) continue;
-    const definiteRows = selectionRows.filter(
-      (row): row is LatestOdds => row !== undefined,
-    );
+    const definiteRows = selectionRows.filter((row): row is LatestOdds => row !== undefined);
     const fair = removeVig(
       definiteRows.map((row) => ({
         code: row.selectionCode,
@@ -291,16 +269,8 @@ function scientificProbabilities(
     return { probabilities: analysis.btts, pushProbability: 0 };
   }
   const line = lineValue ?? 2.5;
-  const poisson = poissonGoalMarkets(
-    analysis.homeExpectedGoals,
-    analysis.awayExpectedGoals,
-    line,
-  );
-  const poisson25 = poissonGoalMarkets(
-    analysis.homeExpectedGoals,
-    analysis.awayExpectedGoals,
-    2.5,
-  );
+  const poisson = poissonGoalMarkets(analysis.homeExpectedGoals, analysis.awayExpectedGoals, line);
+  const poisson25 = poissonGoalMarkets(analysis.homeExpectedGoals, analysis.awayExpectedGoals, 2.5);
   const overConditional = calibrateTotalProbability({
     lineProbability: poisson.total.overConditional,
     poissonOver25: poisson25.total.overConditional,
@@ -324,10 +294,7 @@ function blendProbabilities(input: {
   modelWeight: number;
   marketWeight: number;
 }): Record<string, number> {
-  const keys = new Set([
-    ...Object.keys(input.scientific),
-    ...Object.keys(input.market),
-  ]);
+  const keys = new Set([...Object.keys(input.scientific), ...Object.keys(input.market)]);
   const blended: Record<string, number> = {};
   for (const key of keys) {
     blended[key] =
@@ -351,15 +318,13 @@ function exactExpectedValue(input: {
 
 function correlationCluster(candidate: ScientificRecommendationCandidate): string {
   if (
-    (candidate.marketCode === 'TOTAL_GOALS_2_5' &&
-      candidate.selectionCode === 'OVER') ||
+    (candidate.marketCode === 'TOTAL_GOALS_2_5' && candidate.selectionCode === 'OVER') ||
     (candidate.marketCode === 'BTTS' && candidate.selectionCode === 'YES')
   ) {
     return 'GOALS_HIGH';
   }
   if (
-    (candidate.marketCode === 'TOTAL_GOALS_2_5' &&
-      candidate.selectionCode === 'UNDER') ||
+    (candidate.marketCode === 'TOTAL_GOALS_2_5' && candidate.selectionCode === 'UNDER') ||
     (candidate.marketCode === 'BTTS' && candidate.selectionCode === 'NO')
   ) {
     return 'GOALS_LOW';
@@ -451,27 +416,24 @@ export function buildScientificCandidates(input: {
         const quote = candidateMarket.rows.get(selectionCode);
         const candidateFair = candidateMarket.fairProbabilities.get(selectionCode);
         const rawModelProbability = blended[selectionCode];
-      // PREDICTION_AI_V6_RAW_PROBABILITY_GUARD: skip incomplete probability maps before arithmetic.
-      if (rawModelProbability === undefined) {
-        diagnostics?.reject('MISSING_PROBABILITY_OR_QUOTE');
-        continue;
-      }
-      // PREDICTION_AI_V6_CONSERVATIVE_EV: chỉ nhận value còn tồn tại sau khi trừ độ bất định.
-      const predictionUncertainty =
-        representative.marketCode === 'MATCH_WINNER'
-          ? input.analysis.modelPrediction?.uncertainty?.matchWinner ?? 0
-          : representative.marketCode === 'BTTS'
-            ? input.analysis.modelPrediction?.uncertainty?.btts ?? 0
-            : input.analysis.modelPrediction?.uncertainty?.over25 ?? 0;
-      const uncertaintyPenalty = numberEnvironment(
-        'SCIENTIFIC_UNCERTAINTY_PENALTY',
-        0.65,
-      );
-      const modelProbability = clamp(
-        rawModelProbability - predictionUncertainty * uncertaintyPenalty,
-        0.001,
-        0.999,
-      );
+        // PREDICTION_AI_V6_RAW_PROBABILITY_GUARD: skip incomplete probability maps before arithmetic.
+        if (rawModelProbability === undefined) {
+          diagnostics?.reject('MISSING_PROBABILITY_OR_QUOTE');
+          continue;
+        }
+        // PREDICTION_AI_V6_CONSERVATIVE_EV: chỉ nhận value còn tồn tại sau khi trừ độ bất định.
+        const predictionUncertainty =
+          representative.marketCode === 'MATCH_WINNER'
+            ? (input.analysis.modelPrediction?.uncertainty?.matchWinner ?? 0)
+            : representative.marketCode === 'BTTS'
+              ? (input.analysis.modelPrediction?.uncertainty?.btts ?? 0)
+              : (input.analysis.modelPrediction?.uncertainty?.over25 ?? 0);
+        const uncertaintyPenalty = numberEnvironment('SCIENTIFIC_UNCERTAINTY_PENALTY', 0.65);
+        const modelProbability = clamp(
+          rawModelProbability - predictionUncertainty * uncertaintyPenalty,
+          0.001,
+          0.999,
+        );
         const scientificProbability = scientific.probabilities[selectionCode];
         const marketProbability = referenceConsensus[selectionCode];
         if (
@@ -481,11 +443,10 @@ export function buildScientificCandidates(input: {
           scientificProbability === undefined ||
           marketProbability === undefined
         ) {
-        diagnostics?.reject('MISSING_PROBABILITY_OR_QUOTE');
-        continue;
+          diagnostics?.reject('MISSING_PROBABILITY_OR_QUOTE');
+          continue;
         }
-        const oddsAgeMinutes =
-          (input.now.getTime() - quote.capturedAt.getTime()) / 60_000;
+        const oddsAgeMinutes = (input.now.getTime() - quote.capturedAt.getTime()) / 60_000;
         const probabilityStddev = dispersion[selectionCode] ?? 0;
         const agreementScore = clamp(
           1 - Math.abs(scientificProbability - marketProbability) * 2.5,
@@ -498,9 +459,7 @@ export function buildScientificCandidates(input: {
           1,
         );
         const stabilityScore = clamp(
-          1 -
-            probabilityStddev /
-              Math.max(rules.maximumProbabilityStddev, 0.0001),
+          1 - probabilityStddev / Math.max(rules.maximumProbabilityStddev, 0.0001),
           0,
           1,
         );
@@ -534,37 +493,34 @@ export function buildScientificCandidates(input: {
           confidenceScore *
           dataQualityScore *
           (0.7 + agreementScore * 0.3);
-      if (
-        quote.decimalOdds < rules.minimumOdds ||
-        quote.decimalOdds > rules.maximumOdds
-      ) {
-        diagnostics?.reject('ODDS_OUT_OF_RANGE');
-        continue;
-      }
-      if (expectedValue < rules.minimumExpectedValue) {
-        diagnostics?.reject('EXPECTED_VALUE_LOW');
-        continue;
-      }
-      if (edge < rules.minimumEdge) {
-        diagnostics?.reject('EDGE_LOW');
-        continue;
-      }
-      if (confidenceScore < rules.minimumConfidence) {
-        diagnostics?.reject('CONFIDENCE_LOW');
-        continue;
-      }
-      if (dataQualityScore < rules.minimumDataQuality) {
-        diagnostics?.reject('DATA_QUALITY_LOW');
-        continue;
-      }
-      if (probabilityStddev > rules.maximumProbabilityStddev) {
-        diagnostics?.reject('PROBABILITY_DISPERSION_HIGH');
-        continue;
-      }
-      if (oddsAgeMinutes > rules.maximumOddsAgeMinutes) {
-        diagnostics?.reject('ODDS_TOO_OLD');
-        continue;
-      }
+        if (quote.decimalOdds < rules.minimumOdds || quote.decimalOdds > rules.maximumOdds) {
+          diagnostics?.reject('ODDS_OUT_OF_RANGE');
+          continue;
+        }
+        if (expectedValue < rules.minimumExpectedValue) {
+          diagnostics?.reject('EXPECTED_VALUE_LOW');
+          continue;
+        }
+        if (edge < rules.minimumEdge) {
+          diagnostics?.reject('EDGE_LOW');
+          continue;
+        }
+        if (confidenceScore < rules.minimumConfidence) {
+          diagnostics?.reject('CONFIDENCE_LOW');
+          continue;
+        }
+        if (dataQualityScore < rules.minimumDataQuality) {
+          diagnostics?.reject('DATA_QUALITY_LOW');
+          continue;
+        }
+        if (probabilityStddev > rules.maximumProbabilityStddev) {
+          diagnostics?.reject('PROBABILITY_DISPERSION_HIGH');
+          continue;
+        }
+        if (oddsAgeMinutes > rules.maximumOddsAgeMinutes) {
+          diagnostics?.reject('ODDS_TOO_OLD');
+          continue;
+        }
 
         const candidate: ScientificRecommendationCandidate = {
           oddsSnapshotId: quote.id,
@@ -618,9 +574,7 @@ export function buildScientificCandidates(input: {
 export async function generateScientificRecommendations(): Promise<SyncSummary> {
   return runTrackedSync('generate-scientific-recommendations', async () => {
     const now = new Date();
-    const maximumKickoff = new Date(
-      now.getTime() + getFixtureHoursAhead() * 3_600_000,
-    );
+    const maximumKickoff = new Date(now.getTime() + getFixtureHoursAhead() * 3_600_000);
     const rules = getScientificRules();
     const rejectionDiagnostics = new ScientificRejectionDiagnostics();
     // PREDICTION_AI_V62_DYNAMIC_STAKING
@@ -661,7 +615,8 @@ export async function generateScientificRecommendations(): Promise<SyncSummary> 
         homeTeamName: fixture.homeTeam.name,
         awayTeamName: fixture.awayTeam.name,
         kickoffAt: fixture.kickoffAt,
-        asOf: now,
+        predictionAsOf: now,
+        mode: 'LIVE',
         useMachineLearning: true,
       });
       const candidates = buildScientificCandidates({
@@ -677,25 +632,19 @@ export async function generateScientificRecommendations(): Promise<SyncSummary> 
         currentBankrollUnits: stakingConfig.bankrollUnits,
         peakBankrollUnits: stakingConfig.bankrollUnits,
         currentDailyExposureUnits:
-          (dailyExposureByDate.get(
-            fixture.kickoffAt.toISOString().slice(0, 10),
-          ) ?? 0) +
-          (fixture.kickoffAt.toISOString().slice(0, 10) ===
-          now.toISOString().slice(0, 10)
+          (dailyExposureByDate.get(fixture.kickoffAt.toISOString().slice(0, 10)) ?? 0) +
+          (fixture.kickoffAt.toISOString().slice(0, 10) === now.toISOString().slice(0, 10)
             ? stakingConfig.currentDailyExposureUnits
             : 0),
       });
-      for (const [reason, count] of Object.entries(
-        stakePortfolio.rejectionReasons,
-      )) {
+      for (const [reason, count] of Object.entries(stakePortfolio.rejectionReasons)) {
         rejectionDiagnostics.reject(reason, count);
       }
       const sizedCandidates = stakePortfolio.bets;
       const exposureDateKey = fixture.kickoffAt.toISOString().slice(0, 10);
       dailyExposureByDate.set(
         exposureDateKey,
-        (dailyExposureByDate.get(exposureDateKey) ?? 0) +
-          stakePortfolio.totalStakeUnits,
+        (dailyExposureByDate.get(exposureDateKey) ?? 0) + stakePortfolio.totalStakeUnits,
       );
       totalRecommendedStakeUnits += stakePortfolio.totalStakeUnits;
       if (totalRecommendedStakeAmount != null) {
@@ -755,8 +704,7 @@ export async function generateScientificRecommendations(): Promise<SyncSummary> 
           },
         });
         inserted += 1;
-        marketCounts[candidate.marketCode] =
-          (marketCounts[candidate.marketCode] ?? 0) + 1;
+        marketCounts[candidate.marketCode] = (marketCounts[candidate.marketCode] ?? 0) + 1;
       }
     }
 
@@ -779,14 +727,14 @@ export async function generateScientificRecommendations(): Promise<SyncSummary> 
         modelVersion: SCIENTIFIC_MODEL_VERSION,
         modelWeight: rules.modelWeight,
         marketWeight: rules.marketWeight,
-          rejectionDiagnostics: rejectionDiagnostics.snapshot() as unknown as InputJsonValue,
-          staking: {
-            version: SCIENTIFIC_STAKING_VERSION,
-            config: summarizeScientificBankrollConfig(stakingConfig),
-            totalRecommendedStakeUnits,
-            totalRecommendedStakeAmount,
-            dailyExposureByDate: Object.fromEntries(dailyExposureByDate),
-          } as unknown as InputJsonValue,
+        rejectionDiagnostics: rejectionDiagnostics.snapshot() as unknown as InputJsonValue,
+        staking: {
+          version: SCIENTIFIC_STAKING_VERSION,
+          config: summarizeScientificBankrollConfig(stakingConfig),
+          totalRecommendedStakeUnits,
+          totalRecommendedStakeAmount,
+          dailyExposureByDate: Object.fromEntries(dailyExposureByDate),
+        } as unknown as InputJsonValue,
       },
     };
   });

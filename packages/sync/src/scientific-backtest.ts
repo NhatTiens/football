@@ -12,10 +12,7 @@ import {
   latestScientificOddsRows,
 } from './scientific-recommendations.js';
 import { SCIENTIFIC_MODEL_VERSION } from './scientific-model.js';
-import {
-  ScientificEvaluationCollector,
-  ScientificRejectionDiagnostics,
-} from './scientific-v61.js';
+import { ScientificEvaluationCollector, ScientificRejectionDiagnostics } from './scientific-v61.js';
 import {
   SCIENTIFIC_STAKING_VERSION,
   ScientificBankrollTracker,
@@ -50,11 +47,7 @@ function mean(values: number[]): number | null {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-
-
-export async function runScientificBacktest(
-  options: ScientificBacktestOptions = {},
-) {
+export async function runScientificBacktest(options: ScientificBacktestOptions = {}) {
   const now = new Date();
   const dateFrom = parseDate(
     options.from ?? process.env.BACKTEST_FROM,
@@ -63,11 +56,7 @@ export async function runScientificBacktest(
   const dateTo = parseDate(options.to ?? process.env.BACKTEST_TO, now);
   const fixtureLimit = Math.min(
     5000,
-    Math.max(
-      1,
-      options.fixtureLimit ??
-        Number(process.env.BACKTEST_FIXTURE_LIMIT ?? 500),
-    ),
+    Math.max(1, options.fixtureLimit ?? Number(process.env.BACKTEST_FIXTURE_LIMIT ?? 500)),
   );
   const stakeUnits = Math.max(
     0.01,
@@ -75,8 +64,7 @@ export async function runScientificBacktest(
   );
   const initialBankrollUnits = Math.max(
     1,
-    options.initialBankrollUnits ??
-      Number(process.env.SCIENTIFIC_BANKROLL_UNITS ?? 100),
+    options.initialBankrollUnits ?? Number(process.env.SCIENTIFIC_BANKROLL_UNITS ?? 100),
   );
   // PREDICTION_AI_V62_DYNAMIC_BANKROLL_BACKTEST
   const stakingConfig = getScientificBankrollConfig({
@@ -87,8 +75,7 @@ export async function runScientificBacktest(
   const horizonMinutes = Math.max(
     5,
     Math.floor(
-      options.horizonMinutes ??
-        Number(process.env.SCIENTIFIC_BACKTEST_HORIZON_MINUTES ?? 90),
+      options.horizonMinutes ?? Number(process.env.SCIENTIFIC_BACKTEST_HORIZON_MINUTES ?? 90),
     ),
   );
   if (dateFrom >= dateTo) {
@@ -110,8 +97,7 @@ export async function runScientificBacktest(
       rules: {
         machineLearningLeakageGuard: true,
         fixedDecisionHorizonMinutes: horizonMinutes,
-        description:
-          'ML is only used when model.trainedThrough is earlier than predictedAt.',
+        description: 'ML is only used when model.trainedThrough is earlier than predictedAt.',
       } as InputJsonValue,
       status: BacktestStatus.RUNNING,
     },
@@ -152,17 +138,14 @@ export async function runScientificBacktest(
     // PREDICTION_AI_V61_MARKET_METRICS
     const evaluation = new ScientificEvaluationCollector();
     const rejectionDiagnostics = new ScientificRejectionDiagnostics();
-    const bankrollTracker = new ScientificBankrollTracker(
-      initialBankrollUnits,
-    );
+    const bankrollTracker = new ScientificBankrollTracker(initialBankrollUnits);
     for (const fixture of fixtures) {
-      const predictedAt = new Date(
-        fixture.kickoffAt.getTime() - horizonMinutes * 60_000,
-      );
+      const predictedAt = new Date(fixture.kickoffAt.getTime() - horizonMinutes * 60_000);
       const pointInTimeRows = fixture.oddsSnapshots.filter(
         (row: (typeof fixture.oddsSnapshots)[number]) =>
           row.capturedAt.getTime() <= predictedAt.getTime(),
-      );      const odds = latestScientificOddsRows(pointInTimeRows);
+      );
+      const odds = latestScientificOddsRows(pointInTimeRows);
       if (odds.length === 0) {
         rejectionDiagnostics.reject('NO_ODDS_AT_HORIZON');
         continue;
@@ -175,7 +158,9 @@ export async function runScientificBacktest(
         homeTeamName: fixture.homeTeam.name,
         awayTeamName: fixture.awayTeam.name,
         kickoffAt: fixture.kickoffAt,
-        asOf: predictedAt,        useMachineLearning: true,
+        predictionAsOf: predictedAt,
+        mode: 'BACKTEST',
+        useMachineLearning: true,
       });
       const actualWinner =
         fixture.homeGoals! > fixture.awayGoals!
@@ -199,7 +184,8 @@ export async function runScientificBacktest(
         actual: fixture.homeGoals! > 0 && fixture.awayGoals! > 0 ? 1 : 0,
       });
       const candidates = buildScientificCandidates({
-        odds,        analysis,
+        odds,
+        analysis,
         now: predictedAt,
         diagnostics: rejectionDiagnostics,
       });
@@ -208,13 +194,9 @@ export async function runScientificBacktest(
         config: stakingConfig,
         currentBankrollUnits: bankrollTracker.currentBankrollUnits,
         peakBankrollUnits: bankrollTracker.peakBankrollUnits,
-        currentDailyExposureUnits: bankrollTracker.dailyExposureUnits(
-          fixture.kickoffAt,
-        ),
+        currentDailyExposureUnits: bankrollTracker.dailyExposureUnits(fixture.kickoffAt),
       });
-      for (const [reason, count] of Object.entries(
-        stakePortfolio.rejectionReasons,
-      )) {
+      for (const [reason, count] of Object.entries(stakePortfolio.rejectionReasons)) {
         rejectionDiagnostics.reject(reason, count);
       }
       if (stakePortfolio.bets.length === 0) continue;
@@ -235,11 +217,7 @@ export async function runScientificBacktest(
           stakePlan.stakeUnits,
         );
         const actual =
-          result === SettlementResult.WIN
-            ? 1
-            : result === SettlementResult.LOSS
-              ? 0
-              : null;
+          result === SettlementResult.WIN ? 1 : result === SettlementResult.LOSS ? 0 : null;
         if (actual !== null) {
           brierScores.push((candidate.modelProbability - actual) ** 2);
         }
@@ -249,12 +227,9 @@ export async function runScientificBacktest(
         else voids += 1;
         totalBets += 1;
         profits.push(profitUnits);
-        bankrollTracker.recordBet(
-          fixture.kickoffAt,
-          stakePlan.stakeUnits,
-          profitUnits,
-        );
-        oddsValues.push(candidate.decimalOdds);        expectedValues.push(candidate.expectedValue);
+        bankrollTracker.recordBet(fixture.kickoffAt, stakePlan.stakeUnits, profitUnits);
+        oddsValues.push(candidate.decimalOdds);
+        expectedValues.push(candidate.expectedValue);
         evaluation.recordBet({
           marketCode: candidate.marketCode,
           result: String(result) as 'WIN' | 'LOSS' | 'PUSH' | 'VOID',
@@ -292,9 +267,9 @@ export async function runScientificBacktest(
             homeGoals: fixture.homeGoals!,
             awayGoals: fixture.awayGoals!,
             reasons: [
-                ...candidate.reasons,
-                formatScientificStakeReason(stakePlan),
-              ] as unknown as InputJsonValue,
+              ...candidate.reasons,
+              formatScientificStakeReason(stakePlan),
+            ] as unknown as InputJsonValue,
           },
         });
       }
@@ -322,19 +297,19 @@ export async function runScientificBacktest(
         yieldRate: totalStake > 0 ? profitUnits / totalStake : null,
         averageOdds: mean(oddsValues),
         averageExpectedValue: mean(expectedValues),
-        maximumDrawdown: bankrollSnapshot.maximumDrawdownUnits,        brierScore: evaluation.overallBrierScore() ?? mean(brierScores),
+        maximumDrawdown: bankrollSnapshot.maximumDrawdownUnits,
+        brierScore: evaluation.overallBrierScore() ?? mean(brierScores),
         rules: {
           machineLearningLeakageGuard: true,
           fixedDecisionHorizonMinutes: horizonMinutes,
-          description:
-            'ML is only used when model.trainedThrough is earlier than predictedAt.',
+          description: 'ML is only used when model.trainedThrough is earlier than predictedAt.',
           rejectionDiagnostics: rejectionDiagnostics.snapshot(),
           marketMetrics: evaluation.snapshot(),
           correlationControl: true,
-        stakingVersion: SCIENTIFIC_STAKING_VERSION,
+          stakingVersion: SCIENTIFIC_STAKING_VERSION,
           stakingConfig: summarizeScientificBankrollConfig(stakingConfig),
           stakingMetrics: bankrollSnapshot,
-          } as unknown as InputJsonValue,
+        } as unknown as InputJsonValue,
       },
     });
   } catch (error) {
