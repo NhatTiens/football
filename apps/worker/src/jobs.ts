@@ -1,4 +1,6 @@
 import {
+  collectRepeatedOdds,
+  getRepeatedOddsCoverage,
   generateRecommendations,
   rebuildScientificElo,
   runBacktest,
@@ -17,6 +19,8 @@ import {
 export type WorkerCommand =
   | 'sync-fixtures'
   | 'sync-odds'
+  | 'sync-odds-repeated'
+  | 'odds-coverage'
   | 'sync-lineups'
   | 'sync-lineups-history'
   | 'sync-predictions'
@@ -49,6 +53,8 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
 
     if (command === 'sync-fixtures') result = await syncFixtures();
     else if (command === 'sync-odds') result = await syncOdds();
+    else if (command === 'sync-odds-repeated') result = await collectRepeatedOdds();
+    else if (command === 'odds-coverage') result = await getRepeatedOddsCoverage();
     else if (command === 'sync-lineups') result = await syncLineups();
     else if (command === 'sync-lineups-history') {
       result = await syncLineups({ includeHistory: true });
@@ -129,10 +135,7 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
       };
     }
 
-    console.log(
-      `[worker] completed ${command} in ${Date.now() - startedAt}ms`,
-      result,
-    );
+    console.log(`[worker] completed ${command} in ${Date.now() - startedAt}ms`, result);
     return result;
   } catch (error) {
     console.error(`[worker] failed ${command}`, error);

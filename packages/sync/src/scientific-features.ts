@@ -16,6 +16,10 @@ import {
   type SnapshotStorage,
 } from './scientific-snapshots.js';
 import {
+  getMatchWinnerOddsMovement,
+  type MatchWinnerOddsMovementAnalysis,
+} from './odds-movement.js';
+import {
   SCIENTIFIC_FEATURE_NAMES,
   SCIENTIFIC_MODEL_KEY,
   calibrateTotalProbability,
@@ -73,6 +77,7 @@ export interface ScientificFixtureAnalysis {
   asOf: Date;
   predictionAsOf: Date;
   pointInTimeAudit: PointInTimeAuditSummary;
+  marketMovement: MatchWinnerOddsMovementAnalysis;
   homeExpectedGoals: number;
   awayExpectedGoals: number;
   featureVector: number[];
@@ -484,6 +489,14 @@ export async function getScientificFixtureAnalysis(input: {
       prisma.appSetting.findUnique({ where: { key: SCIENTIFIC_MODEL_KEY } }),
     ]);
 
+  const marketMovement = await getMatchWinnerOddsMovement({
+    fixtureId: input.fixtureId,
+    kickoffAt: input.kickoffAt,
+    predictionAsOf,
+  });
+
+  audit.registerMany('ODDS', marketMovement.auditObservations);
+
   const injuriesCoverageAvailable =
     coverage?.injuriesFetchedAt != null &&
     isAvailableAtOrBefore(coverage.injuriesFetchedAt, predictionAsOf);
@@ -719,7 +732,7 @@ export async function getScientificFixtureAnalysis(input: {
   const lineupQuality = lineupAnalysis.available ? 1 : 0.45;
   const injuryCoverage = injuriesCoverageAvailable ? 1 : 0.35;
   const modelQuality = modelPrediction ? clamp((artifact?.sampleSize ?? 0) / 600, 0.35, 1) : 0.35;
-  const dataQualityScore = clamp(
+  const baseDataQualityScore = clamp(
     historyQuality * 0.3 +
       metricCoverage * 0.25 +
       lineupQuality * 0.15 +
@@ -728,7 +741,10 @@ export async function getScientificFixtureAnalysis(input: {
     0,
     1,
   );
-  const confidenceScore = clamp(
+  const dataQualityScore = marketMovement.available
+    ? clamp(baseDataQualityScore * 0.9 + marketMovement.qualityScore * 0.1, 0, 1)
+    : baseDataQualityScore;
+  const baseConfidenceScore = clamp(
     0.35 +
       dataQualityScore * 0.4 +
       (modelPrediction ? 0.12 : 0) +
@@ -737,7 +753,21 @@ export async function getScientificFixtureAnalysis(input: {
     0,
     1,
   );
-
+  const marketAgreementScore =
+    marketMovement.currentConsensus == null
+      ? 0.5
+      : clamp(
+          1 -
+            (Math.abs(matchWinner.HOME - marketMovement.currentConsensus.HOME) +
+              Math.abs(matchWinner.DRAW - marketMovement.currentConsensus.DRAW) +
+              Math.abs(matchWinner.AWAY - marketMovement.currentConsensus.AWAY)) /
+              2,
+          0,
+          1,
+        );
+  const confidenceScore = marketMovement.available
+    ? clamp(baseConfidenceScore * 0.88 + marketAgreementScore * 0.12, 0, 1)
+    : baseConfidenceScore;
   const reasons = [
     `xG kỳ vọng: ${input.homeTeamName} ${homeExpectedGoals.toFixed(2)} - ${awayExpectedGoals.toFixed(2)} ${input.awayTeamName}.`,
     `Phong độ ${historyLimit} trận: ${homeSummary.pointsPerGame.toFixed(2)} - ${awaySummary.pointsPerGame.toFixed(2)} điểm/trận.`,
@@ -749,6 +779,7 @@ export async function getScientificFixtureAnalysis(input: {
       : storedArtifact && !modelAllowedByTime
         ? 'Không dùng machine learning vì model được huấn luyện sau thời điểm phân tích (chống data leakage).'
         : 'Chưa có model machine learning đủ điều kiện; dùng xG, phong độ, Elo và odds consensus.',
+    ...marketMovement.reasons,
     ...lineupAnalysis.reasons,
   ];
 
@@ -757,6 +788,7 @@ export async function getScientificFixtureAnalysis(input: {
     asOf: predictionAsOf,
     predictionAsOf,
     pointInTimeAudit: audit.summary(),
+    marketMovement,
     homeExpectedGoals,
     awayExpectedGoals,
     featureVector,

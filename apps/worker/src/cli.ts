@@ -6,6 +6,8 @@ const command = (process.argv[2] ?? 'full') as WorkerCommand;
 const supported: WorkerCommand[] = [
   'sync-fixtures',
   'sync-odds',
+  'sync-odds-repeated',
+  'odds-coverage',
   'sync-lineups',
   'sync-lineups-history',
   'sync-predictions',

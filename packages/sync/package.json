@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:point-in-time": "vitest run tests/point-in-time.test.ts",
     "test:scientific-snapshots": "vitest run tests/scientific-snapshots.test.ts",
-    "snapshot:backfill": "tsx src/scientific-snapshot-backfill.ts"
+    "snapshot:backfill": "tsx src/scientific-snapshot-backfill.ts",
+    "test:odds-movement": "vitest run tests/odds-movement.test.ts",
+    "test:repeated-odds": "vitest run tests/repeated-odds.test.ts"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",
