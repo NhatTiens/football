@@ -18,3 +18,6 @@ export * from './scientific-v61.js';
 export * from './scientific-model-registry.js';
 export * from './scientific-walk-forward.js';
 export * from './scientific-bankroll.js';
+
+export * from './fundamentals-core.js';
+export * from './fundamentals-engine.js';

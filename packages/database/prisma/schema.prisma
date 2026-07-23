@@ -465,6 +465,91 @@ model FixtureTeamMetricSnapshot {
   @@index([teamId, capturedAt])
 }
 
+model TeamFundamentalSnapshot {
+  id                      Int       @id @default(autoincrement())
+  fixtureId               Int
+  teamId                  Int
+  leagueId                Int
+  predictionAsOf          DateTime
+  horizonMinutes          Int
+  venueRole               String    @db.VarChar(8)
+  sampleSize              Int
+  venueSampleSize         Int
+  matches5                Int
+  matches10               Int
+  matches20               Int
+  pointsPerGame5          Float
+  pointsPerGame10         Float
+  pointsPerGame20         Float
+  goalsFor5               Float
+  goalsFor10              Float
+  goalsFor20              Float
+  goalsAgainst5           Float
+  goalsAgainst10          Float
+  goalsAgainst20          Float
+  expectedGoalsFor10      Float
+  expectedGoalsAgainst10  Float
+  shots10                 Float
+  shotsOnGoal10           Float
+  possession10            Float
+  corners10               Float
+  winRate10               Float
+  drawRate10              Float
+  lossRate10              Float
+  cleanSheetRate10        Float
+  bttsRate10              Float
+  over25Rate10            Float
+  metricCoverage10        Float
+  venuePointsPerGame10    Float
+  venueGoalsFor10         Float
+  venueGoalsAgainst10     Float
+  restDays                Float
+  dataQualityScore        Float
+  latestSourceFixtureId   Int?
+  latestSourceKickoffAt   DateTime?
+  latestSourceAvailableAt DateTime?
+  rawPayload              Json
+  payloadHash             String    @db.VarChar(64)
+  createdAt               DateTime  @default(now())
+
+  @@unique([fixtureId, teamId, horizonMinutes, payloadHash], map: "TeamFundamental_fixture_team_horizon_hash_key")
+  @@index([fixtureId, horizonMinutes, predictionAsOf], map: "TeamFundamental_fixture_horizon_asof_idx")
+  @@index([teamId, predictionAsOf], map: "TeamFundamental_team_asof_idx")
+  @@index([leagueId, predictionAsOf], map: "TeamFundamental_league_asof_idx")
+}
+
+model DixonColesPredictionSnapshot {
+  id                Int      @id @default(autoincrement())
+  fixtureId         Int
+  leagueId          Int
+  predictionAsOf    DateTime
+  horizonMinutes    Int
+  trainedFrom       DateTime
+  trainedThrough    DateTime
+  sampleSize        Int
+  teamCount         Int
+  halfLifeDays      Float
+  rho               Float
+  intercept         Float
+  homeAdvantage     Float
+  homeExpectedGoals Float
+  awayExpectedGoals Float
+  homeProbability   Float
+  drawProbability   Float
+  awayProbability   Float
+  over25Probability Float
+  bttsProbability   Float
+  dataQualityScore  Float
+  modelPayload      Json
+  payloadHash       String   @db.VarChar(64)
+  createdAt         DateTime @default(now())
+
+  @@unique([fixtureId, horizonMinutes, payloadHash], map: "DixonColes_fixture_horizon_hash_key")
+  @@index([fixtureId, horizonMinutes, predictionAsOf], map: "DixonColes_fixture_horizon_asof_idx")
+  @@index([leagueId, trainedThrough], map: "DixonColes_league_trained_through_idx")
+  @@index([predictionAsOf, trainedThrough], map: "DixonColes_asof_trained_through_idx")
+}
+
 model FixtureInjury {
   id          Int      @id @default(autoincrement())
   fixtureId   Int

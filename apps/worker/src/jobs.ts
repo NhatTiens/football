@@ -1,4 +1,6 @@
 import {
+  backfillFundamentals,
+  getFundamentalsCoverage,
   collectRepeatedOdds,
   getRepeatedOddsCoverage,
   generateRecommendations,
@@ -21,6 +23,8 @@ export type WorkerCommand =
   | 'sync-odds'
   | 'sync-odds-repeated'
   | 'odds-coverage'
+  | 'fundamentals-backfill'
+  | 'fundamentals-coverage'
   | 'sync-lineups'
   | 'sync-lineups-history'
   | 'sync-predictions'
@@ -55,6 +59,8 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
     else if (command === 'sync-odds') result = await syncOdds();
     else if (command === 'sync-odds-repeated') result = await collectRepeatedOdds();
     else if (command === 'odds-coverage') result = await getRepeatedOddsCoverage();
+    else if (command === 'fundamentals-backfill') result = await backfillFundamentals();
+    else if (command === 'fundamentals-coverage') result = await getFundamentalsCoverage();
     else if (command === 'sync-lineups') result = await syncLineups();
     else if (command === 'sync-lineups-history') {
       result = await syncLineups({ includeHistory: true });

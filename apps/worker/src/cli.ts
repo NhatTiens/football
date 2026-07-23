@@ -8,6 +8,8 @@ const supported: WorkerCommand[] = [
   'sync-odds',
   'sync-odds-repeated',
   'odds-coverage',
+  'fundamentals-backfill',
+  'fundamentals-coverage',
   'sync-lineups',
   'sync-lineups-history',
   'sync-predictions',

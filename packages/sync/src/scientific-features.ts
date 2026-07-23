@@ -20,6 +20,10 @@ import {
   type MatchWinnerOddsMovementAnalysis,
 } from './odds-movement.js';
 import {
+  getFundamentalsFixturePrediction,
+  type FundamentalsFixturePrediction,
+} from './fundamentals-engine.js';
+import {
   SCIENTIFIC_FEATURE_NAMES,
   SCIENTIFIC_MODEL_KEY,
   calibrateTotalProbability,
@@ -78,6 +82,7 @@ export interface ScientificFixtureAnalysis {
   predictionAsOf: Date;
   pointInTimeAudit: PointInTimeAuditSummary;
   marketMovement: MatchWinnerOddsMovementAnalysis;
+  fundamentals: FundamentalsFixturePrediction;
   homeExpectedGoals: number;
   awayExpectedGoals: number;
   featureVector: number[];
@@ -617,6 +622,33 @@ export async function getScientificFixtureAnalysis(input: {
   homeExpectedGoals = clamp(homeExpectedGoals, 0.2, 4.5);
   awayExpectedGoals = clamp(awayExpectedGoals, 0.15, 4.2);
 
+  const fundamentalsPrediction = await getFundamentalsFixturePrediction({
+    fixtureId: input.fixtureId,
+    leagueId: input.leagueId,
+    homeTeamId: input.homeTeamId,
+    awayTeamId: input.awayTeamId,
+    kickoffAt: input.kickoffAt,
+    predictionAsOf,
+    persist: false,
+  });
+  const fundamentalsBlendWeight = fundamentalsPrediction.available
+    ? clamp(numberEnvironment('FUNDAMENTALS_BLEND_WEIGHT', 0.65), 0, 1)
+    : 0;
+
+  if (fundamentalsBlendWeight > 0) {
+    homeExpectedGoals = clamp(
+      homeExpectedGoals * (1 - fundamentalsBlendWeight) +
+        fundamentalsPrediction.homeExpectedGoals * fundamentalsBlendWeight,
+      0.2,
+      4.5,
+    );
+    awayExpectedGoals = clamp(
+      awayExpectedGoals * (1 - fundamentalsBlendWeight) +
+        fundamentalsPrediction.awayExpectedGoals * fundamentalsBlendWeight,
+      0.15,
+      4.2,
+    );
+  }
   const elo = calculateEloAsOf(history, input.homeTeamId, input.awayTeamId);
   const featureVector = [
     (elo.home - elo.away) / 400,
@@ -779,6 +811,7 @@ export async function getScientificFixtureAnalysis(input: {
       : storedArtifact && !modelAllowedByTime
         ? 'Không dùng machine learning vì model được huấn luyện sau thời điểm phân tích (chống data leakage).'
         : 'Chưa có model machine learning đủ điều kiện; dùng xG, phong độ, Elo và odds consensus.',
+    ...fundamentalsPrediction.reasons,
     ...marketMovement.reasons,
     ...lineupAnalysis.reasons,
   ];
@@ -789,6 +822,7 @@ export async function getScientificFixtureAnalysis(input: {
     predictionAsOf,
     pointInTimeAudit: audit.summary(),
     marketMovement,
+    fundamentals: fundamentalsPrediction,
     homeExpectedGoals,
     awayExpectedGoals,
     featureVector,
