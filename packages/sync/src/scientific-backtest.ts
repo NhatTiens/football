@@ -12,6 +12,18 @@ import {
   latestScientificOddsRows,
 } from './scientific-recommendations.js';
 import { SCIENTIFIC_MODEL_VERSION } from './scientific-model.js';
+import {
+  ScientificEvaluationCollector,
+  ScientificRejectionDiagnostics,
+} from './scientific-v61.js';
+import {
+  SCIENTIFIC_STAKING_VERSION,
+  ScientificBankrollTracker,
+  allocateScientificStakePortfolio,
+  formatScientificStakeReason,
+  getScientificBankrollConfig,
+  summarizeScientificBankrollConfig,
+} from './scientific-bankroll.js';
 
 export interface ScientificBacktestOptions {
   name?: string;
@@ -20,6 +32,7 @@ export interface ScientificBacktestOptions {
   to?: Date | string;
   fixtureLimit?: number;
   stakeUnits?: number;
+  initialBankrollUnits?: number;
   horizonMinutes?: number;
 }
 
@@ -37,17 +50,7 @@ function mean(values: number[]): number | null {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function maximumDrawdown(profits: number[]): number {
-  let equity = 0;
-  let peak = 0;
-  let drawdown = 0;
-  for (const profit of profits) {
-    equity += profit;
-    peak = Math.max(peak, equity);
-    drawdown = Math.max(drawdown, peak - equity);
-  }
-  return drawdown;
-}
+
 
 export async function runScientificBacktest(
   options: ScientificBacktestOptions = {},
@@ -70,6 +73,16 @@ export async function runScientificBacktest(
     0.01,
     options.stakeUnits ?? Number(process.env.BACKTEST_STAKE_UNITS ?? 1),
   );
+  const initialBankrollUnits = Math.max(
+    1,
+    options.initialBankrollUnits ??
+      Number(process.env.SCIENTIFIC_BANKROLL_UNITS ?? 100),
+  );
+  // PREDICTION_AI_V62_DYNAMIC_BANKROLL_BACKTEST
+  const stakingConfig = getScientificBankrollConfig({
+    bankrollUnits: initialBankrollUnits,
+    fixedStakeUnits: stakeUnits,
+  });
   // PREDICTION_AI_V6_FIXED_HORIZON: mọi trận được dự đoán tại cùng khoảng cách trước giờ bóng lăn.
   const horizonMinutes = Math.max(
     5,
@@ -82,12 +95,12 @@ export async function runScientificBacktest(
     throw new Error('Scientific backtest dateFrom must be earlier than dateTo.');
   }
 
-  const modelVersion = `${SCIENTIFIC_MODEL_VERSION}-point-in-time`;
+  const modelVersion = `${SCIENTIFIC_MODEL_VERSION}-point-in-time-v61-dynamic-bankroll-v62`;
   const run = await prisma.backtestRun.create({
     data: {
       name:
         options.name?.trim() ||
-        `Scientific v6 ${dateFrom.toISOString().slice(0, 10)} → ${dateTo.toISOString().slice(0, 10)}`,
+        `Scientific v6.2 bankroll ${dateFrom.toISOString().slice(0, 10)} → ${dateTo.toISOString().slice(0, 10)}`,
       leagueId: options.leagueId,
       dateFrom,
       dateTo,
@@ -136,7 +149,12 @@ export async function runScientificBacktest(
     const oddsValues: number[] = [];
     const expectedValues: number[] = [];
     const profits: number[] = [];
-
+    // PREDICTION_AI_V61_MARKET_METRICS
+    const evaluation = new ScientificEvaluationCollector();
+    const rejectionDiagnostics = new ScientificRejectionDiagnostics();
+    const bankrollTracker = new ScientificBankrollTracker(
+      initialBankrollUnits,
+    );
     for (const fixture of fixtures) {
       const predictedAt = new Date(
         fixture.kickoffAt.getTime() - horizonMinutes * 60_000,
@@ -144,9 +162,11 @@ export async function runScientificBacktest(
       const pointInTimeRows = fixture.oddsSnapshots.filter(
         (row: (typeof fixture.oddsSnapshots)[number]) =>
           row.capturedAt.getTime() <= predictedAt.getTime(),
-      );
-      const odds = latestScientificOddsRows(pointInTimeRows);
-      if (odds.length === 0) continue;
+      );      const odds = latestScientificOddsRows(pointInTimeRows);
+      if (odds.length === 0) {
+        rejectionDiagnostics.reject('NO_ODDS_AT_HORIZON');
+        continue;
+      }
       const analysis = await getScientificFixtureAnalysis({
         fixtureId: fixture.id,
         leagueId: fixture.leagueId,
@@ -155,19 +175,52 @@ export async function runScientificBacktest(
         homeTeamName: fixture.homeTeam.name,
         awayTeamName: fixture.awayTeam.name,
         kickoffAt: fixture.kickoffAt,
-        asOf: predictedAt,
-        useMachineLearning: true,
+        asOf: predictedAt,        useMachineLearning: true,
+      });
+      const actualWinner =
+        fixture.homeGoals! > fixture.awayGoals!
+          ? 'HOME'
+          : fixture.homeGoals! < fixture.awayGoals!
+            ? 'AWAY'
+            : 'DRAW';
+      evaluation.recordPrediction({
+        marketCode: 'MATCH_WINNER',
+        probabilities: analysis.matchWinner,
+        actualClass: actualWinner,
+      });
+      evaluation.recordPrediction({
+        marketCode: 'TOTAL_GOALS_2_5',
+        probability: analysis.over25.OVER,
+        actual: fixture.homeGoals! + fixture.awayGoals! > 2.5 ? 1 : 0,
+      });
+      evaluation.recordPrediction({
+        marketCode: 'BTTS',
+        probability: analysis.btts.YES,
+        actual: fixture.homeGoals! > 0 && fixture.awayGoals! > 0 ? 1 : 0,
       });
       const candidates = buildScientificCandidates({
-        odds,
-        analysis,
+        odds,        analysis,
         now: predictedAt,
+        diagnostics: rejectionDiagnostics,
       });
-      if (candidates.length === 0) continue;
+      const stakePortfolio = allocateScientificStakePortfolio({
+        candidates,
+        config: stakingConfig,
+        currentBankrollUnits: bankrollTracker.currentBankrollUnits,
+        peakBankrollUnits: bankrollTracker.peakBankrollUnits,
+        currentDailyExposureUnits: bankrollTracker.dailyExposureUnits(
+          fixture.kickoffAt,
+        ),
+      });
+      for (const [reason, count] of Object.entries(
+        stakePortfolio.rejectionReasons,
+      )) {
+        rejectionDiagnostics.reject(reason, count);
+      }
+      if (stakePortfolio.bets.length === 0) continue;
       eligibleFixtures += 1;
-
-      for (let index = 0; index < candidates.length; index += 1) {
-        const candidate = candidates[index]!;
+      for (let index = 0; index < stakePortfolio.bets.length; index += 1) {
+        const { candidate, stakePlan } = stakePortfolio.bets[index]!;
         const resultCode = settleSelection({
           marketCode: candidate.marketCode,
           selectionCode: candidate.selectionCode,
@@ -179,7 +232,7 @@ export async function runScientificBacktest(
         const profitUnits = profitForSettlement(
           resultCode,
           candidate.decimalOdds,
-          stakeUnits,
+          stakePlan.stakeUnits,
         );
         const actual =
           result === SettlementResult.WIN
@@ -196,9 +249,20 @@ export async function runScientificBacktest(
         else voids += 1;
         totalBets += 1;
         profits.push(profitUnits);
-        oddsValues.push(candidate.decimalOdds);
-        expectedValues.push(candidate.expectedValue);
-
+        bankrollTracker.recordBet(
+          fixture.kickoffAt,
+          stakePlan.stakeUnits,
+          profitUnits,
+        );
+        oddsValues.push(candidate.decimalOdds);        expectedValues.push(candidate.expectedValue);
+        evaluation.recordBet({
+          marketCode: candidate.marketCode,
+          result: String(result) as 'WIN' | 'LOSS' | 'PUSH' | 'VOID',
+          profitUnits,
+          stakeUnits: stakePlan.stakeUnits,
+          decimalOdds: candidate.decimalOdds,
+          expectedValue: candidate.expectedValue,
+        });
         await prisma.backtestBet.create({
           data: {
             runId: run.id,
@@ -223,19 +287,23 @@ export async function runScientificBacktest(
             recommendationScore: candidate.recommendationScore,
             rankNumber: index + 1,
             settlementResult: result,
-            stakeUnits,
+            stakeUnits: stakePlan.stakeUnits,
             profitUnits,
             homeGoals: fixture.homeGoals!,
             awayGoals: fixture.awayGoals!,
-            reasons: candidate.reasons as unknown as InputJsonValue,
+            reasons: [
+                ...candidate.reasons,
+                formatScientificStakeReason(stakePlan),
+              ] as unknown as InputJsonValue,
           },
         });
       }
     }
 
-    const profitUnits = profits.reduce((sum, value) => sum + value, 0);
+    const bankrollSnapshot = bankrollTracker.snapshot();
+    const profitUnits = bankrollSnapshot.profitUnits;
     const settledBets = wins + losses;
-    const totalStake = totalBets * stakeUnits;
+    const totalStake = bankrollSnapshot.totalStakeUnits;
     return prisma.backtestRun.update({
       where: { id: run.id },
       data: {
@@ -251,11 +319,22 @@ export async function runScientificBacktest(
         hitRate: settledBets > 0 ? wins / settledBets : null,
         profitUnits,
         roi: totalStake > 0 ? profitUnits / totalStake : null,
-        yieldRate: totalBets > 0 ? profitUnits / totalBets : null,
+        yieldRate: totalStake > 0 ? profitUnits / totalStake : null,
         averageOdds: mean(oddsValues),
         averageExpectedValue: mean(expectedValues),
-        maximumDrawdown: maximumDrawdown(profits),
-        brierScore: mean(brierScores),
+        maximumDrawdown: bankrollSnapshot.maximumDrawdownUnits,        brierScore: evaluation.overallBrierScore() ?? mean(brierScores),
+        rules: {
+          machineLearningLeakageGuard: true,
+          fixedDecisionHorizonMinutes: horizonMinutes,
+          description:
+            'ML is only used when model.trainedThrough is earlier than predictedAt.',
+          rejectionDiagnostics: rejectionDiagnostics.snapshot(),
+          marketMetrics: evaluation.snapshot(),
+          correlationControl: true,
+        stakingVersion: SCIENTIFIC_STAKING_VERSION,
+          stakingConfig: summarizeScientificBankrollConfig(stakingConfig),
+          stakingMetrics: bankrollSnapshot,
+          } as unknown as InputJsonValue,
       },
     });
   } catch (error) {

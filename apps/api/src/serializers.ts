@@ -1,5 +1,46 @@
 import type { JsonValue } from '@football-ai/database';
 
+// PREDICTION_AI_V622_STAKE_SERIALIZER
+interface StakeDisplayMetadata {
+  stakeUnits: number;
+  stakeFraction: number | null;
+  stakeAmount: number | null;
+  stakeCurrency: string | null;
+  stakeProfile: string | null;
+  stakeRiskBand: string | null;
+}
+
+function reasonStrings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+function parseStakeDisplayMetadata(value: unknown): StakeDisplayMetadata | null {
+  const reason = reasonStrings(value).find((entry) =>
+    entry.includes('Mức cược đề xuất'),
+  );
+  if (!reason) return null;
+  const match = reason.match(
+    /Mức cược đề xuất\s+([\d.,]+)u\s+\(([\d.,]+)% bankroll(?:,\s*tương đương\s+([\d.\s,]+)\s+([A-Z]{3}))?\),\s*hồ sơ\s+([A-Z]+),\s*rủi ro\s+([A-Z_]+)\./i,
+  );
+  if (!match) return null;
+  const stakeUnits = Number(match[1]!.replace(',', '.'));
+  const stakePercent = Number(match[2]!.replace(',', '.'));
+  const stakeAmount = match[3]
+    ? Number(match[3].replace(/[.\s]/g, '').replace(',', '.'))
+    : null;
+  if (!Number.isFinite(stakeUnits)) return null;
+  return {
+    stakeUnits,
+    stakeFraction: Number.isFinite(stakePercent) ? stakePercent / 100 : null,
+    stakeAmount: stakeAmount != null && Number.isFinite(stakeAmount) ? stakeAmount : null,
+    stakeCurrency: match[4]?.toUpperCase() ?? null,
+    stakeProfile: match[5]?.toUpperCase() ?? null,
+    stakeRiskBand: match[6]?.toUpperCase() ?? null,
+  };
+}
+
 export function fixtureSummary(fixture: any) {
   return {
     id: fixture.id,
@@ -40,6 +81,7 @@ export function fixtureSummary(fixture: any) {
 }
 
 export function recommendationDto(recommendation: any) {
+  const stake = parseStakeDisplayMetadata(recommendation.reasons);
   return {
     id: recommendation.id,
     rank: recommendation.rankNumber,
@@ -59,6 +101,12 @@ export function recommendationDto(recommendation: any) {
     dataQualityScore: recommendation.dataQualityScore,
     recommendationScore: recommendation.recommendationScore,
     modelVersion: recommendation.modelVersion,
+    stakeUnits: stake?.stakeUnits ?? null,
+    stakeFraction: stake?.stakeFraction ?? null,
+    stakeAmount: stake?.stakeAmount ?? null,
+    stakeCurrency: stake?.stakeCurrency ?? null,
+    stakeProfile: stake?.stakeProfile ?? null,
+    stakeRiskBand: stake?.stakeRiskBand ?? null,
     reasons: recommendation.reasons as JsonValue,
     status: recommendation.status,
     settlementResult: recommendation.settlementResult,

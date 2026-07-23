@@ -336,17 +336,80 @@ app.get(
       return;
     }
 
-    const marketMap = new Map<string, { marketCode: string; bets: number; wins: number; losses: number; pushes: number; profitUnits: number; odds: number[] }>();
+    // PREDICTION_AI_V622_BACKTEST_MONEY_DTO
+    const rulesRecord =
+      run.rules && typeof run.rules === 'object' && !Array.isArray(run.rules)
+        ? (run.rules as unknown as Record<string, unknown>)
+        : {};
+    const stakingConfigValue = rulesRecord.stakingConfig;
+    const stakingConfig =
+      stakingConfigValue &&
+      typeof stakingConfigValue === 'object' &&
+      !Array.isArray(stakingConfigValue)
+        ? (stakingConfigValue as unknown as Record<string, unknown>)
+        : {};
+    const bankrollAmount = Number(stakingConfig.bankrollAmount);
+    const bankrollUnits = Number(stakingConfig.bankrollUnits);
+    const unitAmount =
+      Number.isFinite(bankrollAmount) &&
+      bankrollAmount > 0 &&
+      Number.isFinite(bankrollUnits) &&
+      bankrollUnits > 0
+        ? bankrollAmount / bankrollUnits
+        : null;
+    const stakeCurrency =
+      typeof stakingConfig.bankrollCurrency === 'string'
+        ? stakingConfig.bankrollCurrency
+        : null;
+
+    // PREDICTION_AI_V623_API_STRICT_TYPES
+    type BacktestMoneyBet = {
+      marketCode: string;
+      settlementResult: SettlementResult;
+      profitUnits: number;
+      stakeUnits: number;
+      decimalOdds: number;
+      kickoffAt: Date;
+      stakeAmount: number | null;
+      profitAmount: number | null;
+      stakeCurrency: string | null;
+      [key: string]: unknown;
+    };
+    type MarketAggregate = {
+      marketCode: string;
+      bets: number;
+      wins: number;
+      losses: number;
+      pushes: number;
+      profitUnits: number;
+      stakeUnits: number;
+      stakeAmount: number;
+      profitAmount: number;
+      odds: number[];
+    };
+    const bets: BacktestMoneyBet[] = run.bets.map(
+      (bet: any): BacktestMoneyBet => ({
+      ...bet,
+      stakeAmount: unitAmount == null ? null : bet.stakeUnits * unitAmount,
+      profitAmount: unitAmount == null ? null : bet.profitUnits * unitAmount,
+      stakeCurrency,
+      }),
+    );
+
+    const marketMap = new Map<string, MarketAggregate>();
     const equityCurve: Array<{ index: number; kickoffAt: Date; equity: number }> = [];
     let equity = 0;
-    for (const bet of run.bets) {
-      const group = marketMap.get(bet.marketCode) ?? {
+    for (const bet of bets) {
+      const group: MarketAggregate = marketMap.get(bet.marketCode) ?? {
         marketCode: bet.marketCode,
         bets: 0,
         wins: 0,
         losses: 0,
         pushes: 0,
         profitUnits: 0,
+        stakeUnits: 0,
+        stakeAmount: 0,
+        profitAmount: 0,
         odds: [] as number[],
       };
       group.bets += 1;
@@ -354,26 +417,57 @@ app.get(
       else if (bet.settlementResult === SettlementResult.LOSS) group.losses += 1;
       else if (bet.settlementResult === SettlementResult.PUSH) group.pushes += 1;
       group.profitUnits += bet.profitUnits;
+      group.stakeUnits += bet.stakeUnits;
+      group.stakeAmount += bet.stakeAmount ?? 0;
+      group.profitAmount += bet.profitAmount ?? 0;
       group.odds.push(bet.decimalOdds);
       marketMap.set(bet.marketCode, group);
-
       equity += bet.profitUnits;
       equityCurve.push({ index: equityCurve.length + 1, kickoffAt: bet.kickoffAt, equity });
     }
-
     const byMarket = [...marketMap.values()].map((group) => ({
       marketCode: group.marketCode,
       bets: group.bets,
       wins: group.wins,
       losses: group.losses,
       pushes: group.pushes,
-      hitRate: group.wins + group.losses > 0 ? group.wins / (group.wins + group.losses) : null,
+      hitRate:
+        group.wins + group.losses > 0
+          ? group.wins / (group.wins + group.losses)
+          : null,
       profitUnits: group.profitUnits,
-      roi: group.bets > 0 ? group.profitUnits / (group.bets * run.stakeUnits) : null,
-      averageOdds: group.odds.length > 0 ? group.odds.reduce((sum, value) => sum + value, 0) / group.odds.length : null,
+      stakeUnits: group.stakeUnits,
+      stakeAmount: unitAmount == null ? null : group.stakeAmount,
+      profitAmount: unitAmount == null ? null : group.profitAmount,
+      stakeCurrency,
+      roi: group.stakeUnits > 0 ? group.profitUnits / group.stakeUnits : null,
+      averageOdds:
+        group.odds.length > 0
+          ? group.odds.reduce((sum, value) => sum + value, 0) / group.odds.length
+          : null,
     }));
-
-    response.json({ ...run, byMarket, equityCurve });
+    const totalStakeUnits = bets.reduce(
+      (sum: number, bet: BacktestMoneyBet) => sum + bet.stakeUnits,
+      0,
+    );
+    const totalStakeAmount =
+      unitAmount == null
+        ? null
+        : bets.reduce(
+            (sum: number, bet: BacktestMoneyBet) => sum + (bet.stakeAmount ?? 0),
+            0,
+          );
+    const profitAmount = unitAmount == null ? null : run.profitUnits * unitAmount;
+    response.json({
+      ...run,
+      bets,
+      byMarket,
+      equityCurve,
+      totalStakeUnits,
+      totalStakeAmount,
+      profitAmount,
+      stakeCurrency,
+    });
   }),
 );
 

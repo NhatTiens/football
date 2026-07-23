@@ -3,6 +3,7 @@ import {
   rebuildScientificElo,
   runBacktest,
   runScientificBacktest,
+  runScientificWalkForward,
   settleRecommendations,
   syncFixtures,
   syncLineups,
@@ -27,6 +28,7 @@ export type WorkerCommand =
   | 'settle'
   | 'backtest'
   | 'scientific-backtest'
+  | 'scientific-walk-forward'
   | 'scientific-full'
   | 'full';
 
@@ -82,6 +84,27 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
           : undefined,
         fixtureLimit: process.env.BACKTEST_FIXTURE_LIMIT
           ? Number(process.env.BACKTEST_FIXTURE_LIMIT)
+          : undefined,
+        stakeUnits: process.env.BACKTEST_STAKE_UNITS
+          ? Number(process.env.BACKTEST_STAKE_UNITS)
+          : undefined,
+      });
+    } else if (command === 'scientific-walk-forward') {
+      result = await runScientificWalkForward({
+        minimumTrainingFixtures: process.env.SCIENTIFIC_WF_MIN_TRAIN
+          ? Number(process.env.SCIENTIFIC_WF_MIN_TRAIN)
+          : undefined,
+        testFixturesPerFold: process.env.SCIENTIFIC_WF_TEST_SIZE
+          ? Number(process.env.SCIENTIFIC_WF_TEST_SIZE)
+          : undefined,
+        maximumFolds: process.env.SCIENTIFIC_WF_MAX_FOLDS
+          ? Number(process.env.SCIENTIFIC_WF_MAX_FOLDS)
+          : undefined,
+        horizonMinutes: process.env.SCIENTIFIC_WF_HORIZON_MINUTES
+          ? Number(process.env.SCIENTIFIC_WF_HORIZON_MINUTES)
+          : undefined,
+        leagueId: process.env.BACKTEST_LEAGUE_ID
+          ? Number(process.env.BACKTEST_LEAGUE_ID)
           : undefined,
         stakeUnits: process.env.BACKTEST_STAKE_UNITS
           ? Number(process.env.BACKTEST_STAKE_UNITS)

@@ -17,6 +17,7 @@ const supported: WorkerCommand[] = [
   'settle',
   'backtest',
   'scientific-backtest',
+  'scientific-walk-forward',
   'scientific-full',
   'full',
 ];

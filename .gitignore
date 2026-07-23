@@ -10,3 +10,10 @@ coverage
 packages/database/prisma/dev.db
 
 .prediction-v6-backup/
+football-prediction-ai-v6.2.3/
+.prediction-v62-backup/
+.prediction-v621-backup/
+.prediction-v622-backup/
+.prediction-v623-backup/
+*.tsbuildinfo
+.prediction-v612-backup/

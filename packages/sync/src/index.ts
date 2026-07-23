@@ -12,3 +12,7 @@ export * from './scientific-features.js';
 export * from './scientific-sync.js';
 export * from './scientific-recommendations.js';
 export * from './scientific-backtest.js';
+export * from './scientific-v61.js';
+export * from './scientific-model-registry.js';
+export * from './scientific-walk-forward.js';
+export * from './scientific-bankroll.js';

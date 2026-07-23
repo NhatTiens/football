@@ -4,6 +4,15 @@ import { confidenceLabel, dateTime, percent, signedPercent } from '../lib/format
 
 export function RecommendationCard({ recommendation }: { recommendation: RecommendationDto }) {
   const fixture = recommendation.fixture;
+  // PREDICTION_AI_V622_RECOMMENDATION_STAKE
+  const stakeMoney =
+    recommendation.stakeAmount == null
+      ? null
+      : new Intl.NumberFormat('vi-VN', {
+          style: 'currency',
+          currency: recommendation.stakeCurrency ?? 'VND',
+          maximumFractionDigits: 0,
+        }).format(recommendation.stakeAmount);
   return (
     <article className="recommendation-card">
       <div className="recommendation-rank">#{recommendation.rank ?? '—'}</div>
@@ -24,6 +33,9 @@ export function RecommendationCard({ recommendation }: { recommendation: Recomme
           <div><span>EV</span><strong className="positive">{signedPercent(recommendation.expectedValue)}</strong></div>
           <div><span>Confidence</span><strong>{confidenceLabel(recommendation.confidenceScore)}</strong></div>
           <div><span>Nhà cái</span><strong>{recommendation.bookmaker.name}</strong></div>
+      {recommendation.stakeUnits != null ? (
+        <div><span>Mức cược</span><strong>{recommendation.stakeUnits.toFixed(2)}u</strong><small>{stakeMoney}</small></div>
+      ) : null}
         </div>
         <ul className="reason-list">
           {(Array.isArray(recommendation.reasons) ? recommendation.reasons : []).slice(0, 3).map((reason) => (

@@ -49,6 +49,13 @@ export interface RecommendationDto {
   dataQualityScore: number;
   recommendationScore: number;
   modelVersion: string;
+  // PREDICTION_AI_V622_STAKE_TYPES
+  stakeUnits?: number | null;
+  stakeFraction?: number | null;
+  stakeAmount?: number | null;
+  stakeCurrency?: string | null;
+  stakeProfile?: string | null;
+  stakeRiskBand?: string | null;
   reasons: string[];
   status: string;
   settlementResult: string;
@@ -174,6 +181,10 @@ export interface BacktestRunDto {
   dateTo: string;
   fixtureLimit: number;
   stakeUnits: number;
+  totalStakeUnits?: number | null;
+  totalStakeAmount?: number | null;
+  profitAmount?: number | null;
+  stakeCurrency?: string | null;
   modelVersion: string;
   startedAt: string;
   finishedAt?: string | null;
@@ -211,6 +222,9 @@ export interface BacktestBetDto {
   confidenceScore: number;
   settlementResult: string;
   stakeUnits: number;
+  stakeAmount?: number | null;
+  profitAmount?: number | null;
+  stakeCurrency?: string | null;
   profitUnits: number;
   homeGoals: number;
   awayGoals: number;
@@ -226,6 +240,10 @@ export interface BacktestMarketSummary {
   pushes: number;
   hitRate?: number | null;
   profitUnits: number;
+  stakeUnits?: number | null;
+  stakeAmount?: number | null;
+  profitAmount?: number | null;
+  stakeCurrency?: string | null;
   roi?: number | null;
   averageOdds?: number | null;
 }

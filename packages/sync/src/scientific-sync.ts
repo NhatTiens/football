@@ -13,6 +13,7 @@ import {
   trainScientificArtifact,
   type ScientificTrainingSample,
 } from './scientific-model.js';
+import { saveScientificModelArtifact } from './scientific-model-registry.js';
 import {
   runTrackedSync,
   trackApiResult,
@@ -717,7 +718,17 @@ export async function trainScientificModel(): Promise<SyncSummary> {
         value: artifact as unknown as InputJsonValue,
       },
     });
-
+    // PREDICTION_AI_V61_ARTIFACT_REGISTRY
+    const purpose = process.env.SCIENTIFIC_TRAINING_PURPOSE ?? 'production-training';
+    const noPromote =
+      process.env.SCIENTIFIC_TRAINING_NO_PROMOTE?.trim().toLowerCase() ===
+      'true';
+    const registryMetadata = await saveScientificModelArtifact({
+      artifact,
+      purpose,
+      trainingLimit: limit,
+      aliases: noPromote ? ['latest'] : ['latest', 'champion'],
+    });
     return {
       processed: fixtures.length,
       inserted: existing ? 0 : 1,
@@ -726,8 +737,9 @@ export async function trainScientificModel(): Promise<SyncSummary> {
         trained: true,
         samples: artifact.sampleSize,
         trainedThrough: artifact.trainedThrough,
-        version: artifact.version,
-        useMetrics: booleanEnvironment('SCIENTIFIC_USE_XG_METRICS', true),
+                  version: artifact.version,
+          artifactId: registryMetadata.artifactId,
+          useMetrics: booleanEnvironment('SCIENTIFIC_USE_XG_METRICS', true),
       },
     };
   });

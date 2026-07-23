@@ -15,6 +15,16 @@ function signed(value: number | null | undefined, digits = 2): string {
   return `${number >= 0 ? '+' : ''}${number.toFixed(digits)}`;
 }
 
+// PREDICTION_AI_V622_STAKE_COLUMN
+function money(value: number | null | undefined, currency = 'VND'): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 function EquityChart({ points }: { points: BacktestDetailDto['equityCurve'] }) {
   if (points.length < 2) {
     return <div className="chart-empty">Chưa đủ bet để vẽ đường lợi nhuận.</div>;
@@ -181,7 +191,7 @@ export function BacktestDashboard({
                 <div><span>Bet</span><strong>{detail.totalBets}</strong><small>{detail.eligibleFixtures}/{detail.totalFixtures} trận có pick</small></div>
                 <div><span>Đúng</span><strong>{detail.wins}</strong><small>{detail.losses} sai · {detail.pushes} hòa tiền</small></div>
                 <div><span>Hit rate</span><strong>{percent(detail.hitRate)}</strong><small>Không bao gồm push/void</small></div>
-                <div><span>Profit</span><strong className={detail.profitUnits >= 0 ? 'positive' : 'negative'}>{signed(detail.profitUnits)}u</strong><small>ROI {percent(detail.roi)}</small></div>
+                <div><span>Profit</span><strong className={detail.profitUnits >= 0 ? 'positive' : 'negative'}>{signed(detail.profitUnits)}u</strong><small>{detail.profitAmount == null ? '' : `${money(detail.profitAmount, detail.stakeCurrency ?? 'VND')} · `}ROI {percent(detail.roi)}</small></div>
                 <div><span>Max drawdown</span><strong>{(detail.maximumDrawdown ?? 0).toFixed(2)}u</strong><small>Avg odds {(detail.averageOdds ?? 0).toFixed(2)}</small></div>
                 <div><span>Brier score</span><strong>{detail.brierScore?.toFixed(3) ?? '—'}</strong><small>Càng thấp càng tốt</small></div>
               </section>
@@ -190,7 +200,7 @@ export function BacktestDashboard({
 
               <section className="backtest-card"><div className="card-heading"><div><span className="eyebrow">MARKETS</span><h3>Hiệu quả theo market</h3></div></div><div className="table-scroll"><table><thead><tr><th>Market</th><th>Bet</th><th>W-L-P</th><th>Hit rate</th><th>Avg odds</th><th>Profit</th><th>ROI</th></tr></thead><tbody>{detail.byMarket.map((row) => <tr key={row.marketCode}><td><strong>{row.marketCode}</strong></td><td>{row.bets}</td><td>{row.wins}-{row.losses}-{row.pushes}</td><td>{percent(row.hitRate)}</td><td>{row.averageOdds?.toFixed(2) ?? '—'}</td><td className={row.profitUnits >= 0 ? 'positive' : 'negative'}>{signed(row.profitUnits)}u</td><td>{percent(row.roi)}</td></tr>)}</tbody></table></div></section>
 
-              <section className="backtest-card"><div className="card-heading"><div><span className="eyebrow">BET LOG</span><h3>Từng recommendation đã mô phỏng</h3></div><select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)}><option value="ALL">Tất cả market</option>{detail.byMarket.map((row) => <option key={row.marketCode} value={row.marketCode}>{row.marketCode}</option>)}</select></div><div className="table-scroll bet-log"><table><thead><tr><th>Trận</th><th>Pick</th><th>Odds</th><th>Model / Market</th><th>EV</th><th>Tỷ số</th><th>Kết quả</th><th>P/L</th></tr></thead><tbody>{filteredBets.map((bet) => <tr key={bet.id}><td><strong>{bet.fixture.homeTeam.name} – {bet.fixture.awayTeam.name}</strong><small>{dateTime(bet.kickoffAt)}</small></td><td>{bet.marketName}<small>{bet.selectionName} · {bet.bookmaker.name}</small></td><td>{bet.decimalOdds.toFixed(2)}</td><td>{percent(bet.modelProbability)} / {percent(bet.fairMarketProbability)}</td><td className="positive">+{percent(bet.expectedValue)}</td><td>{bet.homeGoals}–{bet.awayGoals}</td><td><span className={`result-chip ${bet.settlementResult.toLowerCase()}`}>{bet.settlementResult}</span></td><td className={bet.profitUnits >= 0 ? 'positive' : 'negative'}>{signed(bet.profitUnits)}u</td></tr>)}</tbody></table></div></section>
+              <section className="backtest-card"><div className="card-heading"><div><span className="eyebrow">BET LOG</span><h3>Từng recommendation đã mô phỏng</h3></div><select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)}><option value="ALL">Tất cả market</option>{detail.byMarket.map((row) => <option key={row.marketCode} value={row.marketCode}>{row.marketCode}</option>)}</select></div><div className="table-scroll bet-log"><table><thead><tr><th>Trận</th><th>Pick</th><th>Odds</th><th>Model / Market</th><th>EV</th><th>Stake / Tiền cược</th><th>Tỷ số</th><th>Kết quả</th><th>P/L</th></tr></thead><tbody>{filteredBets.map((bet) => <tr key={bet.id}><td><strong>{bet.fixture.homeTeam.name} – {bet.fixture.awayTeam.name}</strong><small>{dateTime(bet.kickoffAt)}</small></td><td>{bet.marketName}<small>{bet.selectionName} · {bet.bookmaker.name}</small></td><td>{bet.decimalOdds.toFixed(2)}</td><td>{percent(bet.modelProbability)} / {percent(bet.fairMarketProbability)}</td><td className="positive">+{percent(bet.expectedValue)}</td><td><strong>{bet.stakeUnits.toFixed(2)}u</strong><small>{money(bet.stakeAmount, bet.stakeCurrency ?? detail.stakeCurrency ?? 'VND')}</small></td><td>{bet.homeGoals}–{bet.awayGoals}</td><td><span className={`result-chip ${bet.settlementResult.toLowerCase()}`}>{bet.settlementResult}</span></td><td className={bet.profitUnits >= 0 ? 'positive' : 'negative'}><strong>{signed(bet.profitUnits)}u</strong><small>{money(bet.profitAmount, bet.stakeCurrency ?? detail.stakeCurrency ?? 'VND')}</small></td></tr>)}</tbody></table></div></section>
             </>
           )}
         </main>
