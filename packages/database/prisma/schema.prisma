@@ -225,6 +225,23 @@ model ExternalPrediction {
   fixture         Fixture  @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
 }
 
+model ExternalPredictionSnapshot {
+  id              Int      @id @default(autoincrement())
+  fixtureId       Int
+  homeProbability Float?
+  drawProbability Float?
+  awayProbability Float?
+  advice          String?  @db.Text
+  predictedWinner String?
+  rawPayload      Json?
+  payloadHash     String   @db.VarChar(64)
+  capturedAt      DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([fixtureId, payloadHash])
+  @@index([fixtureId, capturedAt])
+}
+
 model Recommendation {
   id                    Int                  @id @default(autoincrement())
   fixtureId             Int
@@ -397,6 +414,29 @@ model FixtureTeamMetric {
   @@unique([fixtureId, teamId])
   @@index([teamId, fixtureId])
   @@index([capturedAt])
+}
+
+model FixtureTeamMetricSnapshot {
+  id                  Int      @id @default(autoincrement())
+  fixtureId           Int
+  teamId              Int
+  expectedGoals       Float?
+  expectedGoalsSource String?
+  shots               Int?
+  shotsOnGoal         Int?
+  possession          Float?
+  corners             Int?
+  fouls               Int?
+  yellowCards         Int?
+  redCards            Int?
+  rawPayload          Json?
+  payloadHash         String   @db.VarChar(64)
+  capturedAt          DateTime
+  createdAt           DateTime @default(now())
+
+  @@unique([fixtureId, teamId, payloadHash])
+  @@index([fixtureId, teamId, capturedAt])
+  @@index([teamId, capturedAt])
 }
 
 model FixtureInjury {

@@ -11,6 +11,11 @@ import {
   type PredictionMode,
 } from './point-in-time.js';
 import {
+  getExternalPredictionSnapshotAsOf,
+  getFixtureTeamMetricSnapshotsAsOf,
+  type SnapshotStorage,
+} from './scientific-snapshots.js';
+import {
   SCIENTIFIC_FEATURE_NAMES,
   SCIENTIFIC_MODEL_KEY,
   calibrateTotalProbability,
@@ -36,6 +41,7 @@ interface MetricRow {
   expectedGoals: number | null;
   shotsOnGoal: number | null;
   capturedAt: Date;
+  storage: SnapshotStorage;
 }
 
 interface TeamMatchRecord {
@@ -406,20 +412,11 @@ export async function getScientificFixtureAnalysis(input: {
   })) as HistoryFixtureRow[];
 
   const fixtureIds = history.map((fixture) => fixture.id);
-  const metricRows = fixtureIds.length
-    ? ((await prisma.fixtureTeamMetric.findMany({
-        where: {
-          fixtureId: { in: fixtureIds },
-          capturedAt: { lte: predictionAsOf },
-        },
-        select: {
-          fixtureId: true,
-          teamId: true,
-          expectedGoals: true,
-          shotsOnGoal: true,
-          capturedAt: true,
-        },
-      })) as MetricRow[])
+  const metricRows: MetricRow[] = fixtureIds.length
+    ? await getFixtureTeamMetricSnapshotsAsOf({
+        fixtureIds,
+        predictionAsOf,
+      })
     : [];
   const metricMap = new Map<string, MetricRow>(
     metricRows.map((row) => [metricKey(row.fixtureId, row.teamId), row]),
@@ -480,18 +477,9 @@ export async function getScientificFixtureAnalysis(input: {
         select: { teamId: true, formation: true, capturedAt: true },
         orderBy: { capturedAt: 'desc' },
       }),
-      prisma.externalPrediction.findFirst({
-        where: {
-          fixtureId: input.fixtureId,
-          capturedAt: { lte: predictionAsOf },
-        },
-        select: {
-          homeProbability: true,
-          drawProbability: true,
-          awayProbability: true,
-          capturedAt: true,
-        },
-        orderBy: { capturedAt: 'desc' },
+      getExternalPredictionSnapshotAsOf({
+        fixtureId: input.fixtureId,
+        predictionAsOf,
       }),
       prisma.appSetting.findUnique({ where: { key: SCIENTIFIC_MODEL_KEY } }),
     ]);
@@ -518,6 +506,7 @@ export async function getScientificFixtureAnalysis(input: {
     metricRows.map((metric) => ({
       key: `fixture:${metric.fixtureId}:team:${metric.teamId}`,
       availableAt: metric.capturedAt,
+      metadata: { storage: metric.storage },
     })),
   );
   audit.registerMany(
@@ -535,7 +524,9 @@ export async function getScientificFixtureAnalysis(input: {
     })),
   );
   if (external) {
-    audit.register('EXTERNAL_PREDICTION', `fixture:${input.fixtureId}`, external.capturedAt);
+    audit.register('EXTERNAL_PREDICTION', `fixture:${input.fixtureId}`, external.capturedAt, {
+      storage: external.storage,
+    });
   }
   if (injuriesCoverageAvailable && coverage?.injuriesFetchedAt) {
     audit.register('COVERAGE', `fixture:${input.fixtureId}:injuries`, coverage.injuriesFetchedAt);

@@ -1,9 +1,5 @@
 import { ApiFootballError } from '@football-ai/api-football';
-import {
-  FixtureStatus,
-  prisma,
-  type InputJsonValue,
-} from '@football-ai/database';
+import { FixtureStatus, prisma, type InputJsonValue } from '@football-ai/database';
 import { clamp } from '@football-ai/engine';
 import { getApiFootballClient } from './client.js';
 import { getFixtureHoursAhead } from './config.js';
@@ -14,11 +10,8 @@ import {
   type ScientificTrainingSample,
 } from './scientific-model.js';
 import { saveScientificModelArtifact } from './scientific-model-registry.js';
-import {
-  runTrackedSync,
-  trackApiResult,
-  type SyncSummary,
-} from './tracking.js';
+import { fixtureTeamMetricSnapshotHash } from './scientific-snapshots.js';
+import { runTrackedSync, trackApiResult, type SyncSummary } from './tracking.js';
 
 interface ApiStatisticEntry {
   type?: string;
@@ -37,7 +30,6 @@ interface ApiInjuryRow {
   type?: string;
   reason?: string;
 }
-
 
 interface TrainingMetricRow {
   fixtureId: number;
@@ -81,11 +73,7 @@ function booleanEnvironment(name: string, fallback: boolean): boolean {
 }
 
 function normalizeStatisticType(value: string | undefined): string {
-  return (value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ');
+  return (value ?? '').trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
 }
 
 function numericStatistic(value: string | number | null | undefined): number | null {
@@ -132,7 +120,10 @@ function createTrainingState(): TrainingTeamState {
   return { rating: 1500, matches: [] };
 }
 
-function teamAverages(state: TrainingTeamState, limit: number): {
+function teamAverages(
+  state: TrainingTeamState,
+  limit: number,
+): {
   pointsPerGame: number;
   goalsFor: number;
   goalsAgainst: number;
@@ -144,9 +135,18 @@ function teamAverages(state: TrainingTeamState, limit: number): {
   const selected = state.matches.slice(-limit);
   const latest = selected[selected.length - 1];
   return {
-    pointsPerGame: average(selected.map((row) => row.points), 1.35),
-    goalsFor: average(selected.map((row) => row.goalsFor), 1.3),
-    goalsAgainst: average(selected.map((row) => row.goalsAgainst), 1.3),
+    pointsPerGame: average(
+      selected.map((row) => row.points),
+      1.35,
+    ),
+    goalsFor: average(
+      selected.map((row) => row.goalsFor),
+      1.3,
+    ),
+    goalsAgainst: average(
+      selected.map((row) => row.goalsAgainst),
+      1.3,
+    ),
     expectedGoalsFor: average(
       selected.map((row) => row.expectedGoalsFor),
       1.3,
@@ -155,21 +155,18 @@ function teamAverages(state: TrainingTeamState, limit: number): {
       selected.map((row) => row.expectedGoalsAgainst),
       1.3,
     ),
-    shotsOnGoal: average(selected.map((row) => row.shotsOnGoal), 4.2),
+    shotsOnGoal: average(
+      selected.map((row) => row.shotsOnGoal),
+      4.2,
+    ),
     restDays: latest ? 7 : 7,
   };
 }
 
 export async function syncScientificStatistics(): Promise<SyncSummary> {
   return runTrackedSync('sync-scientific-statistics', async () => {
-    const days = Math.max(
-      30,
-      Math.floor(numberEnvironment('SCIENTIFIC_STATS_HISTORY_DAYS', 900)),
-    );
-    const limit = Math.max(
-      1,
-      Math.floor(numberEnvironment('SCIENTIFIC_STATS_FIXTURE_LIMIT', 25)),
-    );
+    const days = Math.max(30, Math.floor(numberEnvironment('SCIENTIFIC_STATS_HISTORY_DAYS', 900)));
+    const limit = Math.max(1, Math.floor(numberEnvironment('SCIENTIFIC_STATS_FIXTURE_LIMIT', 25)));
     const now = new Date();
     const minimum = new Date(now.getTime() - days * 86_400_000);
     const coveredRows = await prisma.fixtureScientificCoverage.findMany({
@@ -183,9 +180,7 @@ export async function syncScientificStatistics(): Promise<SyncSummary> {
         kickoffAt: { gte: minimum, lt: now },
         homeGoals: { not: null },
         awayGoals: { not: null },
-        ...(coveredFixtureIds.length > 0
-          ? { id: { notIn: coveredFixtureIds } }
-          : {}),
+        ...(coveredFixtureIds.length > 0 ? { id: { notIn: coveredFixtureIds } } : {}),
       },
       include: { homeTeam: true, awayTeam: true },
       orderBy: { kickoffAt: 'desc' },
@@ -199,10 +194,9 @@ export async function syncScientificStatistics(): Promise<SyncSummary> {
 
     for (const fixture of fixtures) {
       try {
-        const result = await client.request<ApiFixtureStatisticsRow>(
-          'fixtures/statistics',
-          { fixture: fixture.apiFixtureId },
-        );
+        const result = await client.request<ApiFixtureStatisticsRow>('fixtures/statistics', {
+          fixture: fixture.apiFixtureId,
+        });
         await trackApiResult('fixtures/statistics', result);
         const capturedAt = new Date();
 
@@ -215,16 +209,9 @@ export async function syncScientificStatistics(): Promise<SyncSummary> {
                 ? fixture.awayTeam
                 : null;
           if (!team) continue;
-          const goals =
-            team.id === fixture.homeTeamId ? fixture.homeGoals : fixture.awayGoals;
-          const shots = findStatistic(row.statistics, [
-            'Total Shots',
-            'Shots Total',
-          ]);
-          const shotsOnGoal = findStatistic(row.statistics, [
-            'Shots on Goal',
-            'Shots On Target',
-          ]);
+          const goals = team.id === fixture.homeTeamId ? fixture.homeGoals : fixture.awayGoals;
+          const shots = findStatistic(row.statistics, ['Total Shots', 'Shots Total']);
+          const shotsOnGoal = findStatistic(row.statistics, ['Shots on Goal', 'Shots On Target']);
           const corners = findStatistic(row.statistics, ['Corner Kicks', 'Corners']);
           const apiExpectedGoals = findStatistic(row.statistics, [
             'expected_goals',
@@ -232,50 +219,96 @@ export async function syncScientificStatistics(): Promise<SyncSummary> {
             'Expected goals',
           ]);
           const expectedGoals =
-            apiExpectedGoals ??
-            xgProxy({ shots, shotsOnGoal, corners, goals: goals ?? null });
+            apiExpectedGoals ?? xgProxy({ shots, shotsOnGoal, corners, goals: goals ?? null });
           const existing = await prisma.fixtureTeamMetric.findUnique({
             where: {
-              fixtureId_teamId: { fixtureId: fixture.id, teamId: team.id },
+              fixtureId_teamId: {
+                fixtureId: fixture.id,
+                teamId: team.id,
+              },
             },
           });
-          await prisma.fixtureTeamMetric.upsert({
-            where: {
-              fixtureId_teamId: { fixtureId: fixture.id, teamId: team.id },
-            },
-            update: {
-              expectedGoals,
-              expectedGoalsSource: apiExpectedGoals == null ? 'PROXY' : 'API',
-              shots: shots == null ? null : Math.round(shots),
-              shotsOnGoal: shotsOnGoal == null ? null : Math.round(shotsOnGoal),
-              possession: findStatistic(row.statistics, ['Ball Possession', 'Possession']),
-              corners: corners == null ? null : Math.round(corners),
-              fouls: Math.round(findStatistic(row.statistics, ['Fouls']) ?? 0),
-              yellowCards: Math.round(
-                findStatistic(row.statistics, ['Yellow Cards']) ?? 0,
-              ),
-              redCards: Math.round(findStatistic(row.statistics, ['Red Cards']) ?? 0),
-              capturedAt,
-              rawPayload: row as unknown as InputJsonValue,
-            },
-            create: {
-              fixtureId: fixture.id,
-              teamId: team.id,
-              expectedGoals,
-              expectedGoalsSource: apiExpectedGoals == null ? 'PROXY' : 'API',
-              shots: shots == null ? null : Math.round(shots),
-              shotsOnGoal: shotsOnGoal == null ? null : Math.round(shotsOnGoal),
-              possession: findStatistic(row.statistics, ['Ball Possession', 'Possession']),
-              corners: corners == null ? null : Math.round(corners),
-              fouls: Math.round(findStatistic(row.statistics, ['Fouls']) ?? 0),
-              yellowCards: Math.round(
-                findStatistic(row.statistics, ['Yellow Cards']) ?? 0,
-              ),
-              redCards: Math.round(findStatistic(row.statistics, ['Red Cards']) ?? 0),
-              capturedAt,
-              rawPayload: row as unknown as InputJsonValue,
-            },
+          const expectedGoalsSource = apiExpectedGoals == null ? 'PROXY' : 'API';
+          const roundedShots = shots == null ? null : Math.round(shots);
+          const roundedShotsOnGoal = shotsOnGoal == null ? null : Math.round(shotsOnGoal);
+          const possession = findStatistic(row.statistics, ['Ball Possession', 'Possession']);
+          const roundedCorners = corners == null ? null : Math.round(corners);
+          const fouls = Math.round(findStatistic(row.statistics, ['Fouls']) ?? 0);
+          const yellowCards = Math.round(findStatistic(row.statistics, ['Yellow Cards']) ?? 0);
+          const redCards = Math.round(findStatistic(row.statistics, ['Red Cards']) ?? 0);
+          const rawPayload = row as unknown as InputJsonValue;
+          const payloadHash = fixtureTeamMetricSnapshotHash({
+            expectedGoals,
+            expectedGoalsSource,
+            shots: roundedShots,
+            shotsOnGoal: roundedShotsOnGoal,
+            possession,
+            corners: roundedCorners,
+            fouls,
+            yellowCards,
+            redCards,
           });
+
+          await prisma.$transaction([
+            prisma.fixtureTeamMetric.upsert({
+              where: {
+                fixtureId_teamId: {
+                  fixtureId: fixture.id,
+                  teamId: team.id,
+                },
+              },
+              update: {
+                expectedGoals,
+                expectedGoalsSource,
+                shots: roundedShots,
+                shotsOnGoal: roundedShotsOnGoal,
+                possession,
+                corners: roundedCorners,
+                fouls,
+                yellowCards,
+                redCards,
+                capturedAt,
+                rawPayload,
+              },
+              create: {
+                fixtureId: fixture.id,
+                teamId: team.id,
+                expectedGoals,
+                expectedGoalsSource,
+                shots: roundedShots,
+                shotsOnGoal: roundedShotsOnGoal,
+                possession,
+                corners: roundedCorners,
+                fouls,
+                yellowCards,
+                redCards,
+                capturedAt,
+                rawPayload,
+              },
+            }),
+            prisma.fixtureTeamMetricSnapshot.createMany({
+              data: [
+                {
+                  fixtureId: fixture.id,
+                  teamId: team.id,
+                  expectedGoals,
+                  expectedGoalsSource,
+                  shots: roundedShots,
+                  shotsOnGoal: roundedShotsOnGoal,
+                  possession,
+                  corners: roundedCorners,
+                  fouls,
+                  yellowCards,
+                  redCards,
+                  capturedAt,
+                  rawPayload,
+                  payloadHash,
+                },
+              ],
+              skipDuplicates: true,
+            }),
+          ]);
+
           processed += 1;
           if (existing) updated += 1;
           else inserted += 1;
@@ -311,13 +344,8 @@ export async function syncScientificStatistics(): Promise<SyncSummary> {
 export async function syncScientificInjuries(): Promise<SyncSummary> {
   return runTrackedSync('sync-scientific-injuries', async () => {
     const now = new Date();
-    const maximum = new Date(
-      now.getTime() + getFixtureHoursAhead() * 3_600_000,
-    );
-    const limit = Math.max(
-      1,
-      Math.floor(numberEnvironment('SCIENTIFIC_INJURY_FIXTURE_LIMIT', 20)),
-    );
+    const maximum = new Date(now.getTime() + getFixtureHoursAhead() * 3_600_000);
+    const limit = Math.max(1, Math.floor(numberEnvironment('SCIENTIFIC_INJURY_FIXTURE_LIMIT', 20)));
     const fixtures = await prisma.fixture.findMany({
       where: {
         status: { in: [FixtureStatus.UPCOMING, FixtureStatus.LIVE] },
@@ -475,11 +503,7 @@ export async function rebuildScientificElo(): Promise<SyncSummary> {
         matches: 0,
         leagueId: fixture.leagueId,
       };
-      const expectedHome =
-        1 /
-        (1 +
-          10 **
-            ((away.rating - (home.rating + homeAdvantage)) / 400));
+      const expectedHome = 1 / (1 + 10 ** ((away.rating - (home.rating + homeAdvantage)) / 400));
       const actualHome =
         fixture.homeGoals > fixture.awayGoals
           ? 1
@@ -532,10 +556,7 @@ export async function rebuildScientificElo(): Promise<SyncSummary> {
 
 export async function trainScientificModel(): Promise<SyncSummary> {
   return runTrackedSync('train-scientific-model', async () => {
-    const limit = Math.max(
-      100,
-      Math.floor(numberEnvironment('SCIENTIFIC_TRAINING_LIMIT', 4000)),
-    );
+    const limit = Math.max(100, Math.floor(numberEnvironment('SCIENTIFIC_TRAINING_LIMIT', 4000)));
     const minimumSamples = Math.max(
       30,
       Math.floor(numberEnvironment('SCIENTIFIC_MIN_TRAINING_SAMPLES', 80)),
@@ -562,17 +583,19 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       orderBy: { kickoffAt: 'asc' },
       take: limit,
     })) as FinishedFixtureRow[];
-    const metrics = (fixtures.length
-      ? await prisma.fixtureTeamMetric.findMany({
-          where: { fixtureId: { in: fixtures.map((fixture) => fixture.id) } },
-          select: {
-            fixtureId: true,
-            teamId: true,
-            expectedGoals: true,
-            shotsOnGoal: true,
-          },
-        })
-      : []) as TrainingMetricRow[];
+    const metrics = (
+      fixtures.length
+        ? await prisma.fixtureTeamMetric.findMany({
+            where: { fixtureId: { in: fixtures.map((fixture) => fixture.id) } },
+            select: {
+              fixtureId: true,
+              teamId: true,
+              expectedGoals: true,
+              shotsOnGoal: true,
+            },
+          })
+        : []
+    ) as TrainingMetricRow[];
     const metricMap = new Map<string, TrainingMetricRow>(
       metrics.map((row) => [metricKey(row.fixtureId, row.teamId), row]),
     );
@@ -588,16 +611,12 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       const home = teamAverages(homeState, historyLimit);
       const away = teamAverages(awayState, historyLimit);
       const homeExpectedGoals = clamp(
-        1.45 *
-          (home.expectedGoalsFor / 1.45) *
-          (away.expectedGoalsAgainst / 1.2),
+        1.45 * (home.expectedGoalsFor / 1.45) * (away.expectedGoalsAgainst / 1.2),
         0.2,
         4.5,
       );
       const awayExpectedGoals = clamp(
-        1.2 *
-          (away.expectedGoalsFor / 1.2) *
-          (home.expectedGoalsAgainst / 1.45),
+        1.2 * (away.expectedGoalsFor / 1.2) * (home.expectedGoalsAgainst / 1.45),
         0.15,
         4.2,
       );
@@ -623,10 +642,7 @@ export async function trainScientificModel(): Promise<SyncSummary> {
         throw new Error('Scientific training feature width mismatch.');
       }
 
-      if (
-        homeState.matches.length >= 3 &&
-        awayState.matches.length >= 3
-      ) {
+      if (homeState.matches.length >= 3 && awayState.matches.length >= 3) {
         samples.push({
           features,
           matchWinnerClass:
@@ -644,10 +660,7 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       const homeMetric = metricMap.get(metricKey(fixture.id, fixture.homeTeamId));
       const awayMetric = metricMap.get(metricKey(fixture.id, fixture.awayTeamId));
       const expectedHome =
-        1 /
-        (1 +
-          10 **
-            ((awayState.rating - (homeState.rating + homeAdvantage)) / 400));
+        1 / (1 + 10 ** ((awayState.rating - (homeState.rating + homeAdvantage)) / 400));
       const actualHome =
         fixture.homeGoals > fixture.awayGoals
           ? 1
@@ -659,7 +672,12 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       awayState.rating -= movement;
       homeState.matches.push({
         kickoffAt: fixture.kickoffAt,
-        points: fixture.homeGoals > fixture.awayGoals ? 3 : fixture.homeGoals === fixture.awayGoals ? 1 : 0,
+        points:
+          fixture.homeGoals > fixture.awayGoals
+            ? 3
+            : fixture.homeGoals === fixture.awayGoals
+              ? 1
+              : 0,
         goalsFor: fixture.homeGoals,
         goalsAgainst: fixture.awayGoals,
         expectedGoalsFor: homeMetric?.expectedGoals ?? fixture.homeGoals,
@@ -668,7 +686,12 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       });
       awayState.matches.push({
         kickoffAt: fixture.kickoffAt,
-        points: fixture.awayGoals > fixture.homeGoals ? 3 : fixture.homeGoals === fixture.awayGoals ? 1 : 0,
+        points:
+          fixture.awayGoals > fixture.homeGoals
+            ? 3
+            : fixture.homeGoals === fixture.awayGoals
+              ? 1
+              : 0,
         goalsFor: fixture.awayGoals,
         goalsAgainst: fixture.homeGoals,
         expectedGoalsFor: awayMetric?.expectedGoals ?? fixture.awayGoals,
@@ -694,18 +717,13 @@ export async function trainScientificModel(): Promise<SyncSummary> {
     }
 
     // PREDICTION_AI_V6_TRAINING_DEFAULTS: Adam + nonlinear ensemble cần learning rate thấp hơn và regularization cao hơn.
-  const artifact = trainScientificArtifact({
+    const artifact = trainScientificArtifact({
       samples,
       epochs: numberEnvironment('SCIENTIFIC_TRAINING_EPOCHS', 360),
       learningRate: numberEnvironment('SCIENTIFIC_TRAINING_RATE', 0.018),
       l2: numberEnvironment('SCIENTIFIC_TRAINING_L2', 0.01),
-    randomSeed: Math.floor(
-      numberEnvironment('SCIENTIFIC_TRAINING_SEED', 20260722),
-    ),
-    ensembleMembers: Math.max(
-      1,
-      Math.floor(numberEnvironment('SCIENTIFIC_ENSEMBLE_MEMBERS', 3)),
-    ),
+      randomSeed: Math.floor(numberEnvironment('SCIENTIFIC_TRAINING_SEED', 20260722)),
+      ensembleMembers: Math.max(1, Math.floor(numberEnvironment('SCIENTIFIC_ENSEMBLE_MEMBERS', 3))),
     });
     const existing = await prisma.appSetting.findUnique({
       where: { key: SCIENTIFIC_MODEL_KEY },
@@ -720,9 +738,7 @@ export async function trainScientificModel(): Promise<SyncSummary> {
     });
     // PREDICTION_AI_V61_ARTIFACT_REGISTRY
     const purpose = process.env.SCIENTIFIC_TRAINING_PURPOSE ?? 'production-training';
-    const noPromote =
-      process.env.SCIENTIFIC_TRAINING_NO_PROMOTE?.trim().toLowerCase() ===
-      'true';
+    const noPromote = process.env.SCIENTIFIC_TRAINING_NO_PROMOTE?.trim().toLowerCase() === 'true';
     const registryMetadata = await saveScientificModelArtifact({
       artifact,
       purpose,
@@ -737,9 +753,9 @@ export async function trainScientificModel(): Promise<SyncSummary> {
         trained: true,
         samples: artifact.sampleSize,
         trainedThrough: artifact.trainedThrough,
-                  version: artifact.version,
-          artifactId: registryMetadata.artifactId,
-          useMetrics: booleanEnvironment('SCIENTIFIC_USE_XG_METRICS', true),
+        version: artifact.version,
+        artifactId: registryMetadata.artifactId,
+        useMetrics: booleanEnvironment('SCIENTIFIC_USE_XG_METRICS', true),
       },
     };
   });
