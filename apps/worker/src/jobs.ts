@@ -1,5 +1,28 @@
 import {
   backfillFundamentals,
+  backfillMlFeatures,
+  getMlMarketCoverage,
+  scoreMlValidation,
+  trainMlMarketModels,
+  freezeScientificBaseline,
+  getScientificEvaluationCoverage,
+  getScientificPromotionReport,
+  runScientificEvaluation,
+  getScientificDevelopmentReport,
+  getScientificDiagnosticCoverage,
+  runScientificDiagnosticImprovement,
+  captureScientificShadowPredictions,
+  evaluateScientificShadow,
+  freezeScientificShadowCandidate,
+  getScientificShadowCoverage,
+  getScientificShadowReport,
+  getProviderReplayCoverage,
+  getProviderReplayReport,
+  getHistoricalDataAuditCoverage,
+  getHistoricalDataAuditReport,
+  runHistoricalDataAudit,
+  runBeta1AReplayPipeline,
+  runProviderHealthCheck,
   getFundamentalsCoverage,
   collectRepeatedOdds,
   getRepeatedOddsCoverage,
@@ -25,6 +48,29 @@ export type WorkerCommand =
   | 'odds-coverage'
   | 'fundamentals-backfill'
   | 'fundamentals-coverage'
+  | 'ml-feature-backfill'
+  | 'ml-train'
+  | 'ml-score-validation'
+  | 'ml-coverage'
+  | 'scientific-baseline-freeze'
+  | 'scientific-evaluate'
+  | 'scientific-evaluation-coverage'
+  | 'scientific-promotion-report'
+  | 'scientific-diagnostic-run'
+  | 'scientific-diagnostic-coverage'
+  | 'scientific-development-report'
+  | 'scientific-shadow-freeze'
+  | 'scientific-shadow-capture'
+  | 'scientific-shadow-evaluate'
+  | 'scientific-shadow-coverage'
+  | 'scientific-shadow-report'
+  | 'provider-health'
+  | 'provider-replay-run'
+  | 'provider-replay-coverage'
+  | 'provider-replay-report'
+  | 'historical-data-audit-run'
+  | 'historical-data-audit-coverage'
+  | 'historical-data-audit-report'
   | 'sync-lineups'
   | 'sync-lineups-history'
   | 'sync-predictions'
@@ -61,6 +107,38 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
     else if (command === 'odds-coverage') result = await getRepeatedOddsCoverage();
     else if (command === 'fundamentals-backfill') result = await backfillFundamentals();
     else if (command === 'fundamentals-coverage') result = await getFundamentalsCoverage();
+    else if (command === 'ml-feature-backfill') result = await backfillMlFeatures();
+    else if (command === 'ml-train') result = await trainMlMarketModels();
+    else if (command === 'ml-score-validation') result = await scoreMlValidation();
+    else if (command === 'ml-coverage') result = await getMlMarketCoverage();
+    else if (command === 'scientific-baseline-freeze') result = await freezeScientificBaseline();
+    else if (command === 'scientific-evaluate') result = await runScientificEvaluation();
+    else if (command === 'scientific-evaluation-coverage')
+      result = await getScientificEvaluationCoverage();
+    else if (command === 'scientific-promotion-report')
+      result = await getScientificPromotionReport();
+    else if (command === 'scientific-diagnostic-run')
+      result = await runScientificDiagnosticImprovement();
+    else if (command === 'scientific-diagnostic-coverage')
+      result = await getScientificDiagnosticCoverage();
+    else if (command === 'scientific-development-report')
+      result = await getScientificDevelopmentReport();
+    else if (command === 'scientific-shadow-freeze')
+      result = await freezeScientificShadowCandidate();
+    else if (command === 'scientific-shadow-capture')
+      result = await captureScientificShadowPredictions();
+    else if (command === 'scientific-shadow-evaluate') result = await evaluateScientificShadow();
+    else if (command === 'scientific-shadow-coverage') result = await getScientificShadowCoverage();
+    else if (command === 'scientific-shadow-report') result = await getScientificShadowReport();
+    else if (command === 'provider-health') result = await runProviderHealthCheck();
+    else if (command === 'provider-replay-run') result = await runBeta1AReplayPipeline();
+    else if (command === 'provider-replay-coverage') result = await getProviderReplayCoverage();
+    else if (command === 'provider-replay-report') result = await getProviderReplayReport();
+    else if (command === 'historical-data-audit-run') result = await runHistoricalDataAudit();
+    else if (command === 'historical-data-audit-coverage')
+      result = await getHistoricalDataAuditCoverage();
+    else if (command === 'historical-data-audit-report')
+      result = await getHistoricalDataAuditReport();
     else if (command === 'sync-lineups') result = await syncLineups();
     else if (command === 'sync-lineups-history') {
       result = await syncLineups({ includeHistory: true });

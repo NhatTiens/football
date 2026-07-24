@@ -17,3 +17,14 @@ football-prediction-ai-v6.2.3/
 .prediction-v623-backup/
 *.tsbuildinfo
 .prediction-v612-backup/
+.venv-alpha6/
+artifacts/ml/
+__pycache__/
+*.py[cod]
+.venv-alpha7/
+artifacts/evaluation/
+artifacts/diagnostics/
+.venv-alpha71/
+artifacts/shadow/
+artifacts/provider/
+artifacts/provider/v7-beta1a1-audit/

@@ -1,0 +1,1167 @@
+﻿import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { resolve, dirname, relative } from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+import { prisma, type InputJsonValue } from '@football-ai/database';
+
+import {
+  ML_MARKET_FEATURE_CONTRACT_HASH,
+  ML_MARKET_FEATURE_NAMES,
+  ML_MARKET_MODEL_KEY,
+  ML_MARKET_MODEL_VERSION,
+  buildMlMarketFeatureVector,
+  deterministicPayloadHash,
+  type DixonColesFeatureRow,
+  type MatchWinnerProbabilities,
+  type MlMarketPrediction,
+  type TeamFundamentalFeatureRow,
+} from './ml-market-contract.js';
+import { getMatchWinnerOddsMovement } from './odds-movement.js';
+import { runTrackedSync, type SyncSummary } from './tracking.js';
+
+export type { MlMarketPrediction } from './ml-market-contract.js';
+
+interface FixtureRow {
+  id: number;
+  leagueId: number;
+  kickoffAt: Date;
+  homeTeamId: number;
+  awayTeamId: number;
+  homeGoals: number | null;
+  awayGoals: number | null;
+}
+
+interface DixonRow {
+  id: number;
+  fixtureId: number;
+  leagueId: number;
+  predictionAsOf: Date;
+  horizonMinutes: number;
+  trainedThrough: Date;
+  sampleSize: number;
+  homeExpectedGoals: number;
+  awayExpectedGoals: number;
+  homeProbability: number;
+  drawProbability: number;
+  awayProbability: number;
+  over25Probability: number;
+  bttsProbability: number;
+  dataQualityScore: number;
+  payloadHash: string;
+}
+
+interface TeamRow extends TeamFundamentalFeatureRow {
+  id: number;
+  fixtureId: number;
+  teamId: number;
+  predictionAsOf: Date;
+  horizonMinutes: number;
+  payloadHash: string;
+}
+
+interface MlFeatureDatabaseRow {
+  id: number;
+  fixtureId: number;
+  leagueId: number;
+  predictionAsOf: Date;
+  kickoffAt: Date;
+  labelAvailableAt: Date;
+  horizonMinutes: number;
+  labelMatchWinner: number;
+  labelOver25: number;
+  labelBtts: number;
+  marketAvailable: boolean;
+  marketHomeProbability: number | null;
+  marketDrawProbability: number | null;
+  marketAwayProbability: number | null;
+  featureNames: unknown;
+  featureVector: unknown;
+  featureContractHash: string;
+  payloadHash: string;
+}
+
+interface PythonTrainResult {
+  metadataPath: string;
+  modelKey: string;
+  version: string;
+  status: string;
+  trainedFrom: string;
+  trainedThrough: string;
+  validationFrom: string;
+  validationThrough: string;
+  trainingRows: number;
+  trainingFixtures: number;
+  validationRows: number;
+  validationFixtures: number;
+  validationFixtureIds: number[];
+  featureNames: string[];
+  featureContractHash: string;
+  datasetFingerprint: string;
+  modelDirectory: string;
+  modelFiles: Record<string, string>;
+  modelJsonFiles: Record<string, string>;
+  modelSha256: Record<string, string>;
+  metrics: Record<string, unknown>;
+  featureImportance: Array<{
+    feature: string;
+    importance: number;
+  }>;
+  parameters: Record<string, unknown>;
+  catBoostVersion: string;
+  pythonVersion: string;
+}
+
+interface PythonPredictionRow {
+  fixtureId: number;
+  leagueId: number;
+  predictionAsOf: string;
+  kickoffAt: string;
+  horizonMinutes: number;
+  modelKey: string;
+  modelVersion: string;
+  trainedThrough: string;
+  role: string;
+  marketAvailable: boolean;
+  catBoost: MatchWinnerProbabilities;
+  residualMarket: MatchWinnerProbabilities | null;
+  final: MatchWinnerProbabilities;
+  over25: {
+    OVER: number;
+    UNDER: number;
+  };
+  btts: {
+    YES: number;
+    NO: number;
+  };
+  featureContractHash: string;
+  sourceFeaturePayloadHash: string;
+}
+
+function jsonValue(value: unknown): InputJsonValue {
+  return value as InputJsonValue;
+}
+
+function envNumber(name: string, fallback: number): number {
+  const parsed = Number(process.env[name]);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function envBoolean(name: string, fallback: boolean): boolean {
+  const value = process.env[name];
+  if (value == null) return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
+function resultAvailableAt(kickoffAt: Date): Date {
+  const lagMinutes = Math.max(0, envNumber('RESULT_AVAILABILITY_LAG_MINUTES', 180));
+
+  return new Date(kickoffAt.getTime() + lagMinutes * 60_000);
+}
+
+function parseHorizons(value = process.env.ML_FEATURE_HORIZONS_MINUTES ?? '90,30,5'): number[] {
+  const result = value
+    .split(',')
+    .map((entry) => Number(entry.trim()))
+    .filter((entry) => Number.isInteger(entry) && entry >= 0);
+
+  if (result.length === 0) {
+    throw new Error('ML_FEATURE_HORIZONS_MINUTES cannot be empty.');
+  }
+
+  return [...new Set(result)].sort((left, right) => right - left);
+}
+
+function isoKey(fixtureId: number, horizonMinutes: number, predictionAsOf: Date): string {
+  return `${fixtureId}:${horizonMinutes}:${predictionAsOf.toISOString()}`;
+}
+
+function asNumberArray(value: unknown, label: string): number[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError(`${label} must be an array.`);
+  }
+  const result = value.map((entry) => Number(entry));
+
+  if (result.some((entry) => !Number.isFinite(entry))) {
+    throw new TypeError(`${label} contains a non-finite value.`);
+  }
+
+  return result;
+}
+
+function asStringArray(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+    throw new TypeError(`${label} must be a string array.`);
+  }
+
+  return value as string[];
+}
+
+function labelsForFixture(fixture: FixtureRow): {
+  matchWinner: 0 | 1 | 2;
+  over25: 0 | 1;
+  btts: 0 | 1;
+} {
+  if (fixture.homeGoals == null || fixture.awayGoals == null) {
+    throw new Error(`Fixture ${fixture.id} has no final result.`);
+  }
+
+  return {
+    matchWinner:
+      fixture.homeGoals > fixture.awayGoals ? 0 : fixture.homeGoals === fixture.awayGoals ? 1 : 2,
+    over25: fixture.homeGoals + fixture.awayGoals > 2 ? 1 : 0,
+    btts: fixture.homeGoals > 0 && fixture.awayGoals > 0 ? 1 : 0,
+  };
+}
+
+function toFeatureJsonLine(row: MlFeatureDatabaseRow): Record<string, unknown> {
+  const featureNames = asStringArray(row.featureNames, 'featureNames');
+  const featureVector = asNumberArray(row.featureVector, 'featureVector');
+
+  if (
+    row.featureContractHash !== ML_MARKET_FEATURE_CONTRACT_HASH ||
+    featureNames.length !== ML_MARKET_FEATURE_NAMES.length ||
+    featureVector.length !== ML_MARKET_FEATURE_NAMES.length
+  ) {
+    throw new Error(`Feature contract mismatch for ML feature row ${row.id}.`);
+  }
+
+  return {
+    fixtureId: row.fixtureId,
+    leagueId: row.leagueId,
+    predictionAsOf: row.predictionAsOf.toISOString(),
+    kickoffAt: row.kickoffAt.toISOString(),
+    labelAvailableAt: row.labelAvailableAt.toISOString(),
+    horizonMinutes: row.horizonMinutes,
+    labels: {
+      matchWinner: row.labelMatchWinner,
+      over25: row.labelOver25,
+      btts: row.labelBtts,
+    },
+    marketConsensus:
+      row.marketAvailable &&
+      row.marketHomeProbability != null &&
+      row.marketDrawProbability != null &&
+      row.marketAwayProbability != null
+        ? [row.marketHomeProbability, row.marketDrawProbability, row.marketAwayProbability]
+        : null,
+    featureNames,
+    featureVector,
+    featureContractHash: row.featureContractHash,
+    payloadHash: row.payloadHash,
+  };
+}
+
+function repositoryRoot(): string {
+  let current = process.cwd();
+
+  while (true) {
+    if (
+      existsSync(resolve(current, '.git')) &&
+      existsSync(resolve(current, 'packages/database/prisma/schema.prisma'))
+    ) {
+      return current;
+    }
+
+    const parent = dirname(current);
+
+    if (parent === current) {
+      throw new Error(`Cannot locate repository root from ${process.cwd()}.`);
+    }
+
+    current = parent;
+  }
+}
+
+function artifactRoot(): string {
+  return resolve(repositoryRoot(), process.env.ML_ARTIFACT_DIRECTORY ?? 'artifacts/ml/v7-alpha6');
+}
+
+function pythonScriptPath(): string {
+  return resolve(repositoryRoot(), 'scripts/ml/catboost_train_predict.py');
+}
+
+function pythonExecutable(): string {
+  const configured = process.env.ML_PYTHON_EXECUTABLE;
+
+  if (configured?.trim()) {
+    return resolve(repositoryRoot(), configured.trim());
+  }
+
+  const candidates =
+    process.platform === 'win32'
+      ? [resolve(repositoryRoot(), '.venv-alpha6/Scripts/python.exe'), 'python', 'py']
+      : [resolve(repositoryRoot(), '.venv-alpha6/bin/python'), 'python3', 'python'];
+
+  return (
+    candidates.find(
+      (candidate) =>
+        candidate === 'python' ||
+        candidate === 'python3' ||
+        candidate === 'py' ||
+        existsSync(candidate),
+    ) ?? 'python'
+  );
+}
+
+function parseLastJsonLine(stdout: string): Record<string, unknown> {
+  const lines = stdout
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    try {
+      return JSON.parse(lines[index] ?? '') as Record<string, unknown>;
+    } catch {
+      // CatBoost may write informational text before the JSON result.
+    }
+  }
+
+  throw new Error(`Python did not return a JSON result.\n${stdout}`);
+}
+
+function runPython(args: string[]): Record<string, unknown> {
+  const executable = pythonExecutable();
+  const commandArgs =
+    executable.toLowerCase().endsWith('py') || executable.toLowerCase().endsWith('py.exe')
+      ? ['-3', pythonScriptPath(), ...args]
+      : [pythonScriptPath(), ...args];
+  const result = spawnSync(executable, commandArgs, {
+    cwd: repositoryRoot(),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PYTHONUTF8: '1',
+    },
+    maxBuffer: 64 * 1024 * 1024,
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    throw new Error(
+      [
+        `Python ML command failed with exit code ${String(result.status)}.`,
+        result.stdout,
+        result.stderr,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+
+  return parseLastJsonLine(result.stdout ?? '');
+}
+
+async function loadFeatureRows(): Promise<MlFeatureDatabaseRow[]> {
+  return (await prisma.mlFeatureSnapshot.findMany({
+    where: {
+      featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+    },
+    select: {
+      id: true,
+      fixtureId: true,
+      leagueId: true,
+      predictionAsOf: true,
+      kickoffAt: true,
+      labelAvailableAt: true,
+      horizonMinutes: true,
+      labelMatchWinner: true,
+      labelOver25: true,
+      labelBtts: true,
+      marketAvailable: true,
+      marketHomeProbability: true,
+      marketDrawProbability: true,
+      marketAwayProbability: true,
+      featureNames: true,
+      featureVector: true,
+      featureContractHash: true,
+      payloadHash: true,
+    },
+    orderBy: [{ kickoffAt: 'asc' }, { fixtureId: 'asc' }, { horizonMinutes: 'desc' }],
+  })) as MlFeatureDatabaseRow[];
+}
+
+async function exportFeatureDataset(): Promise<{
+  path: string;
+  rows: number;
+  fixtures: number;
+}> {
+  const rows = await loadFeatureRows();
+  if (rows.length === 0) {
+    throw new Error('No ML feature snapshots exist. Run ml-feature-backfill first.');
+  }
+
+  const outputPath = resolve(artifactRoot(), 'training.jsonl');
+  mkdirSync(dirname(outputPath), {
+    recursive: true,
+  });
+  writeFileSync(
+    outputPath,
+    rows.map((row) => JSON.stringify(toFeatureJsonLine(row))).join('\n') + '\n',
+    'utf8',
+  );
+
+  return {
+    path: outputPath,
+    rows: rows.length,
+    fixtures: new Set(rows.map((row) => row.fixtureId)).size,
+  };
+}
+
+function teamRowToFeature(row: TeamRow): TeamFundamentalFeatureRow {
+  return {
+    sampleSize: row.sampleSize,
+    venueSampleSize: row.venueSampleSize,
+    pointsPerGame5: row.pointsPerGame5,
+    pointsPerGame10: row.pointsPerGame10,
+    pointsPerGame20: row.pointsPerGame20,
+    goalsFor5: row.goalsFor5,
+    goalsFor10: row.goalsFor10,
+    goalsAgainst5: row.goalsAgainst5,
+    goalsAgainst10: row.goalsAgainst10,
+    expectedGoalsFor10: row.expectedGoalsFor10,
+    expectedGoalsAgainst10: row.expectedGoalsAgainst10,
+    shots10: row.shots10,
+    shotsOnGoal10: row.shotsOnGoal10,
+    possession10: row.possession10,
+    corners10: row.corners10,
+    winRate10: row.winRate10,
+    drawRate10: row.drawRate10,
+    cleanSheetRate10: row.cleanSheetRate10,
+    bttsRate10: row.bttsRate10,
+    over25Rate10: row.over25Rate10,
+    metricCoverage10: row.metricCoverage10,
+    venuePointsPerGame10: row.venuePointsPerGame10,
+    venueGoalsFor10: row.venueGoalsFor10,
+    venueGoalsAgainst10: row.venueGoalsAgainst10,
+    restDays: row.restDays,
+    dataQualityScore: row.dataQualityScore,
+  };
+}
+
+function dixonRowToFeature(row: DixonRow): DixonColesFeatureRow {
+  return {
+    homeExpectedGoals: row.homeExpectedGoals,
+    awayExpectedGoals: row.awayExpectedGoals,
+    homeProbability: row.homeProbability,
+    drawProbability: row.drawProbability,
+    awayProbability: row.awayProbability,
+    over25Probability: row.over25Probability,
+    bttsProbability: row.bttsProbability,
+    dataQualityScore: row.dataQualityScore,
+  };
+}
+
+export async function backfillMlFeatures(): Promise<SyncSummary> {
+  return runTrackedSync('ml-feature-backfill', async () => {
+    const horizons = parseHorizons();
+    const dateFromRaw = process.env.ML_FEATURE_DATE_FROM;
+    const dateToRaw = process.env.ML_FEATURE_DATE_TO;
+    const dateFrom = dateFromRaw ? new Date(dateFromRaw) : undefined;
+    const dateTo = dateToRaw ? new Date(dateToRaw) : undefined;
+    const configuredLimit = Math.floor(envNumber('ML_FEATURE_LIMIT', 0));
+
+    const dixonRows = (await prisma.dixonColesPredictionSnapshot.findMany({
+      where: {
+        horizonMinutes: {
+          in: horizons,
+        },
+        ...(dateFrom || dateTo
+          ? {
+              predictionAsOf: {
+                ...(dateFrom ? { gte: dateFrom } : {}),
+                ...(dateTo ? { lte: dateTo } : {}),
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        fixtureId: true,
+        leagueId: true,
+        predictionAsOf: true,
+        horizonMinutes: true,
+        trainedThrough: true,
+        sampleSize: true,
+        homeExpectedGoals: true,
+        awayExpectedGoals: true,
+        homeProbability: true,
+        drawProbability: true,
+        awayProbability: true,
+        over25Probability: true,
+        bttsProbability: true,
+        dataQualityScore: true,
+        payloadHash: true,
+      },
+      orderBy: [{ predictionAsOf: 'asc' }, { fixtureId: 'asc' }, { horizonMinutes: 'desc' }],
+      ...(configuredLimit > 0 ? { take: configuredLimit } : {}),
+    })) as DixonRow[];
+
+    const fixtureIds = [...new Set(dixonRows.map((row) => row.fixtureId))];
+    const fixtures = (await prisma.fixture.findMany({
+      where: {
+        id: { in: fixtureIds },
+        homeGoals: { not: null },
+        awayGoals: { not: null },
+      },
+      select: {
+        id: true,
+        leagueId: true,
+        kickoffAt: true,
+        homeTeamId: true,
+        awayTeamId: true,
+        homeGoals: true,
+        awayGoals: true,
+      },
+    })) as FixtureRow[];
+    const fixtureMap = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
+    const teamRows = (await prisma.teamFundamentalSnapshot.findMany({
+      where: {
+        fixtureId: {
+          in: fixtureIds,
+        },
+        horizonMinutes: {
+          in: horizons,
+        },
+      },
+      select: {
+        id: true,
+        fixtureId: true,
+        teamId: true,
+        predictionAsOf: true,
+        horizonMinutes: true,
+        sampleSize: true,
+        venueSampleSize: true,
+        pointsPerGame5: true,
+        pointsPerGame10: true,
+        pointsPerGame20: true,
+        goalsFor5: true,
+        goalsFor10: true,
+        goalsAgainst5: true,
+        goalsAgainst10: true,
+        expectedGoalsFor10: true,
+        expectedGoalsAgainst10: true,
+        shots10: true,
+        shotsOnGoal10: true,
+        possession10: true,
+        corners10: true,
+        winRate10: true,
+        drawRate10: true,
+        cleanSheetRate10: true,
+        bttsRate10: true,
+        over25Rate10: true,
+        metricCoverage10: true,
+        venuePointsPerGame10: true,
+        venueGoalsFor10: true,
+        venueGoalsAgainst10: true,
+        restDays: true,
+        dataQualityScore: true,
+        payloadHash: true,
+      },
+      orderBy: [{ predictionAsOf: 'desc' }, { id: 'desc' }],
+    })) as TeamRow[];
+
+    const teamMap = new Map<string, Map<number, TeamRow>>();
+
+    for (const row of teamRows) {
+      const key = isoKey(row.fixtureId, row.horizonMinutes, row.predictionAsOf);
+      const byTeam = teamMap.get(key) ?? new Map<number, TeamRow>();
+
+      if (!byTeam.has(row.teamId)) {
+        byTeam.set(row.teamId, row);
+      }
+      teamMap.set(key, byTeam);
+    }
+
+    let processed = 0;
+    let inserted = 0;
+    let skippedExisting = 0;
+    let skippedIncomplete = 0;
+    let marketAvailable = 0;
+
+    for (const dixon of dixonRows) {
+      if (dixon.trainedThrough.getTime() > dixon.predictionAsOf.getTime()) {
+        throw new Error(`Dixon-Coles leakage detected for fixture ${dixon.fixtureId}.`);
+      }
+
+      const fixture = fixtureMap.get(dixon.fixtureId);
+      if (!fixture) {
+        skippedIncomplete += 1;
+        continue;
+      }
+      const key = isoKey(dixon.fixtureId, dixon.horizonMinutes, dixon.predictionAsOf);
+      const teams = teamMap.get(key);
+      const home = teams?.get(fixture.homeTeamId);
+      const away = teams?.get(fixture.awayTeamId);
+
+      if (!home || !away) {
+        skippedIncomplete += 1;
+        continue;
+      }
+
+      const existing = await prisma.mlFeatureSnapshot.findFirst({
+        where: {
+          fixtureId: dixon.fixtureId,
+          horizonMinutes: dixon.horizonMinutes,
+          featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+        },
+        select: { id: true },
+      });
+
+      if (existing && !envBoolean('ML_FEATURE_FORCE', false)) {
+        skippedExisting += 1;
+        continue;
+      }
+
+      const market = await getMatchWinnerOddsMovement({
+        fixtureId: dixon.fixtureId,
+        kickoffAt: fixture.kickoffAt,
+        predictionAsOf: dixon.predictionAsOf,
+      });
+      const feature = buildMlMarketFeatureVector({
+        horizonMinutes: dixon.horizonMinutes,
+        home: teamRowToFeature(home),
+        away: teamRowToFeature(away),
+        dixonColes: dixonRowToFeature(dixon),
+        market: {
+          available: market.available,
+          movementAvailable: market.movementAvailable,
+          bookmakerCount: market.bookmakerCount,
+          currentConsensus: market.currentConsensus,
+          movement: market.movement,
+          recentMovement: market.recentMovement,
+          averageDispersion: market.averageDispersion,
+          bookmakerAgreement: market.bookmakerAgreement,
+          steamStrength: market.steamStrength,
+          qualityScore: market.qualityScore,
+        },
+      });
+      const labels = labelsForFixture(fixture);
+      const sourcePayload = {
+        fixtureId: fixture.id,
+        predictionAsOf: dixon.predictionAsOf.toISOString(),
+        horizonMinutes: dixon.horizonMinutes,
+        dixonSnapshotId: dixon.id,
+        homeFundamentalSnapshotId: home.id,
+        awayFundamentalSnapshotId: away.id,
+        dixonPayloadHash: dixon.payloadHash,
+        homePayloadHash: home.payloadHash,
+        awayPayloadHash: away.payloadHash,
+        market: {
+          available: market.available,
+          movementAvailable: market.movementAvailable,
+          bookmakerCount: market.bookmakerCount,
+          currentConsensus: market.currentConsensus,
+          averageDispersion: market.averageDispersion,
+          bookmakerAgreement: market.bookmakerAgreement,
+          qualityScore: market.qualityScore,
+          observedFrom: market.observedFrom?.toISOString() ?? null,
+          observedTo: market.observedTo?.toISOString() ?? null,
+        },
+      };
+      const payloadHash = deterministicPayloadHash('ML_FEATURE_SNAPSHOT', {
+        featureContractHash: feature.featureContractHash,
+        featureVector: feature.featureVector,
+        labels,
+        sourcePayload,
+      });
+      const consensus = feature.marketConsensus;
+
+      const result = await prisma.mlFeatureSnapshot.createMany({
+        data: [
+          {
+            fixtureId: fixture.id,
+            leagueId: fixture.leagueId,
+            predictionAsOf: dixon.predictionAsOf,
+            kickoffAt: fixture.kickoffAt,
+            labelAvailableAt: resultAvailableAt(fixture.kickoffAt),
+            horizonMinutes: dixon.horizonMinutes,
+            labelMatchWinner: labels.matchWinner,
+            labelOver25: labels.over25,
+            labelBtts: labels.btts,
+            fundamentalsAvailable: true,
+            marketAvailable: feature.marketAvailable,
+            bookmakerCount: market.bookmakerCount,
+            marketHomeProbability: consensus?.HOME ?? null,
+            marketDrawProbability: consensus?.DRAW ?? null,
+            marketAwayProbability: consensus?.AWAY ?? null,
+            featureNames: jsonValue([...feature.featureNames]),
+            featureVector: jsonValue(feature.featureVector),
+            featureContractHash: feature.featureContractHash,
+            sourcePayload: jsonValue(sourcePayload),
+            payloadHash,
+          },
+        ],
+        skipDuplicates: true,
+      });
+
+      processed += 1;
+      inserted += result.count;
+      if (feature.marketAvailable) {
+        marketAvailable += 1;
+      }
+    }
+
+    return {
+      processed,
+      inserted,
+      updated: 0,
+      metadata: jsonValue({
+        dixonRows: dixonRows.length,
+        horizons,
+        skippedExisting,
+        skippedIncomplete,
+        marketAvailable,
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+        apiCalled: false,
+      }),
+    };
+  });
+}
+
+export async function trainMlMarketModels(): Promise<SyncSummary> {
+  return runTrackedSync('ml-train', async () => {
+    const dataset = await exportFeatureDataset();
+    const outputRoot = artifactRoot();
+    mkdirSync(outputRoot, {
+      recursive: true,
+    });
+    const result = runPython([
+      'train',
+      '--input',
+      dataset.path,
+      '--output-dir',
+      outputRoot,
+      '--validation-fraction',
+      String(envNumber('ML_VALIDATION_FRACTION', 0.2)),
+      '--iterations',
+      String(Math.floor(envNumber('CATBOOST_ITERATIONS', 450))),
+      '--depth',
+      String(Math.floor(envNumber('CATBOOST_DEPTH', 6))),
+      '--learning-rate',
+      String(envNumber('CATBOOST_LEARNING_RATE', 0.035)),
+      '--l2-leaf-reg',
+      String(envNumber('CATBOOST_L2_LEAF_REG', 5)),
+      '--random-seed',
+      String(Math.floor(envNumber('CATBOOST_RANDOM_SEED', 20260723))),
+      '--early-stopping-rounds',
+      String(Math.floor(envNumber('CATBOOST_EARLY_STOPPING_ROUNDS', 70))),
+    ]) as unknown as PythonTrainResult;
+
+    if (
+      result.modelKey !== ML_MARKET_MODEL_KEY ||
+      !result.version.startsWith(ML_MARKET_MODEL_VERSION) ||
+      result.featureContractHash !== ML_MARKET_FEATURE_CONTRACT_HASH
+    ) {
+      throw new Error('Python returned an incompatible ML artifact.');
+    }
+
+    const relativeDirectory = relative(repositoryRoot(), resolve(result.modelDirectory)).replaceAll(
+      '\\',
+      '/',
+    );
+    const artifact = await prisma.mlModelArtifact.upsert({
+      where: {
+        modelKey_version: {
+          modelKey: result.modelKey,
+          version: result.version,
+        },
+      },
+      create: {
+        modelKey: result.modelKey,
+        version: result.version,
+        status: 'CHALLENGER',
+        trainedFrom: new Date(result.trainedFrom),
+        trainedThrough: new Date(result.trainedThrough),
+        validationFrom: new Date(result.validationFrom),
+        validationThrough: new Date(result.validationThrough),
+        featureContractHash: result.featureContractHash,
+        featureNames: jsonValue(result.featureNames),
+        trainingRows: result.trainingRows,
+        validationRows: result.validationRows,
+        modelDirectory: relativeDirectory,
+        modelSha256: jsonValue(result.modelSha256),
+        metrics: jsonValue(result.metrics),
+        featureImportance: jsonValue(result.featureImportance),
+        parameters: jsonValue({
+          ...result.parameters,
+          trainingFixtures: result.trainingFixtures,
+          validationFixtures: result.validationFixtures,
+          validationFixtureIds: result.validationFixtureIds,
+          datasetFingerprint: result.datasetFingerprint,
+          catBoostVersion: result.catBoostVersion,
+          pythonVersion: result.pythonVersion,
+          metadataPath: relative(repositoryRoot(), resolve(result.metadataPath)).replaceAll(
+            '\\',
+            '/',
+          ),
+        }),
+      },
+      update: {
+        status: 'CHALLENGER',
+        metrics: jsonValue(result.metrics),
+        featureImportance: jsonValue(result.featureImportance),
+      },
+      select: {
+        id: true,
+        version: true,
+      },
+    });
+
+    return {
+      processed: dataset.rows,
+      inserted: 1,
+      updated: 0,
+      metadata: jsonValue({
+        artifactId: artifact.id,
+        version: artifact.version,
+        fixtures: dataset.fixtures,
+        trainingRows: result.trainingRows,
+        validationRows: result.validationRows,
+        metrics: result.metrics,
+        status: 'CHALLENGER',
+        apiCalled: false,
+      }),
+    };
+  });
+}
+
+export async function scoreMlValidation(): Promise<SyncSummary> {
+  return runTrackedSync('ml-score-validation', async () => {
+    const artifact = await prisma.mlModelArtifact.findFirst({
+      where: {
+        modelKey: ML_MARKET_MODEL_KEY,
+        status: 'CHALLENGER',
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (!artifact) {
+      throw new Error('No alpha.6 challenger artifact exists. Run ml-train first.');
+    }
+
+    const dataset = await exportFeatureDataset();
+    const modelDirectory = resolve(repositoryRoot(), artifact.modelDirectory);
+    const outputPath = resolve(modelDirectory, 'validation_predictions.jsonl');
+
+    const result = runPython([
+      'predict',
+      '--input',
+      dataset.path,
+      '--model-dir',
+      modelDirectory,
+      '--output',
+      outputPath,
+      '--role',
+      'VALIDATION',
+      '--catboost-weight',
+      String(envNumber('ML_CATBOOST_BLEND_WEIGHT', 0.6)),
+      '--residual-strength',
+      String(envNumber('ML_RESIDUAL_STRENGTH', 1)),
+    ]);
+
+    const lines: string[] = existsSync(outputPath)
+      ? (readFileSync(outputPath, 'utf8') as string)
+          .replace(/\r\n/g, '\n')
+          .split('\n')
+          .map((line: string) => line.trim())
+          .filter((line: string) => line.length > 0)
+      : [];
+    const predictions = lines.map((line: string) => JSON.parse(line) as PythonPredictionRow);
+    let inserted = 0;
+
+    for (const prediction of predictions) {
+      const trainedThrough = new Date(prediction.trainedThrough);
+      const predictionAsOf = new Date(prediction.predictionAsOf);
+
+      if (trainedThrough.getTime() >= predictionAsOf.getTime()) {
+        throw new Error(
+          `ML leakage detected for fixture ${prediction.fixtureId}: trainedThrough >= predictionAsOf.`,
+        );
+      }
+
+      const payloadHash = deterministicPayloadHash('ML_PREDICTION_SNAPSHOT', prediction);
+      const write = await prisma.mlPredictionSnapshot.createMany({
+        data: [
+          {
+            fixtureId: prediction.fixtureId,
+            leagueId: prediction.leagueId,
+            modelArtifactId: artifact.id,
+            predictionAsOf,
+            horizonMinutes: prediction.horizonMinutes,
+            modelVersion: prediction.modelVersion,
+            trainedThrough,
+            role: prediction.role,
+            marketAvailable: prediction.marketAvailable,
+            catBoostHomeProbability: prediction.catBoost.HOME,
+            catBoostDrawProbability: prediction.catBoost.DRAW,
+            catBoostAwayProbability: prediction.catBoost.AWAY,
+            residualHomeProbability: prediction.residualMarket?.HOME ?? null,
+            residualDrawProbability: prediction.residualMarket?.DRAW ?? null,
+            residualAwayProbability: prediction.residualMarket?.AWAY ?? null,
+            finalHomeProbability: prediction.final.HOME,
+            finalDrawProbability: prediction.final.DRAW,
+            finalAwayProbability: prediction.final.AWAY,
+            over25Probability: prediction.over25.OVER,
+            bttsProbability: prediction.btts.YES,
+            featureContractHash: prediction.featureContractHash,
+            sourceFeaturePayloadHash: prediction.sourceFeaturePayloadHash,
+            modelPayload: jsonValue(prediction),
+            payloadHash,
+          },
+        ],
+        skipDuplicates: true,
+      });
+
+      inserted += write.count;
+    }
+
+    return {
+      processed: predictions.length,
+      inserted,
+      updated: 0,
+      metadata: jsonValue({
+        artifactId: artifact.id,
+        modelVersion: artifact.version,
+        pythonResult: result,
+        role: 'VALIDATION',
+        leakageGuard: true,
+        apiCalled: false,
+      }),
+    };
+  });
+}
+
+export async function getMlMarketPredictionAsOf(input: {
+  fixtureId: number;
+  predictionAsOf: Date;
+  horizonMinutes: number;
+}): Promise<{
+  modelVersion: string;
+  trainedThrough: Date;
+  role: string;
+  prediction: MlMarketPrediction;
+} | null> {
+  const row = await prisma.mlPredictionSnapshot.findFirst({
+    where: {
+      fixtureId: input.fixtureId,
+      horizonMinutes: input.horizonMinutes,
+      predictionAsOf: {
+        lte: input.predictionAsOf,
+      },
+      trainedThrough: {
+        lt: input.predictionAsOf,
+      },
+      featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+    },
+    orderBy: [{ predictionAsOf: 'desc' }, { id: 'desc' }],
+  });
+
+  if (!row) return null;
+
+  const residualMarket =
+    row.residualHomeProbability != null &&
+    row.residualDrawProbability != null &&
+    row.residualAwayProbability != null
+      ? {
+          HOME: row.residualHomeProbability,
+          DRAW: row.residualDrawProbability,
+          AWAY: row.residualAwayProbability,
+        }
+      : null;
+
+  return {
+    modelVersion: row.modelVersion,
+    trainedThrough: row.trainedThrough,
+    role: row.role,
+    prediction: {
+      catBoost: {
+        HOME: row.catBoostHomeProbability,
+        DRAW: row.catBoostDrawProbability,
+        AWAY: row.catBoostAwayProbability,
+      },
+      residualMarket,
+      final: {
+        HOME: row.finalHomeProbability,
+        DRAW: row.finalDrawProbability,
+        AWAY: row.finalAwayProbability,
+      },
+      over25: {
+        OVER: row.over25Probability,
+        UNDER: 1 - row.over25Probability,
+      },
+      btts: {
+        YES: row.bttsProbability,
+        NO: 1 - row.bttsProbability,
+      },
+    },
+  };
+}
+
+export async function getMlMarketCoverage(): Promise<{
+  featureContractHash: string;
+  featureSnapshots: number;
+  featureFixtures: number;
+  marketAvailableFeatures: number;
+  modelArtifacts: number;
+  challengerArtifacts: number;
+  predictionSnapshots: number;
+  validationPredictions: number;
+  leakageViolations: number;
+  byHorizon: Array<{
+    horizonMinutes: number;
+    features: number;
+    predictions: number;
+  }>;
+  latestArtifact: {
+    id: number;
+    version: string;
+    status: string;
+    trainedFrom: Date;
+    trainedThrough: Date;
+    validationFrom: Date;
+    validationThrough: Date;
+    trainingRows: number;
+    validationRows: number;
+    metrics: unknown;
+  } | null;
+}> {
+  const [
+    featureSnapshots,
+    marketAvailableFeatures,
+    modelArtifacts,
+    challengerArtifacts,
+    predictionSnapshots,
+    validationPredictions,
+    featureGroups,
+    predictionGroups,
+    predictionRows,
+    featureFixtures,
+    latestArtifact,
+  ] = await Promise.all([
+    prisma.mlFeatureSnapshot.count({
+      where: {
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+      },
+    }),
+    prisma.mlFeatureSnapshot.count({
+      where: {
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+        marketAvailable: true,
+      },
+    }),
+    prisma.mlModelArtifact.count({
+      where: {
+        modelKey: ML_MARKET_MODEL_KEY,
+      },
+    }),
+    prisma.mlModelArtifact.count({
+      where: {
+        modelKey: ML_MARKET_MODEL_KEY,
+        status: 'CHALLENGER',
+      },
+    }),
+    prisma.mlPredictionSnapshot.count({
+      where: {
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+      },
+    }),
+    prisma.mlPredictionSnapshot.count({
+      where: {
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+        role: 'VALIDATION',
+      },
+    }),
+    prisma.mlFeatureSnapshot.groupBy({
+      by: ['horizonMinutes'],
+      where: {
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+      },
+      _count: { _all: true },
+      orderBy: {
+        horizonMinutes: 'desc',
+      },
+    }),
+    prisma.mlPredictionSnapshot.groupBy({
+      by: ['horizonMinutes'],
+      where: {
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+      },
+      _count: { _all: true },
+      orderBy: {
+        horizonMinutes: 'desc',
+      },
+    }),
+    prisma.mlPredictionSnapshot.findMany({
+      where: {
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+      },
+      select: {
+        trainedThrough: true,
+        predictionAsOf: true,
+      },
+    }),
+    prisma.mlFeatureSnapshot.groupBy({
+      by: ['fixtureId'],
+      where: {
+        featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+      },
+    }),
+    prisma.mlModelArtifact.findFirst({
+      where: {
+        modelKey: ML_MARKET_MODEL_KEY,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        version: true,
+        status: true,
+        trainedFrom: true,
+        trainedThrough: true,
+        validationFrom: true,
+        validationThrough: true,
+        trainingRows: true,
+        validationRows: true,
+        metrics: true,
+      },
+    }),
+  ]);
+
+  const predictionCountMap = new Map(
+    predictionGroups.map((group: { horizonMinutes: number; _count: { _all: number } }) => [
+      group.horizonMinutes,
+      group._count._all,
+    ]),
+  );
+  const leakageViolations = predictionRows.filter(
+    (row: { trainedThrough: Date; predictionAsOf: Date }) =>
+      row.trainedThrough.getTime() >= row.predictionAsOf.getTime(),
+  ).length;
+
+  return {
+    featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
+    featureSnapshots,
+    featureFixtures: featureFixtures.length,
+    marketAvailableFeatures,
+    modelArtifacts,
+    challengerArtifacts,
+    predictionSnapshots,
+    validationPredictions,
+    leakageViolations,
+    byHorizon: featureGroups.map((group: { horizonMinutes: number; _count: { _all: number } }) => ({
+      horizonMinutes: group.horizonMinutes,
+      features: group._count._all,
+      predictions: predictionCountMap.get(group.horizonMinutes) ?? 0,
+    })),
+    latestArtifact,
+  };
+}

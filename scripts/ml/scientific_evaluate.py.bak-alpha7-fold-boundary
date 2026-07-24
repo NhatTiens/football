@@ -1,0 +1,1468 @@
+#!/usr/bin/env python3
+"""Scientific evaluation engine for Football AI v7.0-alpha.7.
+
+The engine creates expanding-window OOF predictions, trains a leakage-safe
+secondary stacker, calibrates it on a later time block, evaluates on a final
+untouched block, and simulates one fixed 1X2 betting policy.
+
+It never promotes a model and never calls an external API.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import sys
+from collections import Counter
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterable, Sequence
+
+import numpy as np
+from catboost import CatBoostClassifier, CatBoostRegressor
+
+EVALUATION_VERSION = "v7.0-alpha.7-scientific-evaluation-v1"
+POLICY_VERSION = "fixed-1x2-policy-v1"
+EXPECTED_MATCH_CLASSES = [0, 1, 2]
+EPSILON = 1e-12
+
+
+@dataclass
+class ConstantClassifier:
+    probabilities: np.ndarray
+    classes_: np.ndarray
+
+    def predict_proba(self, x: np.ndarray) -> np.ndarray:
+        return np.repeat(
+            self.probabilities.reshape(1, -1),
+            x.shape[0],
+            axis=0,
+        )
+
+
+@dataclass
+class ConstantRegressor:
+    values: np.ndarray
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        return np.repeat(
+            self.values.reshape(1, -1),
+            x.shape[0],
+            axis=0,
+        )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    evaluate = subparsers.add_parser("evaluate")
+    evaluate.add_argument("--input", required=True)
+    evaluate.add_argument("--output-dir", required=True)
+    evaluate.add_argument("--fold-count", type=int, default=5)
+    evaluate.add_argument("--minimum-train-fixtures", type=int, default=150)
+    evaluate.add_argument("--iterations", type=int, default=240)
+    evaluate.add_argument("--depth", type=int, default=6)
+    evaluate.add_argument("--learning-rate", type=float, default=0.035)
+    evaluate.add_argument("--l2-leaf-reg", type=float, default=6.0)
+    evaluate.add_argument("--random-seed", type=int, default=20260723)
+    evaluate.add_argument("--early-stopping-rounds", type=int, default=50)
+    evaluate.add_argument("--stack-train-fraction", type=float, default=0.60)
+    evaluate.add_argument("--calibration-fraction", type=float, default=0.20)
+    evaluate.add_argument("--stack-iterations", type=int, default=1800)
+    evaluate.add_argument("--stack-learning-rate", type=float, default=0.03)
+    evaluate.add_argument("--stack-l2", type=float, default=0.02)
+    evaluate.add_argument("--minimum-residual-fixtures", type=int, default=40)
+    evaluate.add_argument("--promotion-horizon", type=int, default=90)
+    evaluate.add_argument("--minimum-probability", type=float, default=0.35)
+    evaluate.add_argument("--minimum-edge", type=float, default=0.04)
+    evaluate.add_argument("--minimum-expected-value", type=float, default=0.03)
+    evaluate.add_argument("--stake-units", type=float, default=1.0)
+
+    return parser.parse_args()
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                rows.append(json.loads(stripped))
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Invalid JSONL at line {line_number}: {exc}"
+                ) from exc
+    return rows
+
+
+def write_json(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True))
+            handle.write("\n")
+
+
+def parse_time(value: str) -> datetime:
+    normalized = value.replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(normalized)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def clamp(value: float, minimum: float, maximum: float) -> float:
+    return min(maximum, max(minimum, float(value)))
+
+
+def normalize(values: Sequence[float]) -> list[float]:
+    array = np.maximum(np.asarray(values, dtype=float), 0.0)
+    total = float(array.sum())
+    if total <= EPSILON:
+        return [1.0 / len(array)] * len(array)
+    return [float(value / total) for value in array]
+
+
+def softmax(logits: np.ndarray) -> np.ndarray:
+    shifted = logits - np.max(logits, axis=1, keepdims=True)
+    exponentials = np.exp(np.clip(shifted, -50, 50))
+    totals = exponentials.sum(axis=1, keepdims=True)
+    totals[totals <= EPSILON] = 1.0
+    return exponentials / totals
+
+
+def logit_features(probabilities: Sequence[float]) -> list[float]:
+    normalized = np.clip(np.asarray(normalize(probabilities)), 1e-8, 1.0)
+    logs = np.log(normalized)
+    centered = logs - logs.mean()
+    return [float(value) for value in centered]
+
+
+def multiclass_brier(labels: np.ndarray, probabilities: np.ndarray) -> float:
+    one_hot = np.eye(3, dtype=float)[labels.astype(int)]
+    return float(np.mean(np.sum((probabilities - one_hot) ** 2, axis=1)))
+
+
+def multiclass_log_loss(labels: np.ndarray, probabilities: np.ndarray) -> float:
+    clipped = np.clip(probabilities, 1e-9, 1.0)
+    clipped = clipped / clipped.sum(axis=1, keepdims=True)
+    indexes = np.arange(labels.shape[0])
+    return float(np.mean(-np.log(clipped[indexes, labels.astype(int)])))
+
+
+def multiclass_accuracy(labels: np.ndarray, probabilities: np.ndarray) -> float:
+    return float(np.mean(np.argmax(probabilities, axis=1) == labels))
+
+
+def expected_calibration_error(
+    labels: np.ndarray,
+    probabilities: np.ndarray,
+    bins: int = 10,
+) -> float:
+    confidence = np.max(probabilities, axis=1)
+    predicted = np.argmax(probabilities, axis=1)
+    correct = (predicted == labels).astype(float)
+    error = 0.0
+
+    for bin_index in range(bins):
+        lower = bin_index / bins
+        upper = (bin_index + 1) / bins
+        if bin_index == bins - 1:
+            mask = (confidence >= lower) & (confidence <= upper)
+        else:
+            mask = (confidence >= lower) & (confidence < upper)
+        count = int(mask.sum())
+        if count == 0:
+            continue
+        error += (
+            count
+            / len(labels)
+            * abs(float(confidence[mask].mean()) - float(correct[mask].mean()))
+        )
+
+    return float(error)
+
+
+def metric_set(labels: np.ndarray, probabilities: np.ndarray) -> dict[str, Any]:
+    if len(labels) == 0:
+        return {
+            "rows": 0,
+            "brier": None,
+            "logLoss": None,
+            "accuracy": None,
+            "expectedCalibrationError": None,
+        }
+
+    return {
+        "rows": int(len(labels)),
+        "brier": multiclass_brier(labels, probabilities),
+        "logLoss": multiclass_log_loss(labels, probabilities),
+        "accuracy": multiclass_accuracy(labels, probabilities),
+        "expectedCalibrationError": expected_calibration_error(
+            labels, probabilities
+        ),
+    }
+
+
+def dataset_fingerprint(rows: list[dict[str, Any]]) -> str:
+    digest = hashlib.sha256()
+    for row in sorted(
+        rows,
+        key=lambda item: (
+            str(item["predictionAsOf"]),
+            int(item["fixtureId"]),
+            int(item["horizonMinutes"]),
+        ),
+    ):
+        digest.update(
+            json.dumps(
+                {
+                    "fixtureId": row["fixtureId"],
+                    "predictionAsOf": row["predictionAsOf"],
+                    "horizonMinutes": row["horizonMinutes"],
+                    "featureContractHash": row["featureContractHash"],
+                    "featurePayloadHash": row["featurePayloadHash"],
+                    "baselinePayloadHash": row["baselinePayloadHash"],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        )
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def validate_dataset(
+    rows: list[dict[str, Any]],
+) -> tuple[list[str], str, str]:
+    if not rows:
+        raise ValueError("Scientific evaluation dataset is empty.")
+
+    feature_names = list(rows[0]["featureNames"])
+    contract_hash = str(rows[0]["featureContractHash"])
+    baseline_version = str(rows[0]["baselineVersion"])
+    width = len(feature_names)
+
+    required_keys = {
+        "fixtureId",
+        "leagueId",
+        "predictionAsOf",
+        "kickoffAt",
+        "labelAvailableAt",
+        "horizonMinutes",
+        "labels",
+        "featureVector",
+        "featureNames",
+        "featureContractHash",
+        "featurePayloadHash",
+        "baselineVersion",
+        "baseline",
+        "baselinePayloadHash",
+        "dixonColes",
+        "market",
+        "decisionOdds",
+        "closingOdds",
+    }
+
+    for row in rows:
+        missing = required_keys - row.keys()
+        if missing:
+            raise ValueError(
+                f"Dataset row is missing required keys: {sorted(missing)}"
+            )
+        if list(row["featureNames"]) != feature_names:
+            raise ValueError("Feature names changed inside one dataset.")
+        if str(row["featureContractHash"]) != contract_hash:
+            raise ValueError("Feature contract hash changed inside one dataset.")
+        if str(row["baselineVersion"]) != baseline_version:
+            raise ValueError("Baseline version changed inside one dataset.")
+        vector = row["featureVector"]
+        if len(vector) != width:
+            raise ValueError(
+                f"Feature width mismatch for fixture {row['fixtureId']}."
+            )
+        if not all(math.isfinite(float(value)) for value in vector):
+            raise ValueError(
+                f"Non-finite feature for fixture {row['fixtureId']}."
+            )
+        prediction_as_of = parse_time(str(row["predictionAsOf"]))
+        kickoff_at = parse_time(str(row["kickoffAt"]))
+        label_available_at = parse_time(str(row["labelAvailableAt"]))
+        if prediction_as_of >= kickoff_at:
+            raise ValueError(
+                f"Prediction timestamp is not before kickoff for fixture "
+                f"{row['fixtureId']}."
+            )
+        if label_available_at <= kickoff_at:
+            raise ValueError(
+                f"Label availability must be after kickoff for fixture "
+                f"{row['fixtureId']}."
+            )
+
+    return feature_names, contract_hash, baseline_version
+
+
+def matrix(rows: list[dict[str, Any]]) -> np.ndarray:
+    return np.asarray(
+        [row["featureVector"] for row in rows],
+        dtype=np.float32,
+    )
+
+
+def fixture_weights(rows: list[dict[str, Any]]) -> np.ndarray:
+    counts = Counter(int(row["fixtureId"]) for row in rows)
+    return np.asarray(
+        [1.0 / counts[int(row["fixtureId"])] for row in rows],
+        dtype=np.float32,
+    )
+
+
+def classifier_parameters(
+    args: argparse.Namespace,
+    loss_function: str,
+    seed_offset: int,
+) -> dict[str, Any]:
+    return {
+        "iterations": max(60, int(args.iterations)),
+        "depth": int(clamp(args.depth, 4, 10)),
+        "learning_rate": clamp(args.learning_rate, 0.005, 0.2),
+        "l2_leaf_reg": clamp(args.l2_leaf_reg, 0.0, 50.0),
+        "loss_function": loss_function,
+        "random_seed": int(args.random_seed) + seed_offset,
+        "allow_writing_files": False,
+        "verbose": False,
+        "thread_count": -1,
+        "random_strength": 0.6,
+        "border_count": 128,
+    }
+
+
+def fit_classifier(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    weights: np.ndarray,
+    args: argparse.Namespace,
+    loss_function: str,
+    seed_offset: int,
+) -> CatBoostClassifier | ConstantClassifier:
+    unique = np.unique(y_train)
+    if len(unique) < 2:
+        class_value = int(unique[0])
+        classes = np.asarray([class_value], dtype=int)
+        probabilities = np.asarray([1.0], dtype=float)
+        return ConstantClassifier(probabilities, classes)
+
+    model = CatBoostClassifier(
+        **classifier_parameters(args, loss_function, seed_offset),
+        auto_class_weights="Balanced",
+    )
+    model.fit(
+        x_train,
+        y_train,
+        sample_weight=weights,
+        verbose=False,
+    )
+    return model
+
+
+def fit_residual_model(
+    rows: list[dict[str, Any]],
+    x_train: np.ndarray,
+    args: argparse.Namespace,
+    seed_offset: int,
+) -> CatBoostRegressor | ConstantRegressor | None:
+    market_indexes = [
+        index
+        for index, row in enumerate(rows)
+        if row["market"].get("probabilities") is not None
+    ]
+    market_fixture_count = len(
+        {int(rows[index]["fixtureId"]) for index in market_indexes}
+    )
+    if market_fixture_count < int(args.minimum_residual_fixtures):
+        return None
+
+    residual_targets: list[np.ndarray] = []
+    residual_x: list[np.ndarray] = []
+    residual_rows: list[dict[str, Any]] = []
+    for index in market_indexes:
+        row = rows[index]
+        actual = int(row["labels"]["matchWinner"])
+        market = np.asarray(
+            row["market"]["probabilities"],
+            dtype=float,
+        )
+        residual_targets.append(np.eye(3, dtype=float)[actual] - market)
+        residual_x.append(x_train[index])
+        residual_rows.append(row)
+
+    target = np.asarray(residual_targets, dtype=np.float32)
+    x = np.asarray(residual_x, dtype=np.float32)
+    if len(x) < 8:
+        return ConstantRegressor(target.mean(axis=0))
+
+    model = CatBoostRegressor(
+        **classifier_parameters(args, "MultiRMSE", seed_offset),
+    )
+    model.fit(
+        x,
+        target,
+        sample_weight=fixture_weights(residual_rows),
+        verbose=False,
+    )
+    return model
+
+
+def model_probabilities(
+    model: CatBoostClassifier | ConstantClassifier,
+    x: np.ndarray,
+    expected_classes: list[int],
+) -> np.ndarray:
+    raw = np.asarray(model.predict_proba(x), dtype=float)
+    model_classes = [int(value) for value in model.classes_]
+    output = np.zeros((raw.shape[0], len(expected_classes)), dtype=float)
+
+    for source_index, class_value in enumerate(model_classes):
+        if class_value in expected_classes:
+            output[:, expected_classes.index(class_value)] = raw[:, source_index]
+
+    # Add tiny mass to missing classes to preserve finite log-loss.
+    output += 1e-8
+    output /= output.sum(axis=1, keepdims=True)
+    return output
+
+
+def binary_positive_probabilities(
+    model: CatBoostClassifier | ConstantClassifier,
+    x: np.ndarray,
+) -> np.ndarray:
+    raw = np.asarray(model.predict_proba(x), dtype=float)
+    model_classes = [int(value) for value in model.classes_]
+    if 1 in model_classes:
+        return raw[:, model_classes.index(1)]
+    if len(model_classes) == 1 and model_classes[0] == 1:
+        return np.ones(x.shape[0], dtype=float)
+    return np.zeros(x.shape[0], dtype=float)
+
+
+def save_model_if_catboost(
+    model: Any,
+    path: Path,
+) -> str | None:
+    if isinstance(model, (ConstantClassifier, ConstantRegressor)):
+        return None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    model.save_model(str(path), format="cbm")
+    return file_sha256(path)
+
+
+def fixture_temporal_metadata(
+    rows: list[dict[str, Any]],
+) -> tuple[
+    list[int],
+    dict[int, datetime],
+    dict[int, datetime],
+    dict[int, datetime],
+]:
+    kickoff: dict[int, datetime] = {}
+    prediction: dict[int, datetime] = {}
+    label_available: dict[int, datetime] = {}
+
+    for row in rows:
+        fixture_id = int(row["fixtureId"])
+        row_kickoff = parse_time(str(row["kickoffAt"]))
+        row_prediction = parse_time(str(row["predictionAsOf"]))
+        row_label = parse_time(str(row["labelAvailableAt"]))
+
+        kickoff[fixture_id] = min(
+            kickoff.get(fixture_id, row_kickoff),
+            row_kickoff,
+        )
+        prediction[fixture_id] = min(
+            prediction.get(fixture_id, row_prediction),
+            row_prediction,
+        )
+        label_available[fixture_id] = max(
+            label_available.get(fixture_id, row_label),
+            row_label,
+        )
+
+    ordered = sorted(
+        kickoff,
+        key=lambda fixture_id: (
+            kickoff[fixture_id],
+            fixture_id,
+        ),
+    )
+    return ordered, kickoff, prediction, label_available
+
+
+def split_chunks(values: list[int], count: int) -> list[list[int]]:
+    if count <= 0:
+        raise ValueError("Fold count must be positive.")
+    arrays = np.array_split(np.asarray(values, dtype=int), count)
+    return [
+        [int(value) for value in array.tolist()]
+        for array in arrays
+        if len(array) > 0
+    ]
+
+
+def rows_for_fixture_ids(
+    rows: list[dict[str, Any]],
+    fixture_ids: set[int],
+) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if int(row["fixtureId"]) in fixture_ids
+    ]
+
+
+def match_probabilities_from_row(
+    row: dict[str, Any],
+    key: str,
+) -> list[float]:
+    value = row[key]
+    if isinstance(value, dict):
+        return normalize(
+            [
+                float(value["HOME"]),
+                float(value["DRAW"]),
+                float(value["AWAY"]),
+            ]
+        )
+    return normalize([float(entry) for entry in value])
+
+
+def residual_market_prediction(
+    market: Sequence[float] | None,
+    residual: np.ndarray | None,
+) -> list[float] | None:
+    if market is None or residual is None:
+        return None
+    return normalize(
+        np.asarray(market, dtype=float)
+        + np.asarray(residual, dtype=float)
+    )
+
+
+def build_oof_predictions(
+    rows: list[dict[str, Any]],
+    args: argparse.Namespace,
+    artifact_dir: Path,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    (
+        ordered_fixture_ids,
+        _kickoffs,
+        fixture_prediction,
+        fixture_label_available,
+    ) = fixture_temporal_metadata(rows)
+
+    minimum_train = max(40, int(args.minimum_train_fixtures))
+    if len(ordered_fixture_ids) < minimum_train + 30:
+        raise ValueError(
+            "Not enough fixtures for expanding-window OOF evaluation: "
+            f"{len(ordered_fixture_ids)} fixtures, minimum train {minimum_train}."
+        )
+
+    validation_fixture_ids = ordered_fixture_ids[minimum_train:]
+    fold_chunks = split_chunks(
+        validation_fixture_ids,
+        max(3, int(args.fold_count)),
+    )
+    oof_rows: list[dict[str, Any]] = []
+    fold_metadata: list[dict[str, Any]] = []
+
+    for fold_index, validation_ids in enumerate(fold_chunks, start=1):
+        validation_set = set(validation_ids)
+        validation_from = min(
+            fixture_prediction[fixture_id]
+            for fixture_id in validation_ids
+        )
+        first_validation_position = min(
+            ordered_fixture_ids.index(fixture_id)
+            for fixture_id in validation_ids
+        )
+        earlier_ids = ordered_fixture_ids[:first_validation_position]
+        train_ids = [
+            fixture_id
+            for fixture_id in earlier_ids
+            if fixture_label_available[fixture_id] < validation_from
+        ]
+
+        if len(train_ids) < minimum_train:
+            raise ValueError(
+                f"Fold {fold_index} has only {len(train_ids)} leakage-safe "
+                f"training fixtures; requires {minimum_train}."
+            )
+
+        train_set = set(train_ids)
+        train_rows = rows_for_fixture_ids(rows, train_set)
+        validation_rows = rows_for_fixture_ids(rows, validation_set)
+        trained_through = max(
+            fixture_label_available[fixture_id]
+            for fixture_id in train_ids
+        )
+
+        if trained_through >= validation_from:
+            raise ValueError(
+                f"Fold {fold_index} leakage: trainedThrough >= validationFrom."
+            )
+
+        x_train = matrix(train_rows)
+        x_validation = matrix(validation_rows)
+        weights = fixture_weights(train_rows)
+        y_match = np.asarray(
+            [int(row["labels"]["matchWinner"]) for row in train_rows],
+            dtype=np.int64,
+        )
+        y_over = np.asarray(
+            [int(row["labels"]["over25"]) for row in train_rows],
+            dtype=np.int64,
+        )
+        y_btts = np.asarray(
+            [int(row["labels"]["btts"]) for row in train_rows],
+            dtype=np.int64,
+        )
+
+        match_model = fit_classifier(
+            x_train,
+            y_match,
+            weights,
+            args,
+            "MultiClass",
+            fold_index * 10 + 1,
+        )
+        over_model = fit_classifier(
+            x_train,
+            y_over,
+            weights,
+            args,
+            "Logloss",
+            fold_index * 10 + 2,
+        )
+        btts_model = fit_classifier(
+            x_train,
+            y_btts,
+            weights,
+            args,
+            "Logloss",
+            fold_index * 10 + 3,
+        )
+        residual_model = fit_residual_model(
+            train_rows,
+            x_train,
+            args,
+            fold_index * 10 + 4,
+        )
+
+        fold_dir = artifact_dir / "fold_models" / f"fold_{fold_index:02d}"
+        hashes: dict[str, str] = {}
+        for key, model, filename in [
+            ("matchWinner", match_model, "match_winner.cbm"),
+            ("over25", over_model, "over_25.cbm"),
+            ("btts", btts_model, "btts.cbm"),
+            ("marketResidual", residual_model, "market_residual.cbm"),
+        ]:
+            if model is None:
+                continue
+            digest = save_model_if_catboost(model, fold_dir / filename)
+            if digest:
+                hashes[key] = digest
+
+        catboost_match = model_probabilities(
+            match_model,
+            x_validation,
+            EXPECTED_MATCH_CLASSES,
+        )
+        over_probabilities = binary_positive_probabilities(
+            over_model,
+            x_validation,
+        )
+        btts_probabilities = binary_positive_probabilities(
+            btts_model,
+            x_validation,
+        )
+        residual_values = (
+            np.asarray(residual_model.predict(x_validation), dtype=float)
+            if residual_model is not None
+            else None
+        )
+
+        for row_index, row in enumerate(validation_rows):
+            market = row["market"].get("probabilities")
+            residual_market = residual_market_prediction(
+                market,
+                residual_values[row_index] if residual_values is not None else None,
+            )
+            oof_rows.append(
+                {
+                    "fixtureId": int(row["fixtureId"]),
+                    "leagueId": int(row["leagueId"]),
+                    "predictionAsOf": row["predictionAsOf"],
+                    "kickoffAt": row["kickoffAt"],
+                    "labelAvailableAt": row["labelAvailableAt"],
+                    "horizonMinutes": int(row["horizonMinutes"]),
+                    "foldNumber": fold_index,
+                    "trainedThrough": trained_through.isoformat(),
+                    "labels": row["labels"],
+                    "baseline": match_probabilities_from_row(row, "baseline"),
+                    "dixonColes": match_probabilities_from_row(
+                        row, "dixonColes"
+                    ),
+                    "market": (
+                        normalize([float(value) for value in market])
+                        if market is not None
+                        else None
+                    ),
+                    "catBoost": [
+                        float(value)
+                        for value in catboost_match[row_index].tolist()
+                    ],
+                    "residualMarket": residual_market,
+                    "over25Probability": float(over_probabilities[row_index]),
+                    "bttsProbability": float(btts_probabilities[row_index]),
+                    "decisionOdds": row["decisionOdds"],
+                    "closingOdds": row["closingOdds"],
+                    "marketQuality": float(
+                        row["market"].get("qualityScore") or 0
+                    ),
+                    "featureContractHash": row["featureContractHash"],
+                    "featurePayloadHash": row["featurePayloadHash"],
+                    "baselinePayloadHash": row["baselinePayloadHash"],
+                }
+            )
+
+        fold_metadata.append(
+            {
+                "foldNumber": fold_index,
+                "trainingFixtures": len(train_ids),
+                "trainingRows": len(train_rows),
+                "validationFixtures": len(validation_ids),
+                "validationRows": len(validation_rows),
+                "trainedThrough": trained_through.isoformat(),
+                "validationFrom": validation_from.isoformat(),
+                "validationTo": max(
+                    fixture_prediction[fixture_id]
+                    for fixture_id in validation_ids
+                ).isoformat(),
+                "modelSha256": hashes,
+                "residualModelAvailable": residual_model is not None,
+            }
+        )
+
+    return oof_rows, fold_metadata
+
+
+def stack_features(row: dict[str, Any]) -> list[float]:
+    catboost = row["catBoost"]
+    dixon = row["dixonColes"]
+    market = row["market"] if row["market"] is not None else dixon
+    residual = (
+        row["residualMarket"]
+        if row["residualMarket"] is not None
+        else market
+    )
+
+    return [
+        *logit_features(catboost),
+        *logit_features(dixon),
+        *logit_features(market),
+        *logit_features(residual),
+        1.0 if row["market"] is not None else 0.0,
+        clamp(float(row["marketQuality"]), 0, 1),
+        clamp(float(row["horizonMinutes"]) / 1440, 0, 2),
+        1.0,
+    ]
+
+
+def fit_softmax_stacker(
+    rows: list[dict[str, Any]],
+    args: argparse.Namespace,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    x = np.asarray([stack_features(row) for row in rows], dtype=float)
+    y = np.asarray(
+        [int(row["labels"]["matchWinner"]) for row in rows],
+        dtype=int,
+    )
+    weights = fixture_weights(rows).astype(float)
+    weight_total = max(float(weights.sum()), EPSILON)
+    feature_scale = np.std(x[:, :-1], axis=0)
+    feature_scale[feature_scale < 1e-6] = 1.0
+    x_scaled = x.copy()
+    x_scaled[:, :-1] = x_scaled[:, :-1] / feature_scale
+
+    rng = np.random.default_rng(int(args.random_seed) + 700)
+    coefficients = rng.normal(0, 0.005, size=(x.shape[1], 3))
+    learning_rate = clamp(args.stack_learning_rate, 0.001, 0.2)
+    l2 = clamp(args.stack_l2, 0.0, 2.0)
+    iterations = max(200, int(args.stack_iterations))
+    one_hot = np.eye(3, dtype=float)[y]
+    best_coefficients = coefficients.copy()
+    best_loss = float("inf")
+
+    for iteration in range(iterations):
+        probabilities = softmax(x_scaled @ coefficients)
+        weighted_error = (probabilities - one_hot) * weights[:, None]
+        gradient = x_scaled.T @ weighted_error / weight_total
+        regularization = l2 * coefficients
+        regularization[-1, :] = 0
+        gradient += regularization
+        coefficients -= learning_rate * gradient
+
+        if iteration % 25 == 0 or iteration == iterations - 1:
+            loss = multiclass_log_loss(y, probabilities)
+            loss += 0.5 * l2 * float(np.sum(coefficients[:-1] ** 2))
+            if loss < best_loss:
+                best_loss = loss
+                best_coefficients = coefficients.copy()
+
+    metadata = {
+        "featureCount": int(x.shape[1]),
+        "featureScale": [float(value) for value in feature_scale.tolist()],
+        "iterations": iterations,
+        "learningRate": learning_rate,
+        "l2": l2,
+        "trainingRows": len(rows),
+        "trainingFixtures": len({int(row["fixtureId"]) for row in rows}),
+        "objective": "multinomial-log-loss",
+        "bestRegularizedLoss": best_loss,
+    }
+    return best_coefficients, metadata
+
+
+def stacker_predict(
+    rows: list[dict[str, Any]],
+    coefficients: np.ndarray,
+    feature_scale: Sequence[float],
+) -> np.ndarray:
+    x = np.asarray([stack_features(row) for row in rows], dtype=float)
+    scale = np.asarray(feature_scale, dtype=float)
+    x[:, :-1] = x[:, :-1] / scale
+    return softmax(x @ coefficients)
+
+
+def fit_temperature(
+    labels: np.ndarray,
+    probabilities: np.ndarray,
+) -> tuple[float, dict[str, Any]]:
+    logits = np.log(np.clip(probabilities, 1e-9, 1.0))
+    candidates = np.linspace(0.45, 3.0, 256)
+    losses: list[tuple[float, float]] = []
+
+    for temperature in candidates:
+        calibrated = softmax(logits / temperature)
+        losses.append(
+            (
+                multiclass_log_loss(labels, calibrated),
+                float(temperature),
+            )
+        )
+
+    best_loss, best_temperature = min(losses)
+    lower = max(0.25, best_temperature - 0.08)
+    upper = best_temperature + 0.08
+
+    for temperature in np.linspace(lower, upper, 161):
+        calibrated = softmax(logits / temperature)
+        loss = multiclass_log_loss(labels, calibrated)
+        if loss < best_loss:
+            best_loss = loss
+            best_temperature = float(temperature)
+
+    return best_temperature, {
+        "method": "temperature-scaling",
+        "temperature": best_temperature,
+        "calibrationRows": int(len(labels)),
+        "calibrationLogLoss": best_loss,
+    }
+
+
+def apply_temperature(
+    probabilities: np.ndarray,
+    temperature: float,
+) -> np.ndarray:
+    logits = np.log(np.clip(probabilities, 1e-9, 1.0))
+    return softmax(logits / max(temperature, 0.05))
+
+
+def assign_secondary_roles(
+    oof_rows: list[dict[str, Any]],
+    args: argparse.Namespace,
+) -> tuple[list[int], list[int], list[int]]:
+    (
+        fixture_ids,
+        _kickoffs,
+        _predictions,
+        _labels,
+    ) = fixture_temporal_metadata(oof_rows)
+
+    count = len(fixture_ids)
+    stack_fraction = clamp(args.stack_train_fraction, 0.45, 0.75)
+    calibration_fraction = clamp(args.calibration_fraction, 0.10, 0.30)
+    stack_count = max(40, int(math.floor(count * stack_fraction)))
+    calibration_count = max(20, int(math.floor(count * calibration_fraction)))
+
+    if stack_count + calibration_count > count - 20:
+        calibration_count = max(20, count - stack_count - 20)
+    if stack_count + calibration_count >= count:
+        raise ValueError("Not enough OOF fixtures for final evaluation holdout.")
+
+    stack_ids = fixture_ids[:stack_count]
+    calibration_ids = fixture_ids[
+        stack_count : stack_count + calibration_count
+    ]
+    evaluation_ids = fixture_ids[stack_count + calibration_count :]
+
+    if len(evaluation_ids) < 20:
+        raise ValueError("Final evaluation holdout has fewer than 20 fixtures.")
+
+    return stack_ids, calibration_ids, evaluation_ids
+
+
+def probability_dict(values: Sequence[float]) -> dict[str, float]:
+    normalized = normalize(values)
+    return {
+        "HOME": normalized[0],
+        "DRAW": normalized[1],
+        "AWAY": normalized[2],
+    }
+
+
+def actual_class(label: int) -> str:
+    return ["HOME", "DRAW", "AWAY"][int(label)]
+
+
+def odds_dict_to_array(value: Any) -> list[float | None]:
+    if not isinstance(value, dict):
+        return [None, None, None]
+    return [
+        (
+            float(value.get("HOME"))
+            if value.get("HOME") is not None
+            else None
+        ),
+        (
+            float(value.get("DRAW"))
+            if value.get("DRAW") is not None
+            else None
+        ),
+        (
+            float(value.get("AWAY"))
+            if value.get("AWAY") is not None
+            else None
+        ),
+    ]
+
+
+def fair_probabilities_from_odds(
+    odds: Sequence[float | None],
+) -> list[float] | None:
+    if any(value is None or float(value) <= 1 for value in odds):
+        return None
+    return normalize([1 / float(value) for value in odds])  # type: ignore[arg-type]
+
+
+def simulate_policy(
+    rows: list[dict[str, Any]],
+    probability_key: str,
+    source: str,
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    bets: list[dict[str, Any]] = []
+    profits: list[float] = []
+    wins = 0
+    losses = 0
+    clv_values: list[float] = []
+
+    sorted_rows = sorted(
+        rows,
+        key=lambda row: (
+            parse_time(str(row["kickoffAt"])),
+            int(row["fixtureId"]),
+        ),
+    )
+
+    for row in sorted_rows:
+        probabilities = normalize(row[probability_key])
+        decision_odds = odds_dict_to_array(row["decisionOdds"])
+        closing_odds = odds_dict_to_array(row["closingOdds"])
+        fair = fair_probabilities_from_odds(decision_odds)
+
+        candidates: list[tuple[float, int, float, float, float | None]] = []
+        for class_index, odds in enumerate(decision_odds):
+            if odds is None or odds <= 1:
+                continue
+            probability = probabilities[class_index]
+            implied = (
+                fair[class_index]
+                if fair is not None
+                else 1 / odds
+            )
+            edge = probability - implied
+            expected_value = probability * odds - 1
+            if (
+                probability >= float(args.minimum_probability)
+                and edge >= float(args.minimum_edge)
+                and expected_value >= float(args.minimum_expected_value)
+            ):
+                candidates.append(
+                    (
+                        expected_value,
+                        class_index,
+                        probability,
+                        edge,
+                        implied,
+                    )
+                )
+
+        if not candidates:
+            continue
+
+        candidates.sort(reverse=True)
+        (
+            expected_value,
+            class_index,
+            probability,
+            edge,
+            fair_probability,
+        ) = candidates[0]
+        odds = float(decision_odds[class_index])
+        closing = (
+            float(closing_odds[class_index])
+            if closing_odds[class_index] is not None
+            else None
+        )
+        label = int(row["labels"]["matchWinner"])
+        is_win = class_index == label
+        stake = max(0.01, float(args.stake_units))
+        profit = (odds - 1) * stake if is_win else -stake
+        clv = (
+            odds / closing - 1
+            if closing is not None and closing > 1
+            else None
+        )
+
+        wins += int(is_win)
+        losses += int(not is_win)
+        profits.append(profit)
+        if clv is not None:
+            clv_values.append(clv)
+
+        bets.append(
+            {
+                "fixtureId": int(row["fixtureId"]),
+                "horizonMinutes": int(row["horizonMinutes"]),
+                "source": source,
+                "predictedAt": row["predictionAsOf"],
+                "kickoffAt": row["kickoffAt"],
+                "selectionCode": ["HOME", "DRAW", "AWAY"][class_index],
+                "decimalOdds": odds,
+                "closingOdds": closing,
+                "modelProbability": probability,
+                "fairProbability": fair_probability,
+                "edge": edge,
+                "expectedValue": expected_value,
+                "stakeUnits": stake,
+                "result": "WIN" if is_win else "LOSS",
+                "profitUnits": profit,
+                "clv": clv,
+            }
+        )
+
+    bankroll = 0.0
+    peak = 0.0
+    maximum_drawdown = 0.0
+    for profit in profits:
+        bankroll += profit
+        peak = max(peak, bankroll)
+        maximum_drawdown = max(maximum_drawdown, peak - bankroll)
+
+    total_stake = sum(float(bet["stakeUnits"]) for bet in bets)
+    metrics = {
+        "bets": len(bets),
+        "wins": wins,
+        "losses": losses,
+        "pushes": 0,
+        "stakeUnits": total_stake,
+        "profitUnits": sum(profits),
+        "roi": sum(profits) / total_stake if total_stake > 0 else None,
+        "hitRate": wins / (wins + losses) if wins + losses > 0 else None,
+        "maximumDrawdownUnits": maximum_drawdown,
+        "averageOdds": (
+            float(np.mean([bet["decimalOdds"] for bet in bets]))
+            if bets
+            else None
+        ),
+        "averageEdge": (
+            float(np.mean([bet["edge"] for bet in bets]))
+            if bets
+            else None
+        ),
+        "averageExpectedValue": (
+            float(np.mean([bet["expectedValue"] for bet in bets]))
+            if bets
+            else None
+        ),
+        "averageClv": float(np.mean(clv_values)) if clv_values else None,
+        "positiveClvRate": (
+            sum(value > 0 for value in clv_values) / len(clv_values)
+            if clv_values
+            else None
+        ),
+    }
+    return metrics, bets
+
+
+def metrics_for_rows(
+    rows: list[dict[str, Any]],
+    probability_key: str,
+) -> dict[str, Any]:
+    labels = np.asarray(
+        [int(row["labels"]["matchWinner"]) for row in rows],
+        dtype=int,
+    )
+    probabilities = np.asarray(
+        [row[probability_key] for row in rows],
+        dtype=float,
+    )
+    return metric_set(labels, probabilities)
+
+
+def evaluate(args: argparse.Namespace) -> None:
+    input_path = Path(args.input).resolve()
+    output_root = Path(args.output_dir).resolve()
+    rows = read_jsonl(input_path)
+    feature_names, contract_hash, baseline_version = validate_dataset(rows)
+    fingerprint = dataset_fingerprint(rows)
+    candidate_version = (
+        f"{EVALUATION_VERSION}-"
+        f"{fingerprint[:12]}"
+    )
+    artifact_dir = output_root / candidate_version
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    oof_rows, fold_metadata = build_oof_predictions(
+        rows,
+        args,
+        artifact_dir,
+    )
+    (
+        stack_fixture_ids,
+        calibration_fixture_ids,
+        evaluation_fixture_ids,
+    ) = assign_secondary_roles(oof_rows, args)
+
+    stack_set = set(stack_fixture_ids)
+    calibration_set = set(calibration_fixture_ids)
+    evaluation_set = set(evaluation_fixture_ids)
+    stack_rows = rows_for_fixture_ids(oof_rows, stack_set)
+    calibration_rows = rows_for_fixture_ids(oof_rows, calibration_set)
+    evaluation_rows = rows_for_fixture_ids(oof_rows, evaluation_set)
+
+    coefficients, stacker_metadata = fit_softmax_stacker(
+        stack_rows,
+        args,
+    )
+    stacker_metadata["coefficients"] = coefficients.tolist()
+    stacker_metadata["featureNames"] = [
+        "catboost_logit_home",
+        "catboost_logit_draw",
+        "catboost_logit_away",
+        "dixon_logit_home",
+        "dixon_logit_draw",
+        "dixon_logit_away",
+        "market_logit_home",
+        "market_logit_draw",
+        "market_logit_away",
+        "residual_logit_home",
+        "residual_logit_draw",
+        "residual_logit_away",
+        "market_available",
+        "market_quality",
+        "horizon_scaled",
+        "intercept",
+    ]
+
+    all_stacked = stacker_predict(
+        oof_rows,
+        coefficients,
+        stacker_metadata["featureScale"],
+    )
+    calibration_stacked = stacker_predict(
+        calibration_rows,
+        coefficients,
+        stacker_metadata["featureScale"],
+    )
+    calibration_labels = np.asarray(
+        [
+            int(row["labels"]["matchWinner"])
+            for row in calibration_rows
+        ],
+        dtype=int,
+    )
+    temperature, calibration_metadata = fit_temperature(
+        calibration_labels,
+        calibration_stacked,
+    )
+    all_calibrated = apply_temperature(
+        all_stacked,
+        temperature,
+    )
+
+    for index, row in enumerate(oof_rows):
+        fixture_id = int(row["fixtureId"])
+        if fixture_id in stack_set:
+            role = "STACK_TRAIN"
+        elif fixture_id in calibration_set:
+            role = "CALIBRATION"
+        elif fixture_id in evaluation_set:
+            role = "EVALUATION"
+        else:
+            raise ValueError("OOF row was not assigned to a secondary split.")
+
+        row["splitRole"] = role
+        row["stacked"] = [
+            float(value)
+            for value in all_stacked[index].tolist()
+        ]
+        row["calibrated"] = [
+            float(value)
+            for value in all_calibrated[index].tolist()
+        ]
+
+    evaluation_rows = [
+        row
+        for row in oof_rows
+        if row["splitRole"] == "EVALUATION"
+    ]
+    promotion_horizon = int(args.promotion_horizon)
+    promotion_rows = [
+        row
+        for row in evaluation_rows
+        if int(row["horizonMinutes"]) == promotion_horizon
+    ]
+    if len(promotion_rows) < 20:
+        raise ValueError(
+            f"Promotion horizon T-{promotion_horizon} has fewer than 20 "
+            "final evaluation rows."
+        )
+
+    prediction_metrics: dict[str, Any] = {
+        "promotionHorizonMinutes": promotion_horizon,
+        "candidate": metrics_for_rows(promotion_rows, "calibrated"),
+        "baseline": metrics_for_rows(promotion_rows, "baseline"),
+        "diagnostics": {
+            "catBoost": metrics_for_rows(promotion_rows, "catBoost"),
+            "dixonColes": metrics_for_rows(promotion_rows, "dixonColes"),
+            "stackedUncalibrated": metrics_for_rows(
+                promotion_rows, "stacked"
+            ),
+            "market": metrics_for_rows(
+                [row for row in promotion_rows if row["market"] is not None],
+                "market",
+            ),
+        },
+        "byHorizon": {},
+    }
+
+    betting_metrics: dict[str, Any] = {
+        "promotionHorizonMinutes": promotion_horizon,
+        "policyVersion": POLICY_VERSION,
+        "candidate": None,
+        "baseline": None,
+        "byHorizon": {},
+    }
+    all_bets: list[dict[str, Any]] = []
+
+    for horizon in sorted(
+        {int(row["horizonMinutes"]) for row in evaluation_rows},
+        reverse=True,
+    ):
+        horizon_rows = [
+            row
+            for row in evaluation_rows
+            if int(row["horizonMinutes"]) == horizon
+        ]
+        candidate_betting, candidate_bets = simulate_policy(
+            horizon_rows,
+            "calibrated",
+            "CANDIDATE",
+            args,
+        )
+        baseline_betting, baseline_bets = simulate_policy(
+            horizon_rows,
+            "baseline",
+            "BASELINE",
+            args,
+        )
+        prediction_metrics["byHorizon"][str(horizon)] = {
+            "candidate": metrics_for_rows(horizon_rows, "calibrated"),
+            "baseline": metrics_for_rows(horizon_rows, "baseline"),
+            "catBoost": metrics_for_rows(horizon_rows, "catBoost"),
+            "dixonColes": metrics_for_rows(horizon_rows, "dixonColes"),
+        }
+        betting_metrics["byHorizon"][str(horizon)] = {
+            "candidate": candidate_betting,
+            "baseline": baseline_betting,
+        }
+        all_bets.extend(candidate_bets)
+        all_bets.extend(baseline_bets)
+
+        if horizon == promotion_horizon:
+            betting_metrics["candidate"] = candidate_betting
+            betting_metrics["baseline"] = baseline_betting
+
+    if betting_metrics["candidate"] is None:
+        raise ValueError("Promotion-horizon candidate betting metrics missing.")
+    if betting_metrics["baseline"] is None:
+        raise ValueError("Promotion-horizon baseline betting metrics missing.")
+
+    leakage_violations = sum(
+        parse_time(str(row["trainedThrough"]))
+        >= parse_time(str(row["predictionAsOf"]))
+        for row in oof_rows
+    )
+    if leakage_violations:
+        raise ValueError(
+            f"Detected {leakage_violations} OOF leakage violations."
+        )
+
+    stacker_path = artifact_dir / "stacker.json"
+    calibration_path = artifact_dir / "calibration.json"
+    folds_path = artifact_dir / "folds.json"
+    oof_path = artifact_dir / "oof_predictions.jsonl"
+    bets_path = artifact_dir / "evaluation_bets.jsonl"
+    metrics_path = artifact_dir / "metrics.json"
+
+    write_json(stacker_path, stacker_metadata)
+    write_json(calibration_path, calibration_metadata)
+    write_json(folds_path, fold_metadata)
+    write_jsonl(oof_path, oof_rows)
+    write_jsonl(bets_path, all_bets)
+    write_json(
+        metrics_path,
+        {
+            "prediction": prediction_metrics,
+            "betting": betting_metrics,
+        },
+    )
+
+    artifact_hashes: dict[str, str] = {
+        "stacker": file_sha256(stacker_path),
+        "calibration": file_sha256(calibration_path),
+        "folds": file_sha256(folds_path),
+        "oofPredictions": file_sha256(oof_path),
+        "evaluationBets": file_sha256(bets_path),
+        "metrics": file_sha256(metrics_path),
+    }
+    for fold in fold_metadata:
+        for model_key, digest in fold["modelSha256"].items():
+            artifact_hashes[
+                f"fold{fold['foldNumber']}_{model_key}"
+            ] = digest
+
+    date_from = min(parse_time(str(row["predictionAsOf"])) for row in rows)
+    date_to = max(parse_time(str(row["predictionAsOf"])) for row in rows)
+    metadata = {
+        "evaluationVersion": EVALUATION_VERSION,
+        "candidateVersion": candidate_version,
+        "baselineVersion": baseline_version,
+        "featureContractHash": contract_hash,
+        "featureNames": feature_names,
+        "datasetFingerprint": fingerprint,
+        "policyVersion": POLICY_VERSION,
+        "dateFrom": date_from.isoformat(),
+        "dateTo": date_to.isoformat(),
+        "foldCount": len(fold_metadata),
+        "oofRows": len(oof_rows),
+        "oofFixtures": len({int(row["fixtureId"]) for row in oof_rows}),
+        "stackTrainingRows": len(stack_rows),
+        "calibrationRows": len(calibration_rows),
+        "evaluationRows": len(evaluation_rows),
+        "promotionRows": len(promotion_rows),
+        "promotionHorizonMinutes": promotion_horizon,
+        "leakageViolations": leakage_violations,
+        "artifactDirectory": str(artifact_dir),
+        "artifactSha256": artifact_hashes,
+        "predictionMetrics": prediction_metrics,
+        "bettingMetrics": betting_metrics,
+        "configuration": {
+            "foldCount": int(args.fold_count),
+            "minimumTrainFixtures": int(args.minimum_train_fixtures),
+            "catBoostIterations": int(args.iterations),
+            "catBoostDepth": int(args.depth),
+            "catBoostLearningRate": float(args.learning_rate),
+            "catBoostL2LeafReg": float(args.l2_leaf_reg),
+            "randomSeed": int(args.random_seed),
+            "stackTrainFraction": float(args.stack_train_fraction),
+            "calibrationFraction": float(args.calibration_fraction),
+            "stackIterations": int(args.stack_iterations),
+            "stackLearningRate": float(args.stack_learning_rate),
+            "stackL2": float(args.stack_l2),
+            "minimumResidualFixtures": int(args.minimum_residual_fixtures),
+            "minimumProbability": float(args.minimum_probability),
+            "minimumEdge": float(args.minimum_edge),
+            "minimumExpectedValue": float(args.minimum_expected_value),
+            "stakeUnits": float(args.stake_units),
+            "fixtureWeightNormalization": True,
+            "groupedByFixture": True,
+            "expandingWindow": True,
+            "labelAvailabilityGuard": True,
+            "secondaryTemporalSplit": {
+                "stackTrainFixtures": len(stack_fixture_ids),
+                "calibrationFixtures": len(calibration_fixture_ids),
+                "evaluationFixtures": len(evaluation_fixture_ids),
+            },
+        },
+        "folds": fold_metadata,
+        "catBoostVersion": __import__("catboost").__version__,
+        "numpyVersion": np.__version__,
+        "pythonVersion": sys.version.split()[0],
+        "paths": {
+            "stacker": str(stacker_path),
+            "calibration": str(calibration_path),
+            "folds": str(folds_path),
+            "oofPredictions": str(oof_path),
+            "evaluationBets": str(bets_path),
+            "metrics": str(metrics_path),
+        },
+    }
+    metadata_path = artifact_dir / "metadata.json"
+    write_json(metadata_path, metadata)
+    metadata["metadataPath"] = str(metadata_path)
+
+    print(json.dumps(metadata, ensure_ascii=False, sort_keys=True))
+
+
+def main() -> None:
+    args = parse_args()
+    if args.command == "evaluate":
+        evaluate(args)
+    else:
+        raise ValueError(f"Unsupported command: {args.command}")
+
+
+if __name__ == "__main__":
+    main()
