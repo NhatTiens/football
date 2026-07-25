@@ -83,3 +83,15 @@ export type {
 export * from './provider-replay-engine.js';
 export * from './historical-data-audit-contract.js';
 export * from './historical-data-audit-engine.js';
+export * from './scientific-multi-market-port.js';
+export * from './scientific-multi-market-replay-engine.js';
+export * from './scientific-best-bet-reliability-engine.js';
+export * from './paper-bet-ledger-engine.js';
+export * from './paper-bet-ledger-core.js';
+export * from './api-football-provider-engine.js';
+export * from './api-football-client.js';
+export * from './api-football-contract.js';
+export * from './scientific-best-bet-policy-contract.js';
+export * from './scientific-multi-market-replay-contract.js';
+export * from './real-odds-paper-bet-core.js';
+export * from './real-odds-paper-bet-engine.js';

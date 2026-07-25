@@ -20,6 +20,21 @@ import {
   getProviderReplayReport,
   getHistoricalDataAuditCoverage,
   getHistoricalDataAuditReport,
+  getScientificMultiMarketPortReport,
+  getScientificMultiMarketReplayReport,
+  getScientificMultiMarketReplaySummary,
+  getScientificBestBetReliabilityReport,
+  getScientificBestBetReliabilitySummary,
+  backfillApiFootballOddsHistory,
+  captureApiFootballLiveWindow,
+  getApiFootballCoverage,
+  discoverApiFootballLeagueProfile,
+  getApiFootballVietnamSchedule,
+  getApiFootballHealth,
+  getScientificPaperBetLedgerCoverage,
+  settleOpenScientificPaperBets,
+  runScientificBestBetReliability,
+  runScientificMultiMarketReplay,
   runHistoricalDataAudit,
   runBeta1AReplayPipeline,
   runProviderHealthCheck,
@@ -71,6 +86,21 @@ export type WorkerCommand =
   | 'historical-data-audit-run'
   | 'historical-data-audit-coverage'
   | 'historical-data-audit-report'
+  | 'scientific-multi-market-port-report'
+  | 'scientific-multi-market-replay-report'
+  | 'scientific-best-bet-reliability-report'
+  | 'paper-bet-ledger-settle'
+  | 'paper-bet-ledger-coverage'
+  | 'api-football-coverage'
+  | 'api-football-league-profile-discover'
+  | 'api-football-vn-schedule'
+  | 'api-football-live-capture'
+  | 'api-football-backfill-odds-7d'
+  | 'api-football-health'
+  | 'scientific-best-bet-reliability-summary'
+  | 'scientific-best-bet-reliability-run'
+  | 'scientific-multi-market-replay-summary'
+  | 'scientific-multi-market-replay-run'
   | 'sync-lineups'
   | 'sync-lineups-history'
   | 'sync-predictions'
@@ -139,6 +169,31 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
       result = await getHistoricalDataAuditCoverage();
     else if (command === 'historical-data-audit-report')
       result = await getHistoricalDataAuditReport();
+    else if (command === 'scientific-multi-market-port-report')
+      result = getScientificMultiMarketPortReport();
+    else if (command === 'scientific-multi-market-replay-run')
+      result = await runScientificMultiMarketReplay();
+    else if (command === 'scientific-multi-market-replay-summary')
+      result = await getScientificMultiMarketReplaySummary();
+    else if (command === 'scientific-multi-market-replay-report')
+      result = await getScientificMultiMarketReplayReport();
+    else if (command === 'scientific-best-bet-reliability-run')
+      result = await runScientificBestBetReliability();
+    else if (command === 'scientific-best-bet-reliability-summary')
+      result = await getScientificBestBetReliabilitySummary();
+    else if (command === 'scientific-best-bet-reliability-report')
+      result = await getScientificBestBetReliabilityReport();
+    else if (command === 'api-football-health') result = await getApiFootballHealth();
+    else if (command === 'api-football-backfill-odds-7d')
+      result = await backfillApiFootballOddsHistory();
+    else if (command === 'api-football-live-capture') result = await captureApiFootballLiveWindow();
+    else if (command === 'api-football-coverage') result = await getApiFootballCoverage();
+    else if (command === 'api-football-league-profile-discover')
+      result = await discoverApiFootballLeagueProfile();
+    else if (command === 'api-football-vn-schedule') result = await getApiFootballVietnamSchedule();
+    else if (command === 'paper-bet-ledger-coverage')
+      result = await getScientificPaperBetLedgerCoverage();
+    else if (command === 'paper-bet-ledger-settle') result = await settleOpenScientificPaperBets();
     else if (command === 'sync-lineups') result = await syncLineups();
     else if (command === 'sync-lineups-history') {
       result = await syncLineups({ includeHistory: true });

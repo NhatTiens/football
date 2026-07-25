@@ -15,6 +15,8 @@ export function Header() {
           <Link href="/">Tổng quan</Link>
           <Link href="/matches">Trận đấu</Link>
           <Link href="/recommendations">Khuyến nghị</Link>
+          <Link href="/scientific">Live AI</Link>
+          <Link href="/bet-history">Lịch sử bet</Link>
           <Link href="/backtest">Backtest</Link>
         </nav>
       </div>

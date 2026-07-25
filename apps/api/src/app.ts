@@ -4,7 +4,13 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
-import { BacktestStatus, FixtureStatus, prisma, RecommendationStatus, SettlementResult } from '@football-ai/database';
+import {
+  BacktestStatus,
+  FixtureStatus,
+  prisma,
+  RecommendationStatus,
+  SettlementResult,
+} from '@football-ai/database';
 import {
   generateRecommendations,
   getFixtureLineupAnalysis,
@@ -19,6 +25,7 @@ import {
 } from '@football-ai/sync';
 import { env } from './env.js';
 import { openApiDocument } from './openapi.js';
+import { scientificRouter } from './scientific-routes.js';
 import { fixtureSummary, recommendationDto } from './serializers.js';
 
 export const app = express();
@@ -63,20 +70,33 @@ app.get(
   '/api/stats',
   asyncRoute(async (_request, response) => {
     const now = new Date();
-    const [upcomingFixtures, activeRecommendations, settled, apiUsage, lastSyncRuns] = await Promise.all([
-      prisma.fixture.count({ where: { status: FixtureStatus.UPCOMING, kickoffAt: { gte: now } } }),
-      prisma.recommendation.count({ where: { status: RecommendationStatus.ACTIVE, expiresAt: { gt: now } } }),
-      prisma.recommendation.findMany({
-        where: { status: RecommendationStatus.SETTLED },
-        select: { settlementResult: true, simulatedProfitUnits: true },
-      }),
-      prisma.apiUsage.findFirst({ orderBy: { requestDate: 'desc' } }),
-      prisma.syncRun.findMany({ orderBy: { startedAt: 'desc' }, take: 5 }),
-    ]);
-    const settledRows = settled as Array<{ settlementResult: string; simulatedProfitUnits: number | null }>;
+    const [upcomingFixtures, activeRecommendations, settled, apiUsage, lastSyncRuns] =
+      await Promise.all([
+        prisma.fixture.count({
+          where: { status: FixtureStatus.UPCOMING, kickoffAt: { gte: now } },
+        }),
+        prisma.recommendation.count({
+          where: { status: RecommendationStatus.ACTIVE, expiresAt: { gt: now } },
+        }),
+        prisma.recommendation.findMany({
+          where: { status: RecommendationStatus.SETTLED },
+          select: { settlementResult: true, simulatedProfitUnits: true },
+        }),
+        prisma.apiUsage.findFirst({ orderBy: { requestDate: 'desc' } }),
+        prisma.syncRun.findMany({ orderBy: { startedAt: 'desc' }, take: 5 }),
+      ]);
+    const settledRows = settled as Array<{
+      settlementResult: string;
+      simulatedProfitUnits: number | null;
+    }>;
     const wins = settledRows.filter((row) => row.settlementResult === SettlementResult.WIN).length;
-    const losses = settledRows.filter((row) => row.settlementResult === SettlementResult.LOSS).length;
-    const profitUnits = settledRows.reduce((sum: number, row) => sum + (row.simulatedProfitUnits ?? 0), 0);
+    const losses = settledRows.filter(
+      (row) => row.settlementResult === SettlementResult.LOSS,
+    ).length;
+    const profitUnits = settledRows.reduce(
+      (sum: number, row) => sum + (row.simulatedProfitUnits ?? 0),
+      0,
+    );
     const settledBets = wins + losses;
 
     response.json({
@@ -274,7 +294,6 @@ app.get(
   }),
 );
 
-
 app.get(
   '/api/leagues',
   asyncRoute(async (_request, response) => {
@@ -358,9 +377,7 @@ app.get(
         ? bankrollAmount / bankrollUnits
         : null;
     const stakeCurrency =
-      typeof stakingConfig.bankrollCurrency === 'string'
-        ? stakingConfig.bankrollCurrency
-        : null;
+      typeof stakingConfig.bankrollCurrency === 'string' ? stakingConfig.bankrollCurrency : null;
 
     // PREDICTION_AI_V623_API_STRICT_TYPES
     type BacktestMoneyBet = {
@@ -387,14 +404,12 @@ app.get(
       profitAmount: number;
       odds: number[];
     };
-    const bets: BacktestMoneyBet[] = run.bets.map(
-      (bet: any): BacktestMoneyBet => ({
+    const bets: BacktestMoneyBet[] = run.bets.map((bet: any): BacktestMoneyBet => ({
       ...bet,
       stakeAmount: unitAmount == null ? null : bet.stakeUnits * unitAmount,
       profitAmount: unitAmount == null ? null : bet.profitUnits * unitAmount,
       stakeCurrency,
-      }),
-    );
+    }));
 
     const marketMap = new Map<string, MarketAggregate>();
     const equityCurve: Array<{ index: number; kickoffAt: Date; equity: number }> = [];
@@ -431,10 +446,7 @@ app.get(
       wins: group.wins,
       losses: group.losses,
       pushes: group.pushes,
-      hitRate:
-        group.wins + group.losses > 0
-          ? group.wins / (group.wins + group.losses)
-          : null,
+      hitRate: group.wins + group.losses > 0 ? group.wins / (group.wins + group.losses) : null,
       profitUnits: group.profitUnits,
       stakeUnits: group.stakeUnits,
       stakeAmount: unitAmount == null ? null : group.stakeAmount,
@@ -453,10 +465,7 @@ app.get(
     const totalStakeAmount =
       unitAmount == null
         ? null
-        : bets.reduce(
-            (sum: number, bet: BacktestMoneyBet) => sum + (bet.stakeAmount ?? 0),
-            0,
-          );
+        : bets.reduce((sum: number, bet: BacktestMoneyBet) => sum + (bet.stakeAmount ?? 0), 0);
     const profitAmount = unitAmount == null ? null : run.profitUnits * unitAmount;
     response.json({
       ...run,
@@ -545,6 +554,8 @@ app.post(
   }),
 );
 
+app.use('/api/scientific', scientificRouter);
+
 app.get('/api/openapi.json', (_request, response) => response.json(openApiDocument));
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
@@ -556,6 +567,7 @@ app.use((error: unknown, request: Request, response: Response, _next: NextFuncti
   request.log?.error(error);
   response.status(500).json({
     error: 'Internal server error.',
-    message: process.env.NODE_ENV === 'development' && error instanceof Error ? error.message : undefined,
+    message:
+      process.env.NODE_ENV === 'development' && error instanceof Error ? error.message : undefined,
   });
 });
