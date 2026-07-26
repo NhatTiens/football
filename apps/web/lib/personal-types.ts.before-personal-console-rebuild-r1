@@ -7,59 +7,6 @@ export interface PersonalLeagueDto {
   logoUrl?: string | null;
 }
 
-export interface PersonalBacktestLeagueCoverageDto extends PersonalLeagueDto {
-  finishedFixtures: number;
-  upcomingFixtures: number;
-}
-
-export type PersonalFixtureState =
-  | 'BEST_BET'
-  | 'NO_BET'
-  | 'PREDICTION_ONLY'
-  | 'WAITING_DATA';
-
-
-export type PersonalMarketCode =
-  | 'HDA'
-  | 'BTTS'
-  | 'OVER_UNDER_1_5'
-  | 'OVER_UNDER_2_5'
-  | 'OVER_UNDER_3_5';
-
-export type PersonalMarketStatus =
-  | 'BEST_BET'
-  | 'ELIGIBLE_VALUE'
-  | 'ANALYSIS_ONLY'
-  | 'WAITING_SCIENTIFIC_HORIZON';
-
-export interface PersonalMarketSelectionDto {
-  code: 'HOME' | 'DRAW' | 'AWAY' | 'YES' | 'NO' | 'OVER' | 'UNDER';
-  modelProbability: number | null;
-  decimalOdds: number | null;
-  bookmakerName: string | null;
-  fairMarketProbability: number | null;
-  edge: number | null;
-  expectedValue: number | null;
-  reliabilityStatus: string | null;
-  eligible: boolean;
-  rejectionReasons: unknown;
-}
-
-export interface PersonalMarketPredictionDto {
-  code: PersonalMarketCode;
-  scientificMarketType:
-    | 'MATCH_WINNER'
-    | 'BTTS'
-    | 'TOTAL_GOALS_1_5'
-    | 'TOTAL_GOALS_2_5'
-    | 'TOTAL_GOALS_3_5';
-  label: string;
-  lineValue: number | null;
-  status: PersonalMarketStatus;
-  selectedAsBestBet: boolean;
-  selections: PersonalMarketSelectionDto[];
-}
-
 export interface PersonalUpcomingFixtureDto {
   fixture: {
     id: number;
@@ -92,7 +39,7 @@ export interface PersonalUpcomingFixtureDto {
   };
   decision: {
     id: number;
-    decisionType: string;
+    decisionType: 'BEST_BET' | 'NO_BET' | string;
     horizonMinutes: number;
     decisionAsOf: string;
     selectedMarket?: string | null;
@@ -139,26 +86,20 @@ export interface PersonalUpcomingFixtureDto {
     dueAt: string;
     status: string;
   } | null;
-  marketPredictions: PersonalMarketPredictionDto[];
-  state: PersonalFixtureState;
+  state: 'BEST_BET' | 'NO_BET' | 'WAITING_PREDICTION' | 'WAITING_SCIENTIFIC_DECISION';
 }
 
 export interface PersonalUpcomingAnalysisDto {
   version: string;
   generatedAt: string;
-  window: {
-    from: string;
-    to: string;
-    days: number;
-  };
+  window: { from: string; to: string; days: number };
   counts: {
     fixtures: number;
     predicted: number;
     scientificDecisions: number;
     bestBets: number;
     noBets: number;
-    predictionOnly: number;
-    waitingData: number;
+    waiting: number;
   };
   leagues: PersonalLeagueDto[];
   topBestBets: PersonalUpcomingFixtureDto[];
@@ -166,7 +107,6 @@ export interface PersonalUpcomingAnalysisDto {
   integrity: {
     personalMode: boolean;
     readOnlyAnalysis: boolean;
-    predictionIsNotBestBet: boolean;
     bestBetComesOnlyFromScientificPaperDecision: boolean;
     syntheticOddsUsed: boolean;
     realMoneyExecution: boolean;
@@ -175,56 +115,13 @@ export interface PersonalUpcomingAnalysisDto {
   };
 }
 
-export type CurrentCompetitionGroup =
-  | 'ASEAN'
-  | 'WAFCON'
-  | 'UCL'
-  | 'UEFA_EUROPA'
-  | 'SEA'
-  | 'ASIA'
-  | 'EPL'
-  | 'LALIGA';
-
-export interface PersonalRefreshResponse {
-  version: string;
-  command: 'refresh-current-only';
-  analysis: PersonalUpcomingAnalysisDto;
-  discovery: {
-    source: 'API_FOOTBALL_CURRENT_TRUE';
-    apiRequests: number;
-    quotaRemainingDay: number | null;
-    quotaRemainingMinute: number | null;
-    competitions: Array<{
-      apiLeagueId: number;
-      season: number;
-      name: string;
-      country: string | null;
-      group: CurrentCompetitionGroup;
-      coverage: Record<string, unknown> | null;
-    }>;
-  };
-  safety: {
-    personalMode: true;
-    adminTokenRequired: false;
-    externalApiCalled: true;
-    databaseWritten: true;
-    syntheticOddsUsed: false;
-    automaticBetPlacement: false;
-    realMoneyExecution: false;
-    automaticPromotion: false;
-    currentFixturesOnly?: boolean;
-    demoCompetitionsExcluded?: boolean;
-    pastFixturesExcludedFromPredictions?: boolean;
-  };
-}
-
 export interface PersonalBacktestRunResponse {
   mode: 'PERSONAL';
   adminTokenRequired: false;
-  runs: Array<{
-    id: number;
-    name: string;
-    leagueId: number | null;
-    leagueName: string | null;
-  }>;
+  runs: Array<{ id: number; name: string }>;
+}
+
+export interface PersonalBacktestLeagueCoverageDto extends PersonalLeagueDto {
+  finishedFixtures: number;
+  upcomingFixtures: number;
 }

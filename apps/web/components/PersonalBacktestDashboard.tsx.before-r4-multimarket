@@ -26,16 +26,6 @@ function signed(value: number | null | undefined, digits = 2): string {
   return `${number >= 0 ? '+' : ''}${number.toFixed(digits)}`;
 }
 
-
-function marketDisplayName(code: string): string {
-  if (code === 'MATCH_WINNER') return 'HDA / 1X2';
-  if (code === 'BTTS') return 'BTTS';
-  if (code === 'TOTAL_GOALS_1_5') return 'Over / Under 1.5';
-  if (code === 'TOTAL_GOALS_2_5') return 'Over / Under 2.5';
-  if (code === 'TOTAL_GOALS_3_5') return 'Over / Under 3.5';
-  return code;
-}
-
 function EquityChart({ points }: { points: BacktestDetailDto['equityCurve'] }) {
   if (points.length < 2) {
     return <div className="pcr-empty">Chưa đủ bet để vẽ equity curve.</div>;
@@ -523,7 +513,7 @@ export function PersonalBacktestDashboard({
                     <option value="ALL">Tất cả market</option>
                     {detail.byMarket.map((row) => (
                       <option key={row.marketCode} value={row.marketCode}>
-                        {marketDisplayName(row.marketCode)}
+                        {row.marketCode}
                       </option>
                     ))}
                   </select>

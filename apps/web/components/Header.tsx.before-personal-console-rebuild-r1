@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export function Header() {
   return (
-    <header className="site-header pcr-header">
+    <header className="site-header beta1e-header">
       <div className="container header-inner">
         <Link href="/" className="brand">
           <span className="brand-mark">FA</span>
@@ -12,7 +12,7 @@ export function Header() {
           </span>
         </Link>
 
-        <nav className="navigation pcr-navigation" aria-label="Điều hướng chính">
+        <nav className="navigation beta1e-navigation" aria-label="Điều hướng chính">
           <Link href="/">Tổng quan</Link>
           <Link href="/predictions">Dự đoán & BEST BET</Link>
           <Link href="/backtest">Backtest</Link>

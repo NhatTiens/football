@@ -803,45 +803,16 @@ app.post(
   '/api/personal/upcoming/refresh',
   asyncRoute(async (request, response) => {
     const body = request.body ?? {};
-    const allowedGroups = new Set([
-      'ASEAN',
-      'WAFCON',
-      'UCL',
-      'UEFA_EUROPA',
-      'SEA',
-      'ASIA',
-      'EPL',
-      'LALIGA',
-    ]);
-
-    const groups = Array.isArray(body.groups)
-      ? body.groups
-          .map((value: unknown) => String(value).toUpperCase())
-          .filter((value: string) => allowedGroups.has(value))
-      : [
-          'WAFCON',
-          'UCL',
-          'UEFA_EUROPA',
-          'ASEAN',
-          'SEA',
-          'ASIA',
-          'EPL',
-          'LALIGA',
-        ];
+    const leagueIds = Array.isArray(body.leagueIds)
+      ? body.leagueIds
+          .map((value: unknown) => Number(value))
+          .filter((value: number) => Number.isInteger(value) && value > 0)
+      : [];
 
     response.json(
       await refreshPersonalUpcomingAnalysis({
         days: body.days ? Number(body.days) : undefined,
-        groups: groups as Array<
-          | 'ASEAN'
-          | 'WAFCON'
-          | 'UCL'
-          | 'UEFA_EUROPA'
-          | 'SEA'
-          | 'ASIA'
-          | 'EPL'
-          | 'LALIGA'
-        >,
+        leagueIds,
       }),
     );
   }),

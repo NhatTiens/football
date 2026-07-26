@@ -1,21 +1,17 @@
 import { PersonalBacktestDashboard } from '../../components/PersonalBacktestDashboard';
 import { ScientificBacktestPanel } from '../../components/ScientificBacktestPanel';
 import { apiFetch } from '../../lib/api';
-import type {
-  PersonalBacktestLeagueCoverageDto,
-} from '../../lib/personal-types';
-import type { ScientificDashboardDto } from '../../lib/scientific-types';
 import type { BacktestDetailDto, BacktestRunDto } from '../../lib/types';
+import type { PersonalBacktestLeagueCoverageDto } from '../../lib/personal-types';
+import type { ScientificDashboardDto } from '../../lib/scientific-types';
 
 export default async function BacktestPage() {
   const [runsResponse, leaguesResponse] = await Promise.all([
-    apiFetch<{ data: BacktestRunDto[] }>('/backtests?limit=40'),
-    apiFetch<{ data: PersonalBacktestLeagueCoverageDto[] }>('/backtest/leagues'),
+    apiFetch<{ data: BacktestRunDto[] }>('/backtests?limit=30'),
+    apiFetch<{ data: PersonalBacktestLeagueCoverageDto[] }>('/personal/backtest/leagues'),
   ]);
 
-  const latest =
-    runsResponse.data.find((run: BacktestRunDto): boolean => run.status === 'SUCCESS') ??
-    runsResponse.data[0];
+  const latest = runsResponse.data.find((run) => run.status === 'SUCCESS') ?? runsResponse.data[0];
 
   let detail: BacktestDetailDto | null = null;
   if (latest) {
@@ -40,8 +36,7 @@ export default async function BacktestPage() {
         initialDetail={detail}
         leagues={leaguesResponse.data}
       />
-
-      <details className="pcr-scientific-details">
+      <details className="beta1e-scientific-details">
         <summary>Scientific evidence / audit nâng cao</summary>
         <ScientificBacktestPanel initialData={scientific} />
       </details>

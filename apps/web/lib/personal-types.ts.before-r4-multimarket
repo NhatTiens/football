@@ -18,48 +18,6 @@ export type PersonalFixtureState =
   | 'PREDICTION_ONLY'
   | 'WAITING_DATA';
 
-
-export type PersonalMarketCode =
-  | 'HDA'
-  | 'BTTS'
-  | 'OVER_UNDER_1_5'
-  | 'OVER_UNDER_2_5'
-  | 'OVER_UNDER_3_5';
-
-export type PersonalMarketStatus =
-  | 'BEST_BET'
-  | 'ELIGIBLE_VALUE'
-  | 'ANALYSIS_ONLY'
-  | 'WAITING_SCIENTIFIC_HORIZON';
-
-export interface PersonalMarketSelectionDto {
-  code: 'HOME' | 'DRAW' | 'AWAY' | 'YES' | 'NO' | 'OVER' | 'UNDER';
-  modelProbability: number | null;
-  decimalOdds: number | null;
-  bookmakerName: string | null;
-  fairMarketProbability: number | null;
-  edge: number | null;
-  expectedValue: number | null;
-  reliabilityStatus: string | null;
-  eligible: boolean;
-  rejectionReasons: unknown;
-}
-
-export interface PersonalMarketPredictionDto {
-  code: PersonalMarketCode;
-  scientificMarketType:
-    | 'MATCH_WINNER'
-    | 'BTTS'
-    | 'TOTAL_GOALS_1_5'
-    | 'TOTAL_GOALS_2_5'
-    | 'TOTAL_GOALS_3_5';
-  label: string;
-  lineValue: number | null;
-  status: PersonalMarketStatus;
-  selectedAsBestBet: boolean;
-  selections: PersonalMarketSelectionDto[];
-}
-
 export interface PersonalUpcomingFixtureDto {
   fixture: {
     id: number;
@@ -139,7 +97,6 @@ export interface PersonalUpcomingFixtureDto {
     dueAt: string;
     status: string;
   } | null;
-  marketPredictions: PersonalMarketPredictionDto[];
   state: PersonalFixtureState;
 }
 
@@ -175,15 +132,7 @@ export interface PersonalUpcomingAnalysisDto {
   };
 }
 
-export type CurrentCompetitionGroup =
-  | 'ASEAN'
-  | 'WAFCON'
-  | 'UCL'
-  | 'UEFA_EUROPA'
-  | 'SEA'
-  | 'ASIA'
-  | 'EPL'
-  | 'LALIGA';
+export type CurrentCompetitionGroup = 'SEA' | 'ASIA' | 'EPL' | 'LALIGA';
 
 export interface PersonalRefreshResponse {
   version: string;

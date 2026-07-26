@@ -96,4 +96,3 @@ export * from './scientific-multi-market-replay-contract.js';
 export * from './real-odds-paper-bet-core.js';
 export * from './real-odds-paper-bet-engine.js';
 export { getPersonalUpcomingAnalysis, refreshPersonalUpcomingAnalysis } from './personal-console-engine.js';
-export { discoverCurrentPriorityCompetitions } from './current-competition-discovery.js';

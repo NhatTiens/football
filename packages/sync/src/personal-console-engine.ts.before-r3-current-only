@@ -1,12 +1,5 @@
 import { prisma } from '@football-ai/database';
 
-import {
-  discoverCurrentPriorityCompetitions,
-  isDemoCompetitionName,
-  type CurrentCompetition,
-  type CurrentCompetitionGroup,
-} from './current-competition-discovery.js';
-
 import { planUnallocatedScientificPaperStakes } from './bankroll-risk-engine.js';
 import {
   collectFreshOddsDue,
@@ -17,9 +10,10 @@ import { syncFixtures } from './fixtures.js';
 import { syncPredictions } from './predictions.js';
 import { runLiveScientificPaperBetDecisions } from './real-odds-paper-bet-engine.js';
 
-export const PERSONAL_CONSOLE_VERSION = 'v7.0-personal-console-rebuild-r3-current-only';
+export const PERSONAL_CONSOLE_VERSION = 'v7.0-personal-console-rebuild-r1';
 
 const DAY_MS = 86_400_000;
+const MAX_REFRESH_LEAGUES = 12;
 
 type PredictionSource = 'SCIENTIFIC_DECISION' | 'API_FOOTBALL' | 'NONE';
 type PersonalFixtureState = 'BEST_BET' | 'NO_BET' | 'PREDICTION_ONLY' | 'WAITING_DATA';
@@ -33,7 +27,7 @@ interface PersonalUpcomingOptions {
 
 interface PersonalRefreshOptions {
   days?: number;
-  groups?: CurrentCompetitionGroup[];
+  leagueIds?: number[];
 }
 
 interface FixtureLeagueRow {
@@ -144,74 +138,6 @@ interface UpcomingFixtureIdRow {
   id: number;
 }
 
-interface CurrentLocalLeagueRow {
-  id: number;
-  apiLeagueId: number;
-  season: number;
-  name: string;
-  country: string | null;
-}
-
-type ConsoleMarketCode =
-  | 'HDA'
-  | 'BTTS'
-  | 'OVER_UNDER_1_5'
-  | 'OVER_UNDER_2_5'
-  | 'OVER_UNDER_3_5';
-
-type ConsoleMarketStatus =
-  | 'BEST_BET'
-  | 'ELIGIBLE_VALUE'
-  | 'ANALYSIS_ONLY'
-  | 'WAITING_SCIENTIFIC_HORIZON';
-
-type ConsoleMarketScientificType =
-  | 'MATCH_WINNER'
-  | 'BTTS'
-  | 'TOTAL_GOALS_1_5'
-  | 'TOTAL_GOALS_2_5'
-  | 'TOTAL_GOALS_3_5';
-
-type ConsoleMarketSelectionCode =
-  | 'HOME'
-  | 'DRAW'
-  | 'AWAY'
-  | 'YES'
-  | 'NO'
-  | 'OVER'
-  | 'UNDER';
-
-interface ConsoleMarketDefinition {
-  code: ConsoleMarketCode;
-  scientificMarketType: ConsoleMarketScientificType;
-  label: string;
-  lineValue: number | null;
-  selections: ConsoleMarketSelectionCode[];
-}
-
-interface ConsoleMarketSelection {
-  code: ConsoleMarketSelectionCode;
-  modelProbability: number | null;
-  decimalOdds: number | null;
-  bookmakerName: string | null;
-  fairMarketProbability: number | null;
-  edge: number | null;
-  expectedValue: number | null;
-  reliabilityStatus: string | null;
-  eligible: boolean;
-  rejectionReasons: unknown;
-}
-
-interface ConsoleMarketPrediction {
-  code: ConsoleMarketCode;
-  scientificMarketType: ConsoleMarketScientificType;
-  label: string;
-  lineValue: number | null;
-  status: ConsoleMarketStatus;
-  selectedAsBestBet: boolean;
-  selections: ConsoleMarketSelection[];
-}
-
 interface FixtureAnalysisRow {
   fixture: {
     id: number;
@@ -298,7 +224,6 @@ interface FixtureAnalysisRow {
     dueAt: string;
     status: string;
   } | null;
-  marketPredictions: ConsoleMarketPrediction[];
   state: PersonalFixtureState;
 }
 
@@ -382,122 +307,16 @@ function nextCheckpoint(
   );
 }
 
-const CONSOLE_MARKETS: ConsoleMarketDefinition[] = [
-  {
-    code: 'HDA',
-    scientificMarketType: 'MATCH_WINNER',
-    label: 'HDA / 1X2',
-    lineValue: null,
-    selections: ['HOME', 'DRAW', 'AWAY'],
-  },
-  {
-    code: 'BTTS',
-    scientificMarketType: 'BTTS',
-    label: 'BTTS',
-    lineValue: null,
-    selections: ['YES', 'NO'],
-  },
-  {
-    code: 'OVER_UNDER_1_5',
-    scientificMarketType: 'TOTAL_GOALS_1_5',
-    label: 'Over / Under 1.5',
-    lineValue: 1.5,
-    selections: ['OVER', 'UNDER'],
-  },
-  {
-    code: 'OVER_UNDER_2_5',
-    scientificMarketType: 'TOTAL_GOALS_2_5',
-    label: 'Over / Under 2.5',
-    lineValue: 2.5,
-    selections: ['OVER', 'UNDER'],
-  },
-  {
-    code: 'OVER_UNDER_3_5',
-    scientificMarketType: 'TOTAL_GOALS_3_5',
-    label: 'Over / Under 3.5',
-    lineValue: 3.5,
-    selections: ['OVER', 'UNDER'],
-  },
-];
-
-function buildConsoleMarketPredictions(
-  decision: DecisionRow | null,
-  candidates: CandidateRow[],
-): ConsoleMarketPrediction[] {
-  return CONSOLE_MARKETS.map(
-    (definition: ConsoleMarketDefinition): ConsoleMarketPrediction => {
-      const marketCandidates = candidates.filter(
-        (candidate: CandidateRow): boolean =>
-          candidate.marketType === definition.scientificMarketType,
-      );
-
-      const selectedAsBestBet =
-        decision?.decisionType === 'BEST_BET' &&
-        decision.selectedMarket === definition.scientificMarketType;
-
-      const hasEligibleValue = marketCandidates.some(
-        (candidate: CandidateRow): boolean => candidate.eligible,
-      );
-
-      const status: ConsoleMarketStatus = selectedAsBestBet
-        ? 'BEST_BET'
-        : hasEligibleValue
-          ? 'ELIGIBLE_VALUE'
-          : marketCandidates.length > 0
-            ? 'ANALYSIS_ONLY'
-            : 'WAITING_SCIENTIFIC_HORIZON';
-
-      const selections = definition.selections.map(
-        (selection: ConsoleMarketSelectionCode): ConsoleMarketSelection => {
-          const candidate = marketCandidates
-            .filter(
-              (row: CandidateRow): boolean => row.selection === selection,
-            )
-            .slice()
-            .sort(
-              (left: CandidateRow, right: CandidateRow): number =>
-                right.expectedValue - left.expectedValue ||
-                right.decimalOdds - left.decimalOdds,
-            )[0];
-
-          return {
-            code: selection,
-            modelProbability: candidate?.modelProbability ?? null,
-            decimalOdds: candidate?.decimalOdds ?? null,
-            bookmakerName: candidate?.bookmakerName ?? null,
-            fairMarketProbability: candidate?.fairMarketProbability ?? null,
-            edge: candidate?.edge ?? null,
-            expectedValue: candidate?.expectedValue ?? null,
-            reliabilityStatus: candidate?.reliabilityStatus ?? null,
-            eligible: candidate?.eligible ?? false,
-            rejectionReasons: candidate?.rejectionReasons ?? [],
-          };
-        },
-      );
-
-      return {
-        code: definition.code,
-        scientificMarketType: definition.scientificMarketType,
-        label: definition.label,
-        lineValue: definition.lineValue,
-        status,
-        selectedAsBestBet,
-        selections,
-      };
-    },
-  );
-}
-
 export async function getPersonalUpcomingAnalysis(
   options: PersonalUpcomingOptions = {},
 ): Promise<Record<string, unknown>> {
   const now = options.now ?? new Date();
-  const days = clampInteger(options.days, 14, 1, 30);
+  const days = clampInteger(options.days, 7, 1, 21);
   const limit = clampInteger(options.limit, 120, 1, 300);
   const leagueIds = uniquePositiveIntegers(options.leagueIds);
   const until = new Date(now.getTime() + days * DAY_MS);
 
-  const rawFixtures = (await prisma.fixture.findMany({
+  const fixtures = (await prisma.fixture.findMany({
     where: {
       status: 'UPCOMING',
       kickoffAt: { gt: now, lte: until },
@@ -510,18 +329,8 @@ export async function getPersonalUpcomingAnalysis(
       externalPrediction: true,
     },
     orderBy: { kickoffAt: 'asc' },
-    take: Math.min(1000, limit * 4),
+    take: limit,
   })) as FixtureRow[];
-
-  const minimumSeason = now.getUTCFullYear() - 1;
-  const fixtures = rawFixtures
-    .filter(
-      (fixture: FixtureRow): boolean =>
-        fixture.apiFixtureId > 0 &&
-        fixture.league.season >= minimumSeason &&
-        !isDemoCompetitionName(fixture.league.name),
-    )
-    .slice(0, limit);
 
   const providerFixtureIds = fixtures.map(
     (fixture: FixtureRow): number => fixture.apiFixtureId,
@@ -617,7 +426,6 @@ export async function getPersonalUpcomingAnalysis(
       const selectedPrediction = predictedSelection(probabilities);
       const stake = decision ? latestStakeByDecision.get(decision.id) ?? null : null;
       const checkpoint = nextCheckpoint(checkpointRows, fixture.apiFixtureId);
-      const marketPredictions = buildConsoleMarketPredictions(decision, candidates);
 
       const state: PersonalFixtureState =
         decision?.decisionType === 'BEST_BET'
@@ -727,7 +535,6 @@ export async function getPersonalUpcomingAnalysis(
               status: checkpoint.status,
             }
           : null,
-        marketPredictions,
         state,
       };
     },
@@ -798,30 +605,38 @@ export async function getPersonalUpcomingAnalysis(
   };
 }
 
-
 export async function refreshPersonalUpcomingAnalysis(
   options: PersonalRefreshOptions = {},
 ): Promise<Record<string, unknown>> {
   const now = new Date();
-  const days = clampInteger(options.days, 14, 1, 30);
-  const to = new Date(now.getTime() + days * DAY_MS);
+  const days = clampInteger(options.days, 7, 1, 14);
+  const leagueIds = uniquePositiveIntegers(options.leagueIds);
 
-  const discovery = await discoverCurrentPriorityCompetitions({
-    groups: options.groups,
-    maximumSea: 8,
-    maximumAsia: 8,
-  });
-
-  if (discovery.competitions.length === 0) {
-    throw new Error('NO_CURRENT_PRIORITY_COMPETITIONS_FOUND');
+  if (leagueIds.length === 0) {
+    throw new Error('SELECT_AT_LEAST_ONE_LEAGUE_FOR_PROVIDER_REFRESH');
+  }
+  if (leagueIds.length > MAX_REFRESH_LEAGUES) {
+    throw new Error(`TOO_MANY_REFRESH_LEAGUES: maximum ${MAX_REFRESH_LEAGUES}`);
   }
 
-  const configurations = discovery.competitions.map(
-    (competition: CurrentCompetition) => ({
-      leagueId: competition.apiLeagueId,
-      season: competition.season,
-    }),
-  );
+  const to = new Date(now.getTime() + days * DAY_MS);
+
+  const leagues = (await prisma.league.findMany({
+    where: {
+      id: { in: leagueIds },
+      enabled: true,
+    },
+    orderBy: [{ country: 'asc' }, { name: 'asc' }, { season: 'desc' }],
+  })) as EnabledLeagueRow[];
+
+  if (leagues.length === 0) {
+    throw new Error('NO_ENABLED_LEAGUES_SELECTED');
+  }
+
+  const configurations = leagues.map((league: EnabledLeagueRow) => ({
+    leagueId: league.apiLeagueId,
+    season: league.season,
+  }));
 
   const fixtureSync = await syncFixtures({
     from: now.toISOString().slice(0, 10),
@@ -829,55 +644,27 @@ export async function refreshPersonalUpcomingAnalysis(
     leagueConfigurations: configurations,
   });
 
-  const currentLocalLeagues = (await prisma.league.findMany({
-    where: {
-      OR: discovery.competitions.map((competition: CurrentCompetition) => ({
-        apiLeagueId: competition.apiLeagueId,
-        season: competition.season,
-      })),
-    },
-    select: {
-      id: true,
-      apiLeagueId: true,
-      season: true,
-      name: true,
-      country: true,
-    },
-  })) as CurrentLocalLeagueRow[];
-
-  const currentLocalLeagueIds = currentLocalLeagues
-    .filter(
-      (league: CurrentLocalLeagueRow): boolean =>
-        !isDemoCompetitionName(league.name),
-    )
-    .map((league: CurrentLocalLeagueRow): number => league.id);
-
   const upcomingFixtures = (await prisma.fixture.findMany({
     where: {
-      leagueId: { in: currentLocalLeagueIds },
+      leagueId: { in: leagues.map((league: EnabledLeagueRow): number => league.id) },
       status: 'UPCOMING',
       kickoffAt: { gt: now, lte: to },
     },
     select: { id: true },
-    orderBy: { kickoffAt: 'asc' },
-    take: 120,
+    take: 600,
   })) as UpcomingFixtureIdRow[];
 
   const predictionSync = await syncPredictions({
-    fixtureIds: upcomingFixtures.map(
-      (fixture: UpcomingFixtureIdRow): number => fixture.id,
-    ),
+    fixtureIds: upcomingFixtures.map((fixture: UpcomingFixtureIdRow): number => fixture.id),
   });
-
-  const providerLeagueIds = discovery.competitions
-    .map((competition: CurrentCompetition): number => competition.apiLeagueId)
-    .join(',');
 
   const previousFreshLeagueIds = process.env.FRESH_ODDS_LEAGUE_IDS;
   let freshDiscovery: unknown;
 
   try {
-    process.env.FRESH_ODDS_LEAGUE_IDS = providerLeagueIds;
+    process.env.FRESH_ODDS_LEAGUE_IDS = leagues
+      .map((league: EnabledLeagueRow): number => league.apiLeagueId)
+      .join(',');
     freshDiscovery = await discoverFreshOddsFixtures();
   } finally {
     if (previousFreshLeagueIds == null) {
@@ -907,22 +694,22 @@ export async function refreshPersonalUpcomingAnalysis(
   const analysis = await getPersonalUpcomingAnalysis({
     now: new Date(),
     days,
-    leagueIds: currentLocalLeagueIds,
+    leagueIds: leagues.map((league: EnabledLeagueRow): number => league.id),
     limit: 300,
   });
 
   return {
     version: PERSONAL_CONSOLE_VERSION,
-    command: 'refresh-current-only',
+    command: 'refresh',
     startedAt: now.toISOString(),
     finishedAt: new Date().toISOString(),
-    discovery: {
-      source: 'API_FOOTBALL_CURRENT_TRUE',
-      apiRequests: discovery.apiRequests,
-      quotaRemainingDay: discovery.quotaRemainingDay,
-      quotaRemainingMinute: discovery.quotaRemainingMinute,
-      competitions: discovery.competitions,
-    },
+    selectedLeagues: leagues.map((league: EnabledLeagueRow) => ({
+      id: league.id,
+      apiLeagueId: league.apiLeagueId,
+      name: league.name,
+      country: league.country,
+      season: league.season,
+    })),
     fixtureSync,
     predictionSync,
     freshDiscovery,
@@ -932,9 +719,6 @@ export async function refreshPersonalUpcomingAnalysis(
     riskOverlay,
     analysis,
     safety: {
-      currentFixturesOnly: true,
-      demoCompetitionsExcluded: true,
-      pastFixturesExcludedFromPredictions: true,
       personalMode: true,
       adminTokenRequired: false,
       externalApiCalled: true,
@@ -946,4 +730,3 @@ export async function refreshPersonalUpcomingAnalysis(
     },
   };
 }
-

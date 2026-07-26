@@ -330,86 +330,6 @@ app.get(
   }),
 );
 
-
-app.post(
-  '/api/backtests/run',
-  asyncRoute(async (request, response) => {
-    const body = request.body ?? {};
-    const requestedLeagueIds = Array.isArray(body.leagueIds)
-      ? [
-          ...new Set(
-            body.leagueIds
-              .map((value: unknown) => Number(value))
-              .filter((value: number) => Number.isInteger(value) && value > 0),
-          ),
-        ]
-      : [];
-
-    if (requestedLeagueIds.length > 16) {
-      response.status(400).json({ error: 'Maximum 16 leagues per personal backtest request.' });
-      return;
-    }
-
-    const targetLeagueIds = requestedLeagueIds.length > 0 ? requestedLeagueIds : [null];
-    const runs: Array<{
-      id: number;
-      name: string;
-      leagueId: number | null;
-      leagueName: string | null;
-    }> = [];
-
-    for (const targetLeagueId of targetLeagueIds) {
-      const league =
-        typeof targetLeagueId === 'number'
-          ? await prisma.league.findUnique({
-              where: { id: targetLeagueId },
-              select: { id: true, name: true },
-            })
-          : null;
-
-      if (typeof targetLeagueId === 'number' && !league) {
-        response.status(400).json({ error: 'Unknown league id: ' + targetLeagueId });
-        return;
-      }
-
-      const run = await runBacktest({
-        name:
-          typeof body.name === 'string'
-            ? body.name
-            : 'Personal Backtest' +
-              (league?.name ? ' · ' + league.name : ' · All leagues') +
-              ' · ' +
-              String(body.from ?? '') +
-              ' → ' +
-              String(body.to ?? ''),
-        leagueId: typeof targetLeagueId === 'number' ? targetLeagueId : undefined,
-        from: body.from,
-        to: body.to,
-        fixtureLimit: body.fixtureLimit ? Number(body.fixtureLimit) : undefined,
-        stakeUnits: body.stakeUnits ? Number(body.stakeUnits) : undefined,
-        rules: body.rules && typeof body.rules === 'object' ? body.rules : undefined,
-      });
-
-      runs.push({
-        id: run.id,
-        name: run.name,
-        leagueId: typeof targetLeagueId === 'number' ? targetLeagueId : null,
-        leagueName: league?.name ?? null,
-      });
-    }
-
-    response.status(201).json({
-      mode: 'PERSONAL',
-      adminTokenRequired: false,
-      runs,
-      safety: {
-        realMoneyExecution: false,
-        automaticBetPlacement: false,
-      },
-    });
-  }),
-);
-
 app.get(
   '/api/backtests/:id',
   asyncRoute(async (request, response) => {
@@ -562,6 +482,24 @@ app.get(
 );
 
 app.post(
+  '/api/admin/backtests/run',
+  requireAdmin,
+  asyncRoute(async (request, response) => {
+    const body = request.body ?? {};
+    const result = await runBacktest({
+      name: typeof body.name === 'string' ? body.name : undefined,
+      leagueId: body.leagueId ? Number(body.leagueId) : undefined,
+      from: body.from,
+      to: body.to,
+      fixtureLimit: body.fixtureLimit ? Number(body.fixtureLimit) : undefined,
+      stakeUnits: body.stakeUnits ? Number(body.stakeUnits) : undefined,
+      rules: body.rules && typeof body.rules === 'object' ? body.rules : undefined,
+    });
+    response.status(201).json(result);
+  }),
+);
+
+app.post(
   '/api/admin/sync/fixtures',
   requireAdmin,
   asyncRoute(async (request, response) => {
@@ -620,182 +558,19 @@ app.post(
 app.use('/api/scientific', scientificRouter);
 
 app.get( '/api/scientific/dashboard', asyncRoute(async (_request, response) => { response.json(await getScientificDashboard(prisma as any)); }), ); 
-
-app.get(
-  '/api/backtest/leagues',
-  asyncRoute(async (_request, response) => {
-    type PersonalLeagueCoverageBase = {
-      id: number;
-      apiLeagueId: number;
-      name: string;
-      country: string | null;
-      season: number;
-      logoUrl: string | null;
-    };
-    type PersonalLeagueCount = {
-      leagueId: number;
-      _count: { _all: number };
-    };
-    type PersonalLeagueCoverage = PersonalLeagueCoverageBase & {
-      finishedFixtures: number;
-      upcomingFixtures: number;
-    };
-
-    const leagues = (await prisma.league.findMany({
-      where: { enabled: true },
-      orderBy: [{ country: 'asc' }, { name: 'asc' }, { season: 'desc' }],
-      select: {
-        id: true,
-        apiLeagueId: true,
-        name: true,
-        country: true,
-        season: true,
-        logoUrl: true,
-      },
-    })) as PersonalLeagueCoverageBase[];
-
-    const finished = (await prisma.fixture.groupBy({
-      by: ['leagueId'],
-      where: { status: FixtureStatus.FINISHED },
-      _count: { _all: true },
-    })) as PersonalLeagueCount[];
-
-    const upcoming = (await prisma.fixture.groupBy({
-      by: ['leagueId'],
-      where: {
-        status: FixtureStatus.UPCOMING,
-        kickoffAt: { gt: new Date() },
-      },
-      _count: { _all: true },
-    })) as PersonalLeagueCount[];
-
-    const finishedMap = new Map<number, number>(
-      finished.map(
-        (row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all],
-      ),
-    );
-    const upcomingMap = new Map<number, number>(
-      upcoming.map(
-        (row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all],
-      ),
-    );
-
-    const data: PersonalLeagueCoverage[] = leagues
-      .map(
-        (league: PersonalLeagueCoverageBase): PersonalLeagueCoverage => ({
-          ...league,
-          finishedFixtures: finishedMap.get(league.id) ?? 0,
-          upcomingFixtures: upcomingMap.get(league.id) ?? 0,
-        }),
-      )
-      .sort(
-        (left: PersonalLeagueCoverage, right: PersonalLeagueCoverage): number =>
-          right.finishedFixtures - left.finishedFixtures ||
-          right.upcomingFixtures - left.upcomingFixtures ||
-          left.name.localeCompare(right.name),
-      );
-
-    response.json({ data });
-  }),
-);
-
-
-app.get(
-  '/api/backtest/leagues',
-  asyncRoute(async (_request, response) => {
-    type PersonalLeagueCoverageBase = {
-      id: number;
-      apiLeagueId: number;
-      name: string;
-      country: string | null;
-      season: number;
-      logoUrl: string | null;
-    };
-    type PersonalLeagueCount = {
-      leagueId: number;
-      _count: { _all: number };
-    };
-    type PersonalLeagueCoverage = PersonalLeagueCoverageBase & {
-      finishedFixtures: number;
-      upcomingFixtures: number;
-    };
-
-    const leagues = (await prisma.league.findMany({
-      where: { enabled: true },
-      orderBy: [{ country: 'asc' }, { name: 'asc' }, { season: 'desc' }],
-      select: {
-        id: true,
-        apiLeagueId: true,
-        name: true,
-        country: true,
-        season: true,
-        logoUrl: true,
-      },
-    })) as PersonalLeagueCoverageBase[];
-
-    const finished = (await prisma.fixture.groupBy({
-      by: ['leagueId'],
-      where: { status: FixtureStatus.FINISHED },
-      _count: { _all: true },
-    })) as PersonalLeagueCount[];
-
-    const upcoming = (await prisma.fixture.groupBy({
-      by: ['leagueId'],
-      where: {
-        status: FixtureStatus.UPCOMING,
-        kickoffAt: { gt: new Date() },
-      },
-      _count: { _all: true },
-    })) as PersonalLeagueCount[];
-
-    const finishedMap = new Map<number, number>(
-      finished.map(
-        (row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all],
-      ),
-    );
-    const upcomingMap = new Map<number, number>(
-      upcoming.map(
-        (row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all],
-      ),
-    );
-
-    const data: PersonalLeagueCoverage[] = leagues
-      .map(
-        (league: PersonalLeagueCoverageBase): PersonalLeagueCoverage => ({
-          ...league,
-          finishedFixtures: finishedMap.get(league.id) ?? 0,
-          upcomingFixtures: upcomingMap.get(league.id) ?? 0,
-        }),
-      )
-      .sort(
-        (left: PersonalLeagueCoverage, right: PersonalLeagueCoverage): number =>
-          right.finishedFixtures - left.finishedFixtures ||
-          right.upcomingFixtures - left.upcomingFixtures ||
-          left.name.localeCompare(right.name),
-      );
-
-    response.json({ data });
-  }),
-);
-
 app.get(
   '/api/personal/upcoming-analysis',
   asyncRoute(async (request, response) => {
+    const days = request.query.days ? Number(request.query.days) : undefined;
+    const limit = request.query.limit ? Number(request.query.limit) : undefined;
     const leagueIds =
       typeof request.query.leagueIds === 'string'
         ? request.query.leagueIds
             .split(',')
-            .map((value: string) => Number(value))
-            .filter((value: number) => Number.isInteger(value) && value > 0)
+            .map(Number)
+            .filter((value) => Number.isInteger(value) && value > 0)
         : undefined;
-
-    response.json(
-      await getPersonalUpcomingAnalysis({
-        days: request.query.days ? Number(request.query.days) : undefined,
-        limit: request.query.limit ? Number(request.query.limit) : undefined,
-        leagueIds,
-      }),
-    );
+    response.json(await getPersonalUpcomingAnalysis({ days, limit, leagueIds }));
   }),
 );
 
@@ -803,47 +578,105 @@ app.post(
   '/api/personal/upcoming/refresh',
   asyncRoute(async (request, response) => {
     const body = request.body ?? {};
-    const allowedGroups = new Set([
-      'ASEAN',
-      'WAFCON',
-      'UCL',
-      'UEFA_EUROPA',
-      'SEA',
-      'ASIA',
-      'EPL',
-      'LALIGA',
-    ]);
-
-    const groups = Array.isArray(body.groups)
-      ? body.groups
-          .map((value: unknown) => String(value).toUpperCase())
-          .filter((value: string) => allowedGroups.has(value))
-      : [
-          'WAFCON',
-          'UCL',
-          'UEFA_EUROPA',
-          'ASEAN',
-          'SEA',
-          'ASIA',
-          'EPL',
-          'LALIGA',
-        ];
-
+    const leagueIds = Array.isArray(body.leagueIds)
+      ? body.leagueIds.map(Number).filter((value) => Number.isInteger(value) && value > 0)
+      : undefined;
     response.json(
       await refreshPersonalUpcomingAnalysis({
         days: body.days ? Number(body.days) : undefined,
-        groups: groups as Array<
-          | 'ASEAN'
-          | 'WAFCON'
-          | 'UCL'
-          | 'UEFA_EUROPA'
-          | 'SEA'
-          | 'ASIA'
-          | 'EPL'
-          | 'LALIGA'
-        >,
+        leagueIds,
       }),
     );
+  }),
+);
+
+app.get(
+  '/api/personal/backtest/leagues',
+  asyncRoute(async (_request, response) => {
+    const leagues = await prisma.league.findMany({
+      where: { enabled: true },
+      orderBy: [{ country: 'asc' }, { name: 'asc' }, { season: 'desc' }],
+      select: {
+        id: true,
+        apiLeagueId: true,
+        name: true,
+        country: true,
+        season: true,
+        logoUrl: true,
+      },
+    });
+    const finished = await prisma.fixture.groupBy({
+      by: ['leagueId'],
+      where: { status: FixtureStatus.FINISHED },
+      _count: { _all: true },
+    });
+    const upcoming = await prisma.fixture.groupBy({
+      by: ['leagueId'],
+      where: { status: FixtureStatus.UPCOMING, kickoffAt: { gt: new Date() } },
+      _count: { _all: true },
+    });
+    const finishedMap = new Map(finished.map((row) => [row.leagueId, row._count._all]));
+    const upcomingMap = new Map(upcoming.map((row) => [row.leagueId, row._count._all]));
+    response.json({
+      data: leagues
+        .map((league) => ({
+          ...league,
+          finishedFixtures: finishedMap.get(league.id) ?? 0,
+          upcomingFixtures: upcomingMap.get(league.id) ?? 0,
+        }))
+        .sort((left, right) => right.finishedFixtures - left.finishedFixtures || left.name.localeCompare(right.name)),
+    });
+  }),
+);
+
+app.post(
+  '/api/personal/backtests/run',
+  asyncRoute(async (request, response) => {
+    const body = request.body ?? {};
+    const requestedLeagueIds = Array.isArray(body.leagueIds)
+      ? [...new Set(body.leagueIds.map(Number).filter((value) => Number.isInteger(value) && value > 0))]
+      : [];
+    if (requestedLeagueIds.length > 24) {
+      response.status(400).json({ error: 'Maximum 24 leagues per personal backtest request.' });
+      return;
+    }
+
+    const leagueIds = requestedLeagueIds.length > 0 ? requestedLeagueIds : [undefined];
+    const runs = [];
+    for (const leagueId of leagueIds) {
+      const league =
+        typeof leagueId === 'number'
+          ? await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
+          : null;
+      const run = await runBacktest({
+        name:
+          typeof body.name === 'string'
+            ? body.name
+            : 'Personal Backtest' +
+              (league?.name ? ' · ' + league.name : ' · All leagues') +
+              ' · ' +
+              String(body.from ?? '') +
+              ' → ' +
+              String(body.to ?? ''),
+        leagueId,
+        from: body.from,
+        to: body.to,
+        fixtureLimit: body.fixtureLimit ? Number(body.fixtureLimit) : undefined,
+        stakeUnits: body.stakeUnits ? Number(body.stakeUnits) : undefined,
+        rules: body.rules && typeof body.rules === 'object' ? body.rules : undefined,
+      });
+      runs.push({ id: run.id, name: run.name });
+    }
+
+    response.status(201).json({
+      mode: 'PERSONAL',
+      adminTokenRequired: false,
+      runs,
+      safety: {
+        realMoneyExecution: false,
+        automaticBetPlacement: false,
+      },
+    });
   }),
 );
 

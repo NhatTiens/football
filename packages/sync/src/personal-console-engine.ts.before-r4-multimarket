@@ -152,66 +152,6 @@ interface CurrentLocalLeagueRow {
   country: string | null;
 }
 
-type ConsoleMarketCode =
-  | 'HDA'
-  | 'BTTS'
-  | 'OVER_UNDER_1_5'
-  | 'OVER_UNDER_2_5'
-  | 'OVER_UNDER_3_5';
-
-type ConsoleMarketStatus =
-  | 'BEST_BET'
-  | 'ELIGIBLE_VALUE'
-  | 'ANALYSIS_ONLY'
-  | 'WAITING_SCIENTIFIC_HORIZON';
-
-type ConsoleMarketScientificType =
-  | 'MATCH_WINNER'
-  | 'BTTS'
-  | 'TOTAL_GOALS_1_5'
-  | 'TOTAL_GOALS_2_5'
-  | 'TOTAL_GOALS_3_5';
-
-type ConsoleMarketSelectionCode =
-  | 'HOME'
-  | 'DRAW'
-  | 'AWAY'
-  | 'YES'
-  | 'NO'
-  | 'OVER'
-  | 'UNDER';
-
-interface ConsoleMarketDefinition {
-  code: ConsoleMarketCode;
-  scientificMarketType: ConsoleMarketScientificType;
-  label: string;
-  lineValue: number | null;
-  selections: ConsoleMarketSelectionCode[];
-}
-
-interface ConsoleMarketSelection {
-  code: ConsoleMarketSelectionCode;
-  modelProbability: number | null;
-  decimalOdds: number | null;
-  bookmakerName: string | null;
-  fairMarketProbability: number | null;
-  edge: number | null;
-  expectedValue: number | null;
-  reliabilityStatus: string | null;
-  eligible: boolean;
-  rejectionReasons: unknown;
-}
-
-interface ConsoleMarketPrediction {
-  code: ConsoleMarketCode;
-  scientificMarketType: ConsoleMarketScientificType;
-  label: string;
-  lineValue: number | null;
-  status: ConsoleMarketStatus;
-  selectedAsBestBet: boolean;
-  selections: ConsoleMarketSelection[];
-}
-
 interface FixtureAnalysisRow {
   fixture: {
     id: number;
@@ -298,7 +238,6 @@ interface FixtureAnalysisRow {
     dueAt: string;
     status: string;
   } | null;
-  marketPredictions: ConsoleMarketPrediction[];
   state: PersonalFixtureState;
 }
 
@@ -379,112 +318,6 @@ function nextCheckpoint(
         (left: FreshCheckpointRow, right: FreshCheckpointRow): number =>
           left.dueAt.getTime() - right.dueAt.getTime(),
       )[0] ?? null
-  );
-}
-
-const CONSOLE_MARKETS: ConsoleMarketDefinition[] = [
-  {
-    code: 'HDA',
-    scientificMarketType: 'MATCH_WINNER',
-    label: 'HDA / 1X2',
-    lineValue: null,
-    selections: ['HOME', 'DRAW', 'AWAY'],
-  },
-  {
-    code: 'BTTS',
-    scientificMarketType: 'BTTS',
-    label: 'BTTS',
-    lineValue: null,
-    selections: ['YES', 'NO'],
-  },
-  {
-    code: 'OVER_UNDER_1_5',
-    scientificMarketType: 'TOTAL_GOALS_1_5',
-    label: 'Over / Under 1.5',
-    lineValue: 1.5,
-    selections: ['OVER', 'UNDER'],
-  },
-  {
-    code: 'OVER_UNDER_2_5',
-    scientificMarketType: 'TOTAL_GOALS_2_5',
-    label: 'Over / Under 2.5',
-    lineValue: 2.5,
-    selections: ['OVER', 'UNDER'],
-  },
-  {
-    code: 'OVER_UNDER_3_5',
-    scientificMarketType: 'TOTAL_GOALS_3_5',
-    label: 'Over / Under 3.5',
-    lineValue: 3.5,
-    selections: ['OVER', 'UNDER'],
-  },
-];
-
-function buildConsoleMarketPredictions(
-  decision: DecisionRow | null,
-  candidates: CandidateRow[],
-): ConsoleMarketPrediction[] {
-  return CONSOLE_MARKETS.map(
-    (definition: ConsoleMarketDefinition): ConsoleMarketPrediction => {
-      const marketCandidates = candidates.filter(
-        (candidate: CandidateRow): boolean =>
-          candidate.marketType === definition.scientificMarketType,
-      );
-
-      const selectedAsBestBet =
-        decision?.decisionType === 'BEST_BET' &&
-        decision.selectedMarket === definition.scientificMarketType;
-
-      const hasEligibleValue = marketCandidates.some(
-        (candidate: CandidateRow): boolean => candidate.eligible,
-      );
-
-      const status: ConsoleMarketStatus = selectedAsBestBet
-        ? 'BEST_BET'
-        : hasEligibleValue
-          ? 'ELIGIBLE_VALUE'
-          : marketCandidates.length > 0
-            ? 'ANALYSIS_ONLY'
-            : 'WAITING_SCIENTIFIC_HORIZON';
-
-      const selections = definition.selections.map(
-        (selection: ConsoleMarketSelectionCode): ConsoleMarketSelection => {
-          const candidate = marketCandidates
-            .filter(
-              (row: CandidateRow): boolean => row.selection === selection,
-            )
-            .slice()
-            .sort(
-              (left: CandidateRow, right: CandidateRow): number =>
-                right.expectedValue - left.expectedValue ||
-                right.decimalOdds - left.decimalOdds,
-            )[0];
-
-          return {
-            code: selection,
-            modelProbability: candidate?.modelProbability ?? null,
-            decimalOdds: candidate?.decimalOdds ?? null,
-            bookmakerName: candidate?.bookmakerName ?? null,
-            fairMarketProbability: candidate?.fairMarketProbability ?? null,
-            edge: candidate?.edge ?? null,
-            expectedValue: candidate?.expectedValue ?? null,
-            reliabilityStatus: candidate?.reliabilityStatus ?? null,
-            eligible: candidate?.eligible ?? false,
-            rejectionReasons: candidate?.rejectionReasons ?? [],
-          };
-        },
-      );
-
-      return {
-        code: definition.code,
-        scientificMarketType: definition.scientificMarketType,
-        label: definition.label,
-        lineValue: definition.lineValue,
-        status,
-        selectedAsBestBet,
-        selections,
-      };
-    },
   );
 }
 
@@ -617,7 +450,6 @@ export async function getPersonalUpcomingAnalysis(
       const selectedPrediction = predictedSelection(probabilities);
       const stake = decision ? latestStakeByDecision.get(decision.id) ?? null : null;
       const checkpoint = nextCheckpoint(checkpointRows, fixture.apiFixtureId);
-      const marketPredictions = buildConsoleMarketPredictions(decision, candidates);
 
       const state: PersonalFixtureState =
         decision?.decisionType === 'BEST_BET'
@@ -727,7 +559,6 @@ export async function getPersonalUpcomingAnalysis(
               status: checkpoint.status,
             }
           : null,
-        marketPredictions,
         state,
       };
     },

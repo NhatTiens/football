@@ -1,0 +1,220 @@
+import type { PersonalBacktestLeagueCoverageDto } from './personal-types';
+
+export type PersonalLeagueGroup =
+  | 'ASEAN'
+  | 'WAFCON'
+  | 'UCL'
+  | 'UEFA_EUROPA'
+  | 'SEA'
+  | 'ASIA'
+  | 'EPL'
+  | 'LALIGA'
+  | 'OTHER';
+
+const SEA_COUNTRIES = new Set([
+  'vietnam',
+  'thailand',
+  'indonesia',
+  'malaysia',
+  'singapore',
+  'philippines',
+  'myanmar',
+  'laos',
+  'cambodia',
+  'brunei',
+  'timor-leste',
+  'timor leste',
+]);
+
+const ASIA_COUNTRIES = new Set([
+  'japan',
+  'south-korea',
+  'south korea',
+  'china',
+  'hong-kong',
+  'hong kong',
+  'macao',
+  'india',
+  'saudi-arabia',
+  'saudi arabia',
+  'united-arab-emirates',
+  'united arab emirates',
+  'uae',
+  'qatar',
+  'iran',
+  'iraq',
+  'jordan',
+  'uzbekistan',
+  'kazakhstan',
+  'kyrgyzstan',
+  'tajikistan',
+  'turkmenistan',
+  'kuwait',
+  'bahrain',
+  'oman',
+  'lebanon',
+  'syria',
+  'yemen',
+  'australia',
+]);
+
+const SEA_PRIMARY_NAMES = [
+  'v.league 1',
+  'thai league 1',
+  'liga 1',
+  'super league',
+  'premier league',
+  'national league',
+  'lao league',
+  'cambodian premier league',
+];
+
+const ASIA_PRIMARY_NAMES = [
+  'afc champions league elite',
+  'afc champions league two',
+  'j1 league',
+  'k league 1',
+  'super league',
+  'pro league',
+  'stars league',
+  'indian super league',
+];
+
+function normalize(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+export function classifyPersonalLeague(
+  league: Pick<PersonalBacktestLeagueCoverageDto, 'name' | 'country'>,
+): PersonalLeagueGroup {
+  const country = normalize(league.country);
+  const name = normalize(league.name);
+
+  if (
+    name === 'asean championship' ||
+    name === 'aff championship' ||
+    name === 'aff cup'
+  ) {
+    return 'ASEAN';
+  }
+
+  if (
+    name === 'africa cup of nations - women' ||
+    name === "women's africa cup of nations" ||
+    name.includes('wafcon')
+  ) {
+    return 'WAFCON';
+  }
+
+  if (name === 'uefa champions league') return 'UCL';
+
+  if (
+    name === 'uefa europa league' ||
+    name === 'uefa europa conference league' ||
+    name === 'uefa conference league'
+  ) {
+    return 'UEFA_EUROPA';
+  }
+
+  if (country === 'england' && name === 'premier league') return 'EPL';
+  if (country === 'spain' && name === 'la liga') return 'LALIGA';
+
+  if (
+    SEA_COUNTRIES.has(country) ||
+    name.startsWith('asean ') ||
+    name.includes('asean championship') ||
+    name.includes('asean club championship')
+  ) {
+    return 'SEA';
+  }
+
+  if (
+    ASIA_COUNTRIES.has(country) ||
+    name.startsWith('afc ') ||
+    name.startsWith('asian ') ||
+    name.includes('afc champions league')
+  ) {
+    return 'ASIA';
+  }
+
+  return 'OTHER';
+}
+
+function primaryNameRank(group: PersonalLeagueGroup, leagueName: string): number {
+  const normalized = normalize(leagueName);
+  const preferred =
+    group === 'SEA'
+      ? SEA_PRIMARY_NAMES
+      : group === 'ASIA'
+        ? ASIA_PRIMARY_NAMES
+        : [];
+
+  const exact = preferred.findIndex((name) => normalized === name);
+  if (exact >= 0) return exact;
+
+  const partial = preferred.findIndex((name) => normalized.includes(name));
+  return partial >= 0 ? partial + 20 : 100;
+}
+
+export function priorityScore(league: PersonalBacktestLeagueCoverageDto): number {
+  const group = classifyPersonalLeague(league);
+  const upcomingBonus = league.upcomingFixtures > 0 ? 1000 : 0;
+  const historicalBonus = Math.min(200, league.finishedFixtures);
+  const primaryBonus = Math.max(0, 100 - primaryNameRank(group, league.name));
+
+  if (group === 'ASEAN') return 9000 + upcomingBonus + historicalBonus;
+  if (group === 'WAFCON') return 8900 + upcomingBonus + historicalBonus;
+  if (group === 'UCL') return 8800 + upcomingBonus + historicalBonus;
+  if (group === 'UEFA_EUROPA') return 8700 + upcomingBonus + historicalBonus;
+  if (group === 'SEA') return 5000 + upcomingBonus + primaryBonus + historicalBonus;
+  if (group === 'EPL') return 4600 + upcomingBonus + historicalBonus;
+  if (group === 'LALIGA') return 4500 + upcomingBonus + historicalBonus;
+  if (group === 'ASIA') return 4000 + upcomingBonus + primaryBonus + historicalBonus;
+  return upcomingBonus + historicalBonus;
+}
+
+export function selectPriorityCurrentLeagueIds(
+  leagues: PersonalBacktestLeagueCoverageDto[],
+  limit = 12,
+): number[] {
+  return leagues
+    .filter((league) => league.upcomingFixtures > 0)
+    .filter((league) => classifyPersonalLeague(league) !== 'OTHER')
+    .slice()
+    .sort((left, right) => priorityScore(right) - priorityScore(left))
+    .slice(0, limit)
+    .map((league) => league.id);
+}
+
+export function selectGroupLeagueIds(
+  leagues: PersonalBacktestLeagueCoverageDto[],
+  group: PersonalLeagueGroup,
+  options: {
+    requireUpcoming?: boolean;
+    requireFinished?: boolean;
+    limit?: number;
+  } = {},
+): number[] {
+  const { requireUpcoming = false, requireFinished = false, limit = 16 } = options;
+
+  return leagues
+    .filter((league) => classifyPersonalLeague(league) === group)
+    .filter((league) => !requireUpcoming || league.upcomingFixtures > 0)
+    .filter((league) => !requireFinished || league.finishedFixtures > 0)
+    .slice()
+    .sort((left, right) => priorityScore(right) - priorityScore(left))
+    .slice(0, limit)
+    .map((league) => league.id);
+}
+
+export function groupLabel(group: PersonalLeagueGroup): string {
+  if (group === 'ASEAN') return 'ASEAN Championship';
+  if (group === 'WAFCON') return 'WAFCON';
+  if (group === 'UCL') return 'UEFA Champions League';
+  if (group === 'UEFA_EUROPA') return 'Europa + Conference League';
+  if (group === 'SEA') return 'Đông Nam Á';
+  if (group === 'ASIA') return 'Châu Á';
+  if (group === 'EPL') return 'Ngoại hạng Anh';
+  if (group === 'LALIGA') return 'La Liga';
+  return 'Khác';
+}

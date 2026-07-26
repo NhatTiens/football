@@ -175,15 +175,7 @@ export interface PersonalUpcomingAnalysisDto {
   };
 }
 
-export type CurrentCompetitionGroup =
-  | 'ASEAN'
-  | 'WAFCON'
-  | 'UCL'
-  | 'UEFA_EUROPA'
-  | 'SEA'
-  | 'ASIA'
-  | 'EPL'
-  | 'LALIGA';
+export type CurrentCompetitionGroup = 'SEA' | 'ASIA' | 'EPL' | 'LALIGA';
 
 export interface PersonalRefreshResponse {
   version: string;

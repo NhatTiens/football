@@ -1,0 +1,500 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+
+import {
+  classifyPersonalLeague,
+  groupLabel,
+  selectGroupLeagueIds,
+  selectPriorityCurrentLeagueIds,
+  type PersonalLeagueGroup,
+} from '../lib/league-profile';
+import type {
+  PersonalBacktestLeagueCoverageDto,
+  PersonalFixtureState,
+  PersonalRefreshResponse,
+  PersonalUpcomingAnalysisDto,
+  PersonalUpcomingFixtureDto,
+} from '../lib/personal-types';
+
+const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
+
+function pct(value: number | null | undefined, digits = 1): string {
+  return value == null || !Number.isFinite(value) ? '—' : `${(value * 100).toFixed(digits)}%`;
+}
+
+function decimal(value: number | null | undefined, digits = 2): string {
+  return value == null || !Number.isFinite(value) ? '—' : value.toFixed(digits);
+}
+
+function localTime(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    hour12: false,
+  }).format(new Date(value));
+}
+
+function predictedName(row: PersonalUpcomingFixtureDto): string {
+  const selection = row.prediction.predictedSelection;
+  if (selection === 'HOME') return row.fixture.homeTeam.name;
+  if (selection === 'AWAY') return row.fixture.awayTeam.name;
+  if (selection === 'DRAW') return 'Hòa';
+  return 'Chưa đủ dữ liệu';
+}
+
+function decisionSelectionName(row: PersonalUpcomingFixtureDto): string {
+  const selection = row.decision?.selectedSelection;
+  if (selection === 'HOME') return row.fixture.homeTeam.name;
+  if (selection === 'AWAY') return row.fixture.awayTeam.name;
+  if (selection === 'DRAW') return 'Hòa';
+  return selection ?? '—';
+}
+
+function stateLabel(state: PersonalFixtureState): string {
+  if (state === 'BEST_BET') return 'BEST BET';
+  if (state === 'NO_BET') return 'NO BET';
+  if (state === 'PREDICTION_ONLY') return 'CHỜ KÈO';
+  return 'CHỜ DỮ LIỆU';
+}
+
+function probabilityWidth(value: number | null): string {
+  const safe = value == null ? 0 : Math.max(0, Math.min(1, value));
+  return `${safe * 100}%`;
+}
+
+export function UpcomingPredictionBoard({
+  initialData,
+  leagues,
+}: {
+  initialData: PersonalUpcomingAnalysisDto;
+  leagues: PersonalBacktestLeagueCoverageDto[];
+}) {
+  const suggestedLeagueIds = selectPriorityCurrentLeagueIds(leagues, 12);
+
+  const [data, setData] = useState<PersonalUpcomingAnalysisDto>(initialData);
+  const [days, setDays] = useState<string>(String(initialData.window.days));
+  const [selectedLeagueIds, setSelectedLeagueIds] = useState<number[]>(suggestedLeagueIds);
+  const [leagueFilter, setLeagueFilter] = useState<number | 'ALL'>('ALL');
+  const [stateFilter, setStateFilter] = useState<PersonalFixtureState | 'ALL'>('ALL');
+  const [groupFilter, setGroupFilter] = useState<PersonalLeagueGroup | 'ALL'>('ALL');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const visibleFixtures = useMemo(
+    () =>
+      data.fixtures.filter((row: PersonalUpcomingFixtureDto): boolean => {
+        if (leagueFilter !== 'ALL' && row.fixture.league.id !== leagueFilter) return false;
+        if (stateFilter !== 'ALL' && row.state !== stateFilter) return false;
+        if (
+          groupFilter !== 'ALL' &&
+          classifyPersonalLeague({
+            name: row.fixture.league.name,
+            country: row.fixture.league.country,
+          }) !== groupFilter
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [data.fixtures, groupFilter, leagueFilter, stateFilter],
+  );
+
+  function toggleLeague(id: number): void {
+    setSelectedLeagueIds((current: number[]) =>
+      current.includes(id)
+        ? current.filter((value: number): boolean => value !== id)
+        : [...current, id].slice(0, 12),
+    );
+  }
+
+  async function reloadAnalysis(): Promise<void> {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const params = new URLSearchParams({ days, limit: '300' });
+      if (selectedLeagueIds.length > 0) {
+        params.set('leagueIds', selectedLeagueIds.join(','));
+      }
+
+      const response = await fetch(`${apiUrl}/personal/upcoming-analysis?${params.toString()}`, {
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          message?: string;
+          error?: string;
+        };
+        throw new Error(payload.message ?? payload.error ?? `HTTP ${response.status}`);
+      }
+
+      setData((await response.json()) as PersonalUpcomingAnalysisDto);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Không tải được phân tích.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function refreshProviderData(): Promise<void> {
+    if (selectedLeagueIds.length === 0) {
+      setMessage('Hãy chọn ít nhất 1 giải trước khi gọi API-Football.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Đồng bộ ${selectedLeagueIds.length} giải bằng API-Football, cập nhật prediction/odds và chạy scientific BEST BET?`,
+    );
+    if (!confirmed) return;
+
+    setLoading(true);
+    setMessage('Đang đồng bộ fixture → prediction → odds → BEST BET…');
+
+    try {
+      const response = await fetch(`${apiUrl}/personal/upcoming/refresh`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          days: Number(days),
+          leagueIds: selectedLeagueIds,
+        }),
+      });
+
+      const payload = (await response.json()) as PersonalRefreshResponse & {
+        error?: string;
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message ?? payload.error ?? `HTTP ${response.status}`);
+      }
+
+      setData(payload.analysis);
+      setMessage(
+        `Đã đồng bộ ${payload.selectedLeagues.length} giải. BEST BET hiện tại: ${payload.analysis.counts.bestBets}.`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Đồng bộ thất bại.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="pcr-page">
+      <section className="pcr-hero">
+        <div>
+          <span className="eyebrow">PERSONAL RESEARCH CONSOLE</span>
+          <h1>Dự đoán trận sắp tới & BEST BET</h1>
+          <p>
+            Xác suất dự đoán chỉ là tín hiệu. BEST BET chỉ xuất hiện khi scientific policy đã có
+            odds thật, đúng horizon và vượt reliability/value gates.
+          </p>
+        </div>
+
+        <div className="pcr-actions">
+          <button
+            type="button"
+            className="button primary"
+            disabled={loading || selectedLeagueIds.length === 0}
+            onClick={() => void refreshProviderData()}
+          >
+            {loading ? 'Đang xử lý…' : 'Đồng bộ & phân tích'}
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={loading}
+            onClick={() => void reloadAnalysis()}
+          >
+            Làm mới từ DB
+          </button>
+        </div>
+      </section>
+
+      {message ? <div className="pcr-message">{message}</div> : null}
+
+      <section className="pcr-kpis">
+        <div>
+          <span>Trận sắp tới</span>
+          <strong>{data.counts.fixtures}</strong>
+          <small>{data.window.days} ngày</small>
+        </div>
+        <div>
+          <span>Có prediction</span>
+          <strong>{data.counts.predicted}</strong>
+          <small>scientific hoặc API-Football</small>
+        </div>
+        <div className="highlight">
+          <span>BEST BET</span>
+          <strong>{data.counts.bestBets}</strong>
+          <small>đã qua scientific policy</small>
+        </div>
+        <div>
+          <span>NO BET</span>
+          <strong>{data.counts.noBets}</strong>
+          <small>đã đánh giá nhưng không đủ value</small>
+        </div>
+        <div>
+          <span>Đang chờ</span>
+          <strong>{data.counts.predictionOnly + data.counts.waitingData}</strong>
+          <small>odds / horizon / dữ liệu</small>
+        </div>
+      </section>
+
+      <section className="pcr-control-panel">
+        <div className="pcr-control-row">
+          <label>
+            Khoảng thời gian
+            <select value={days} onChange={(event) => setDays(event.target.value)}>
+              <option value="3">3 ngày</option>
+              <option value="7">7 ngày</option>
+              <option value="14">14 ngày</option>
+            </select>
+          </label>
+
+          <label>
+            Lọc giải
+            <select
+              value={leagueFilter}
+              onChange={(event) =>
+                setLeagueFilter(event.target.value === 'ALL' ? 'ALL' : Number(event.target.value))
+              }
+            >
+              <option value="ALL">Tất cả</option>
+              {data.leagues.map((league) => (
+                <option key={league.id} value={league.id}>
+                  {league.country ? `${league.country} · ` : ''}
+                  {league.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Trạng thái
+            <select
+              value={stateFilter}
+              onChange={(event) =>
+                setStateFilter(event.target.value as PersonalFixtureState | 'ALL')
+              }
+            >
+              <option value="ALL">Tất cả</option>
+              <option value="BEST_BET">BEST BET</option>
+              <option value="NO_BET">NO BET</option>
+              <option value="PREDICTION_ONLY">Có prediction, chờ kèo</option>
+              <option value="WAITING_DATA">Chờ dữ liệu</option>
+            </select>
+          </label>
+
+          <label>
+            Khu vực
+            <select
+              value={groupFilter}
+              onChange={(event) =>
+                setGroupFilter(event.target.value as PersonalLeagueGroup | 'ALL')
+              }
+            >
+              <option value="ALL">Tất cả khu vực</option>
+              <option value="SEA">Đông Nam Á</option>
+              <option value="ASIA">Châu Á</option>
+              <option value="EPL">Ngoại hạng Anh</option>
+              <option value="LALIGA">La Liga</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="pcr-priority-profiles">
+          <b>Chọn nhanh nhóm giải:</b>
+          <button
+            type="button"
+            onClick={() => setSelectedLeagueIds(selectPriorityCurrentLeagueIds(leagues, 12))}
+          >
+            Ưu tiên hiện tại
+          </button>
+          {(['SEA', 'ASIA', 'EPL', 'LALIGA'] as PersonalLeagueGroup[]).map((group) => (
+            <button
+              type="button"
+              key={group}
+              onClick={() =>
+                setSelectedLeagueIds(
+                  selectGroupLeagueIds(leagues, group, {
+                    requireUpcoming: true,
+                    limit: 12,
+                  }),
+                )
+              }
+            >
+              {groupLabel(group)}
+            </button>
+          ))}
+        </div>
+
+        <details className="pcr-league-picker" open={selectedLeagueIds.length === 0}>
+          <summary>
+            Giải dùng khi đồng bộ API-Football · đã chọn {selectedLeagueIds.length}/12
+          </summary>
+          <div className="pcr-picker-tools">
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedLeagueIds(selectPriorityCurrentLeagueIds(leagues, 12))
+              }
+            >
+              Chọn profile ưu tiên
+            </button>
+            <button type="button" onClick={() => setSelectedLeagueIds([])}>
+              Bỏ chọn
+            </button>
+          </div>
+          <div className="pcr-checkbox-grid">
+            {leagues.map((league) => (
+              <label
+                key={league.id}
+                className={selectedLeagueIds.includes(league.id) ? 'selected' : ''}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedLeagueIds.includes(league.id)}
+                  onChange={() => toggleLeague(league.id)}
+                />
+                <span>
+                  <b>{league.name}</b>
+                  <small>
+                    {league.country ?? '—'} · {league.season} · {league.upcomingFixtures} upcoming
+                  </small>
+                </span>
+              </label>
+            ))}
+          </div>
+        </details>
+      </section>
+
+      <section className="pcr-best-zone">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">SCIENTIFIC VALUE</span>
+            <h2>BEST BET ưu tiên</h2>
+          </div>
+          <small>{data.topBestBets.length} lựa chọn đang hiển thị</small>
+        </div>
+
+        {data.topBestBets.length === 0 ? (
+          <div className="pcr-empty">
+            Chưa có BEST BET chính thức. Hệ thống giữ NO BET / chờ dữ liệu thay vì ép tạo kèo.
+          </div>
+        ) : (
+          <div className="pcr-best-grid">
+            {data.topBestBets.map((row, index) => (
+              <article className="pcr-best-card" key={row.fixture.id}>
+                <div className="pcr-best-top">
+                  <span>#{index + 1}</span>
+                  <small>{row.fixture.league.name}</small>
+                </div>
+                <h3>
+                  {row.fixture.homeTeam.name} <span>vs</span> {row.fixture.awayTeam.name}
+                </h3>
+                <small>{localTime(row.fixture.kickoffAt)}</small>
+                <div className="pcr-best-pick">{decisionSelectionName(row)}</div>
+                <div className="pcr-value-grid">
+                  <div><span>Odds</span><b>{decimal(row.decision?.decimalOdds)}</b></div>
+                  <div><span>Edge</span><b>{pct(row.decision?.edge)}</b></div>
+                  <div><span>EV</span><b>{pct(row.decision?.expectedValue)}</b></div>
+                </div>
+                <div className="pcr-best-footer">
+                  <span>{row.decision?.bookmakerName ?? 'Bookmaker —'}</span>
+                  <strong>
+                    {row.stake
+                      ? `${row.stake.stakeDecisionType} ${decimal(row.stake.stakeUnits)}u`
+                      : 'Risk overlay chờ'}
+                  </strong>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="pcr-match-list">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">UPCOMING</span>
+            <h2>Tất cả trận trong bộ lọc</h2>
+          </div>
+          <small>{visibleFixtures.length} trận</small>
+        </div>
+
+        {visibleFixtures.length === 0 ? (
+          <div className="pcr-empty">Không có trận phù hợp bộ lọc.</div>
+        ) : (
+          visibleFixtures.map((row) => (
+            <article
+              className={`pcr-match-card ${row.state === 'BEST_BET' ? 'is-best' : ''}`}
+              key={row.fixture.id}
+            >
+              <div className="pcr-match-header">
+                <div>
+                  <span>{row.fixture.league.name}</span>
+                  <b>{localTime(row.fixture.kickoffAt)}</b>
+                </div>
+                <span className={`pcr-state state-${row.state.toLowerCase().replaceAll('_', '-')}`}>
+                  {stateLabel(row.state)}
+                </span>
+              </div>
+
+              <div className="pcr-match-title">
+                <strong>{row.fixture.homeTeam.name}</strong>
+                <span>vs</span>
+                <strong>{row.fixture.awayTeam.name}</strong>
+              </div>
+
+              <div className="pcr-probability-grid">
+                <div>
+                  <div><span>Chủ</span><b>{pct(row.prediction.homeProbability)}</b></div>
+                  <i style={{ width: probabilityWidth(row.prediction.homeProbability) }} />
+                </div>
+                <div>
+                  <div><span>Hòa</span><b>{pct(row.prediction.drawProbability)}</b></div>
+                  <i style={{ width: probabilityWidth(row.prediction.drawProbability) }} />
+                </div>
+                <div>
+                  <div><span>Khách</span><b>{pct(row.prediction.awayProbability)}</b></div>
+                  <i style={{ width: probabilityWidth(row.prediction.awayProbability) }} />
+                </div>
+              </div>
+
+              <div className="pcr-meta-row">
+                <span>Prediction: <b>{predictedName(row)}</b></span>
+                <span>Nguồn: <b>{row.prediction.source}</b></span>
+                {row.nextCheckpoint ? (
+                  <span>
+                    Mốc kế: <b>{row.nextCheckpoint.horizonLabel}</b> ·{' '}
+                    {localTime(row.nextCheckpoint.dueAt)}
+                  </span>
+                ) : null}
+              </div>
+
+              {row.decision ? (
+                <div className="pcr-decision-row">
+                  <div><span>Decision</span><b>{row.decision.decisionType}</b></div>
+                  <div><span>Pick</span><b>{decisionSelectionName(row)}</b></div>
+                  <div><span>Odds</span><b>{decimal(row.decision.decimalOdds)}</b></div>
+                  <div><span>Edge</span><b>{pct(row.decision.edge)}</b></div>
+                  <div><span>EV</span><b>{pct(row.decision.expectedValue)}</b></div>
+                  <div><span>Reliability</span><b>{row.decision.reliabilityStatus ?? '—'}</b></div>
+                </div>
+              ) : null}
+            </article>
+          ))
+        )}
+      </section>
+
+      <div className="pcr-safety-note">
+        Prediction ≠ BEST BET. BEST BET chỉ đọc từ ScientificPaperBetDecision. Không auto-bet, không
+        real-money, không synthetic odds.
+      </div>
+    </div>
+  );
+}

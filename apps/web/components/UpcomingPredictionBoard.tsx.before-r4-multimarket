@@ -6,9 +6,6 @@ import { classifyPersonalLeague, type PersonalLeagueGroup } from '../lib/league-
 import type {
   CurrentCompetitionGroup,
   PersonalFixtureState,
-  PersonalMarketCode,
-  PersonalMarketPredictionDto,
-  PersonalMarketSelectionDto,
   PersonalRefreshResponse,
   PersonalUpcomingAnalysisDto,
   PersonalUpcomingFixtureDto,
@@ -60,107 +57,12 @@ function probabilityWidth(value: number | null): string {
   return `${safe * 100}%`;
 }
 
-
-function marketStatusLabel(status: PersonalMarketPredictionDto['status']): string {
-  if (status === 'BEST_BET') return 'BEST BET';
-  if (status === 'ELIGIBLE_VALUE') return 'CÓ VALUE';
-  if (status === 'ANALYSIS_ONLY') return 'ANALYSIS ONLY';
-  return 'CHỜ HORIZON';
-}
-
-function marketSelectionLabel(
-  row: PersonalUpcomingFixtureDto,
-  market: PersonalMarketPredictionDto,
-  selection: PersonalMarketSelectionDto,
-): string {
-  if (selection.code === 'HOME') return row.fixture.homeTeam.name;
-  if (selection.code === 'AWAY') return row.fixture.awayTeam.name;
-  if (selection.code === 'DRAW') return 'Hòa';
-  if (selection.code === 'YES') return 'Có';
-  if (selection.code === 'NO') return 'Không';
-  if (selection.code === 'OVER') return `Over ${market.lineValue ?? ''}`.trim();
-  return `Under ${market.lineValue ?? ''}`.trim();
-}
-
-function bestMarketSelection(
-  market: PersonalMarketPredictionDto,
-): PersonalMarketSelectionDto | null {
-  return (
-    market.selections
-      .filter(
-        (selection: PersonalMarketSelectionDto): boolean =>
-          selection.modelProbability != null,
-      )
-      .slice()
-      .sort(
-        (left: PersonalMarketSelectionDto, right: PersonalMarketSelectionDto): number =>
-          (right.modelProbability ?? -1) - (left.modelProbability ?? -1),
-      )[0] ?? null
-  );
-}
-
 const GROUPS: Array<{ value: CurrentCompetitionGroup; label: string; description: string }> = [
-  {
-    value: 'WAFCON',
-    label: 'WAFCON 2026',
-    description: "Women's Africa Cup of Nations · Morocco 2026",
-  },
-  {
-    value: 'UCL',
-    label: 'UEFA Champions League',
-    description: '2026/27 · vòng loại và league phase',
-  },
-  {
-    value: 'UEFA_EUROPA',
-    label: 'Europa + Conference League',
-    description: 'UEFA Europa League & UEFA Conference League 2026/27',
-  },
-  {
-    value: 'ASEAN',
-    label: 'ASEAN Championship 2026',
-    description: 'AFF Cup / ASEAN Championship đội tuyển quốc gia',
-  },
-  {
-    value: 'SEA',
-    label: 'Đông Nam Á quốc nội',
-    description: 'Việt Nam, Thái Lan, Indonesia, Malaysia…',
-  },
+  { value: 'SEA', label: 'Đông Nam Á', description: 'Việt Nam, Thái Lan, Indonesia, Malaysia…' },
   { value: 'ASIA', label: 'Châu Á', description: 'AFC, Nhật Bản, Hàn Quốc, Saudi…' },
   { value: 'EPL', label: 'Premier League', description: 'Ngoại hạng Anh · mùa hiện tại' },
   { value: 'LALIGA', label: 'La Liga', description: 'Tây Ban Nha · mùa hiện tại' },
 ];
-
-function isAseanSeniorCompetition(name: string): boolean {
-  const normalized = name.trim().toLowerCase();
-  if (
-    ['u19', 'u20', 'u21', 'u22', 'u23', 'women', 'club'].some(
-      (variant: string): boolean => normalized.includes(variant),
-    )
-  ) {
-    return false;
-  }
-
-  return (
-    normalized.includes('asean championship') ||
-    normalized.includes('aff championship') ||
-    normalized === 'aff cup'
-  );
-}
-
-
-function isRequestedPriorityCompetition(name: string): boolean {
-  const normalized = name.trim().toLowerCase();
-
-  return (
-    isAseanSeniorCompetition(name) ||
-    normalized === 'africa cup of nations - women' ||
-    normalized === "women's africa cup of nations" ||
-    normalized === 'uefa champions league' ||
-    normalized === 'uefa europa league' ||
-    normalized === 'uefa europa conference league' ||
-    normalized === 'uefa conference league'
-  );
-}
 
 export function UpcomingPredictionBoard({
   initialData,
@@ -170,10 +72,6 @@ export function UpcomingPredictionBoard({
   const [data, setData] = useState<PersonalUpcomingAnalysisDto>(initialData);
   const [days, setDays] = useState<string>(String(initialData.window.days));
   const [selectedGroups, setSelectedGroups] = useState<CurrentCompetitionGroup[]>([
-    'WAFCON',
-    'UCL',
-    'UEFA_EUROPA',
-    'ASEAN',
     'SEA',
     'ASIA',
     'EPL',
@@ -182,7 +80,6 @@ export function UpcomingPredictionBoard({
   const [leagueFilter, setLeagueFilter] = useState<number | 'ALL'>('ALL');
   const [stateFilter, setStateFilter] = useState<PersonalFixtureState | 'ALL'>('ALL');
   const [groupFilter, setGroupFilter] = useState<PersonalLeagueGroup | 'ALL'>('ALL');
-  const [marketFilter, setMarketFilter] = useState<PersonalMarketCode | 'ALL'>('ALL');
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string | null>(null);
   const [lastDiscovery, setLastDiscovery] = useState<PersonalRefreshResponse['discovery'] | null>(
@@ -203,19 +100,9 @@ export function UpcomingPredictionBoard({
         ) {
           return false;
         }
-        if (
-          marketFilter !== 'ALL' &&
-          !row.marketPredictions.some(
-            (market: PersonalMarketPredictionDto): boolean =>
-              market.code === marketFilter &&
-              market.status !== 'WAITING_SCIENTIFIC_HORIZON',
-          )
-        ) {
-          return false;
-        }
         return true;
       }),
-    [data.fixtures, groupFilter, leagueFilter, marketFilter, stateFilter],
+    [data.fixtures, groupFilter, leagueFilter, stateFilter],
   );
 
   function toggleGroup(group: CurrentCompetitionGroup): void {
@@ -328,7 +215,7 @@ export function UpcomingPredictionBoard({
             <span className="eyebrow">GIẢI MUỐN THEO DÕI</span>
             <h2>Mùa hiện tại, không chọn season thủ công</h2>
           </div>
-          <small>{selectedGroups.length}/{GROUPS.length} nhóm</small>
+          <small>{selectedGroups.length}/4 nhóm</small>
         </div>
         <div className="pcr-current-group-grid">
           {GROUPS.map((group) => (
@@ -358,15 +245,7 @@ export function UpcomingPredictionBoard({
         <section className="pcr-discovery-strip">
           <b>Đã xác định mùa hiện tại:</b>
           {lastDiscovery.competitions.map((competition) => (
-            <span
-              key={`${competition.apiLeagueId}:${competition.season}`}
-              className={
-                isRequestedPriorityCompetition(competition.name)
-                  ? 'pcr-asean-competition-badge'
-                  : undefined
-              }
-            >
-              {isRequestedPriorityCompetition(competition.name) ? '★ ' : ''}
+            <span key={`${competition.apiLeagueId}:${competition.season}`}>
               {competition.name} {competition.season}
             </span>
           ))}
@@ -432,30 +311,10 @@ export function UpcomingPredictionBoard({
               }
             >
               <option value="ALL">Tất cả</option>
-              <option value="WAFCON">WAFCON 2026</option>
-              <option value="UCL">UEFA Champions League</option>
-              <option value="UEFA_EUROPA">Europa + Conference League</option>
-              <option value="ASEAN">ASEAN Championship 2026</option>
-              <option value="SEA">Đông Nam Á quốc nội</option>
+              <option value="SEA">Đông Nam Á</option>
               <option value="ASIA">Châu Á</option>
               <option value="EPL">Premier League</option>
               <option value="LALIGA">La Liga</option>
-            </select>
-          </label>
-          <label>
-            Market
-            <select
-              value={marketFilter}
-              onChange={(event) =>
-                setMarketFilter(event.target.value as PersonalMarketCode | 'ALL')
-              }
-            >
-              <option value="ALL">Tất cả market</option>
-              <option value="HDA">HDA / 1X2</option>
-              <option value="BTTS">BTTS</option>
-              <option value="OVER_UNDER_1_5">Over/Under 1.5</option>
-              <option value="OVER_UNDER_2_5">Over/Under 2.5</option>
-              <option value="OVER_UNDER_3_5">Over/Under 3.5</option>
             </select>
           </label>
         </div>
@@ -519,10 +378,7 @@ export function UpcomingPredictionBoard({
             >
               <div className="pcr-match-header">
                 <div>
-                  <span>
-                    {isRequestedPriorityCompetition(row.fixture.league.name) ? '★ ' : ''}
-                    {row.fixture.league.name} · {row.fixture.league.season}
-                  </span>
+                  <span>{row.fixture.league.name} · {row.fixture.league.season}</span>
                   <b>{localTime(row.fixture.kickoffAt)}</b>
                 </div>
                 <span className={`pcr-state state-${row.state.toLowerCase().replaceAll('_', '-')}`}>
@@ -540,69 +396,6 @@ export function UpcomingPredictionBoard({
                 <div><div><span>Chủ</span><b>{pct(row.prediction.homeProbability)}</b></div><i style={{ width: probabilityWidth(row.prediction.homeProbability) }} /></div>
                 <div><div><span>Hòa</span><b>{pct(row.prediction.drawProbability)}</b></div><i style={{ width: probabilityWidth(row.prediction.drawProbability) }} /></div>
                 <div><div><span>Khách</span><b>{pct(row.prediction.awayProbability)}</b></div><i style={{ width: probabilityWidth(row.prediction.awayProbability) }} /></div>
-              </div>
-
-              <div className="pcr-market-tabs">
-                {row.marketPredictions
-                  .filter(
-                    (market: PersonalMarketPredictionDto): boolean =>
-                      marketFilter === 'ALL' || market.code === marketFilter,
-                  )
-                  .map((market: PersonalMarketPredictionDto) => {
-                    const strongest = bestMarketSelection(market);
-
-                    return (
-                      <div
-                        key={market.code}
-                        className={[
-                          'pcr-market-card',
-                          market.status === 'BEST_BET' ? 'best-market' : '',
-                          market.status === 'ANALYSIS_ONLY' ? 'analysis-only' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                      >
-                        <div className="pcr-market-card-head">
-                          <b>{market.label}</b>
-                          <span>{marketStatusLabel(market.status)}</span>
-                        </div>
-
-                        {market.status === 'WAITING_SCIENTIFIC_HORIZON' ? (
-                          <small>Chưa đến decision horizon hoặc chưa có odds đầy đủ.</small>
-                        ) : (
-                          <>
-                            <div className="pcr-market-selections">
-                              {market.selections.map(
-                                (selection: PersonalMarketSelectionDto) => (
-                                  <div key={selection.code}>
-                                    <span>{marketSelectionLabel(row, market, selection)}</span>
-                                    <b>{pct(selection.modelProbability)}</b>
-                                    <small>
-                                      Odds {decimal(selection.decimalOdds)} · Edge {pct(selection.edge)} ·
-                                      EV {pct(selection.expectedValue)}
-                                    </small>
-                                    <em>
-                                      {selection.eligible
-                                        ? 'Eligible'
-                                        : selection.reliabilityStatus ?? 'Not eligible'}
-                                    </em>
-                                  </div>
-                                ),
-                              )}
-                            </div>
-
-                            {strongest ? (
-                              <div className="pcr-market-lean">
-                                Model nghiêng:{' '}
-                                <b>{marketSelectionLabel(row, market, strongest)}</b>{' '}
-                                {pct(strongest.modelProbability)}
-                              </div>
-                            ) : null}
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
               </div>
 
               <div className="pcr-meta-row">
@@ -629,8 +422,8 @@ export function UpcomingPredictionBoard({
       </section>
 
       <div className="pcr-safety-note">
-        Chỉ fixture tương lai · HDA/BTTS/Over-Under đều được phân tích · BTTS/O-U chỉ trở thành
-        BEST BET khi reliability gate cho phép · không auto-bet · không real-money.
+        Chỉ fixture tương lai · loại Demo/Test/Mock · Prediction ≠ BEST BET · không auto-bet · không
+        real-money.
       </div>
     </div>
   );
