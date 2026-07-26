@@ -1,65 +1,69 @@
 import Link from 'next/link';
-import { FixtureCard } from '../components/FixtureCard';
-import { RecommendationCard } from '../components/RecommendationCard';
-import { StatCard } from '../components/StatCard';
 import { apiFetch } from '../lib/api';
-import { percent } from '../lib/format';
-import type { DashboardStats, FixtureDto, RecommendationDto } from '../lib/types';
+import type { DashboardStats } from '../lib/types';
+import type { PersonalUpcomingAnalysisDto } from '../lib/personal-types';
+
+function pct(value: number | null | undefined): string {
+  return value == null ? '—' : `${(value * 100).toFixed(1)}%`;
+}
 
 export default async function HomePage() {
-  const [stats, fixturesResponse, recommendationsResponse] = await Promise.all([
+  const [stats, analysis] = await Promise.all([
     apiFetch<DashboardStats>('/stats'),
-    apiFetch<{ data: FixtureDto[] }>('/fixtures?status=UPCOMING&limit=6'),
-    apiFetch<{ data: RecommendationDto[] }>('/recommendations?status=ACTIVE&limit=5'),
+    apiFetch<PersonalUpcomingAnalysisDto>('/personal/upcoming-analysis?days=7&limit=80'),
   ]);
 
   return (
-    <>
-      <section className="hero">
+    <div className="beta1e-home">
+      <section className="beta1e-home-hero">
         <div>
-          <span className="eyebrow">ODDS · PROBABILITY · EV</span>
-          <h1>Phát hiện value bet từ dữ liệu thị trường</h1>
+          <span className="eyebrow">FOOTBALL AI V7 · PERSONAL</span>
+          <h1>Một màn hình cho dự đoán, BEST BET và kiểm định</h1>
           <p>
-            Hệ thống lưu lịch sử odds, loại biên nhà cái, mô hình hóa xác suất bàn thắng và chỉ xếp
-            hạng lựa chọn vượt ngưỡng edge, EV và chất lượng dữ liệu.
+            Theo dõi trận sắp tới, chỉ nhận BEST BET khi đủ odds + reliability,
+            và kiểm tra model bằng backtest point-in-time nhiều giải.
           </p>
           <div className="hero-actions">
-            <Link className="button primary" href="/recommendations">Xem khuyến nghị</Link>
-            <Link className="button secondary" href="/matches">Xem trận đấu</Link>
+            <Link className="button primary" href="/predictions">Xem dự đoán sắp tới</Link>
+            <Link className="button secondary" href="/backtest">Mở Backtest Lab</Link>
           </div>
         </div>
-        <div className="hero-panel">
-          <span>Nguyên tắc</span>
-          <strong>Không chọn đội mạnh.</strong>
-          <strong>Chọn mức giá có lợi thế.</strong>
-          <small>Model Probability − Fair Market Probability = Edge</small>
+        <div className="beta1e-home-status">
+          <span>Scientific discipline</span>
+          <strong>Prediction ≠ Bet</strong>
+          <strong>BEST BET chỉ khi có value</strong>
+          <small>Không real-money · paper/research only</small>
         </div>
       </section>
 
-      <section className="stats-grid">
-        <StatCard label="Trận sắp tới" value={stats.upcomingFixtures} />
-        <StatCard label="Khuyến nghị đang hoạt động" value={stats.activeRecommendations} />
-        <StatCard label="Tỷ lệ thắng mô phỏng" value={percent(stats.hitRate)} note={`${stats.wins} thắng / ${stats.losses} thua`} />
-        <StatCard label="Lợi nhuận mô phỏng" value={`${stats.simulatedProfitUnits >= 0 ? '+' : ''}${stats.simulatedProfitUnits.toFixed(2)}u`} note={`Yield ${percent(stats.yield)}`} />
+      <section className="beta1e-kpis">
+        <div><span>Trận 7 ngày tới</span><strong>{analysis.counts.fixtures}</strong><small>{analysis.counts.predicted} có prediction</small></div>
+        <div className="accent"><span>BEST BET</span><strong>{analysis.counts.bestBets}</strong><small>scientific policy</small></div>
+        <div><span>Đang chờ</span><strong>{analysis.counts.waiting}</strong><small>odds / horizon</small></div>
+        <div><span>Active legacy rec</span><strong>{stats.activeRecommendations}</strong><small>tách khỏi BEST BET v7</small></div>
+        <div><span>Paper hit rate</span><strong>{pct(stats.hitRate)}</strong><small>{stats.wins}W / {stats.losses}L</small></div>
       </section>
 
-      <section className="section-heading">
-        <div><span className="eyebrow">TOP VALUE</span><h2>Khuyến nghị mới nhất</h2></div>
-        <Link href="/recommendations">Xem tất cả →</Link>
+      <section className="beta1e-home-grid">
+        <Link href="/predictions" className="beta1e-home-card">
+          <span className="eyebrow">01</span>
+          <h2>Dự đoán & BEST BET</h2>
+          <p>Xem xác suất Hòa/Chủ/Khách, mốc T-90 và BEST BET chính thức.</p>
+          <strong>Mở →</strong>
+        </Link>
+        <Link href="/backtest" className="beta1e-home-card">
+          <span className="eyebrow">02</span>
+          <h2>Backtest nhiều giải</h2>
+          <p>Không cần ADMIN_API_TOKEN. Chọn nhiều giải và so sánh run riêng.</p>
+          <strong>Mở →</strong>
+        </Link>
+        <Link href="/bet-history" className="beta1e-home-card">
+          <span className="eyebrow">03</span>
+          <h2>Audit & lịch sử</h2>
+          <p>BEST BET / NO BET, stake overlay, settlement và lịch sử quyết định.</p>
+          <strong>Mở →</strong>
+        </Link>
       </section>
-      <div className="recommendation-list">
-        {recommendationsResponse.data.length > 0 ? recommendationsResponse.data.map((item) => (
-          <RecommendationCard key={item.id} recommendation={item} />
-        )) : <div className="empty-state">Chưa có lựa chọn vượt ngưỡng. Chạy worker generate sau khi có odds.</div>}
-      </div>
-
-      <section className="section-heading">
-        <div><span className="eyebrow">FIXTURES</span><h2>Trận sắp diễn ra</h2></div>
-        <Link href="/matches">Xem tất cả →</Link>
-      </section>
-      <div className="fixture-grid">
-        {fixturesResponse.data.map((fixture) => <FixtureCard key={fixture.id} fixture={fixture} />)}
-      </div>
-    </>
+    </div>
   );
 }

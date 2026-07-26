@@ -1200,38 +1200,6 @@ model ApiFootballFixtureSnapshot {
   @@index([providerLeagueId, kickoffAt], map: "ApiFootballFixtureSnapshot_league_kickoff_idx")
 }
 
-model HistoricalExternalOddsSnapshot {
-  id                    Int      @id @default(autoincrement())
-  sourceProvider        String   @db.VarChar(64)
-  sourceSportKey        String   @db.VarChar(160)
-  sourceEventId         String   @db.VarChar(160)
-  sourceSnapshotAt      DateTime
-  sourceUpdatedAt       DateTime?
-  observedAt            DateTime
-  localFixtureId        Int
-  providerFixtureId     Int
-  providerLeagueId      Int
-  season                Int
-  kickoffAt             DateTime
-  bookmakerNamespaceId  Int
-  bookmakerKey          String   @db.VarChar(120)
-  bookmakerName         String   @db.VarChar(160)
-  marketType            String   @db.VarChar(32)
-  selection             String   @db.VarChar(24)
-  lineValue             Float?
-  decimalOdds           Float
-  pitUsable             Boolean  @default(false)
-  rawPayloadHash        String   @db.VarChar(64)
-  payloadHash           String   @unique @db.VarChar(64)
-  createdAt             DateTime @default(now())
-
-  @@index([localFixtureId, marketType, sourceSnapshotAt], map: "HistoricalExternalOdds_local_market_snapshot_idx")
-  @@index([providerFixtureId, marketType, sourceSnapshotAt], map: "HistoricalExternalOdds_provider_market_snapshot_idx")
-  @@index([sourceProvider, sourceSportKey, sourceSnapshotAt], map: "HistoricalExternalOdds_source_sport_snapshot_idx")
-  @@index([bookmakerNamespaceId, marketType, sourceSnapshotAt], map: "HistoricalExternalOdds_bookmaker_market_snapshot_idx")
-  @@index([pitUsable, sourceSnapshotAt], map: "HistoricalExternalOdds_pit_snapshot_idx")
-}
-
 model ApiFootballOddsSnapshot {
   id                 Int      @id @default(autoincrement())
   providerFixtureId  Int
@@ -1256,38 +1224,6 @@ model ApiFootballOddsSnapshot {
   @@index([providerFixtureId, bookmakerId, betId, sourceUpdatedAt], map: "ApiFootballOddsSnapshot_fixture_bookmaker_bet_source_idx")
   @@index([marketType, selection, lineValue], map: "ApiFootballOddsSnapshot_market_selection_line_idx")
   @@index([pitUsable, observedAt], map: "ApiFootballOddsSnapshot_pit_observed_idx")
-}
-
-model ApiFootballFreshOddsCheckpoint {
-  id                    Int      @id @default(autoincrement())
-  providerFixtureId     Int
-  providerLeagueId      Int
-  season                 Int
-  kickoffAt              DateTime
-  horizonMinutes         Int
-  horizonLabel           String   @db.VarChar(32)
-  dueAt                  DateTime
-  status                 String   @default("PENDING") @db.VarChar(24)
-  attempts               Int      @default(0)
-  attemptedAt            DateTime?
-  completedAt            DateTime?
-  nextRetryAt            DateTime?
-  lockToken              String?  @db.VarChar(64)
-  requestCount           Int      @default(0)
-  normalizedOdds         Int      @default(0)
-  insertedOdds           Int      @default(0)
-  pitUsableOdds          Int      @default(0)
-  quotaRemainingDay      Int?
-  quotaRemainingMinute   Int?
-  errorMessage           String?  @db.Text
-  metadata               Json?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@unique([providerFixtureId, horizonMinutes], map: "ApiFootballFreshOddsCheckpoint_fixture_horizon_key")
-  @@index([status, dueAt], map: "ApiFootballFreshOddsCheckpoint_status_due_idx")
-  @@index([providerFixtureId, kickoffAt], map: "ApiFootballFreshOddsCheckpoint_fixture_kickoff_idx")
-  @@index([horizonMinutes, status, dueAt], map: "ApiFootballFreshOddsCheckpoint_horizon_status_due_idx")
 }
 
 model ApiFootballDataSnapshot {
@@ -1399,109 +1335,4 @@ model ScientificPaperBetSettlement {
 
   @@index([providerFixtureId, settledAt], map: "ScientificPaperBetSettlement_fixture_settled_idx")
   @@index([result, settledAt], map: "ScientificPaperBetSettlement_result_settled_idx")
-}
-
-model ScientificBankrollRiskPolicy {
-  id                            Int      @id @default(autoincrement())
-  accountKey                    String   @db.VarChar(64)
-  policyVersion                 String   @db.VarChar(160)
-  stakingMode                   String   @db.VarChar(32)
-  startingBankrollUnits         Float
-  flatStakeUnits                Float
-  kellyFraction                 Float
-  minimumStakeUnits             Float
-  maximumStakeUnits             Float
-  maximumStakeFraction          Float
-  maximumOpenExposureFraction   Float
-  maximumDailyExposureFraction  Float
-  maximumLeagueExposureFraction Float
-  maximumDailyLossFraction      Float
-  drawdownSoftLimit             Float
-  drawdownHardLimit             Float
-  minimumBankrollUnits          Float
-  roundingUnits                 Float
-  configuration                 Json
-  payloadHash                   String   @unique @db.VarChar(64)
-  createdAt                     DateTime @default(now())
-
-  @@index([accountKey, createdAt], map: "ScientificBankrollRiskPolicy_account_created_idx")
-  @@index([policyVersion, createdAt], map: "ScientificBankrollRiskPolicy_version_created_idx")
-}
-
-model ScientificPaperStakeDecision {
-  id                           Int      @id @default(autoincrement())
-  riskPolicyId                 Int
-  riskPolicyHash               String   @db.VarChar(64)
-  paperDecisionId              Int
-  paperDecisionHash            String   @db.VarChar(64)
-  providerFixtureId            Int
-  localFixtureId               Int?
-  leagueId                     Int?
-  horizonMinutes               Int
-  decisionAsOf                 DateTime
-  evaluatedAt                  DateTime
-  kickoffAt                    DateTime
-  paperDecisionType            String   @db.VarChar(16)
-  stakeDecisionType            String   @db.VarChar(16)
-  stakingMode                  String   @db.VarChar(32)
-  selectedMarket               String?  @db.VarChar(32)
-  selectedSelection            String?  @db.VarChar(24)
-  lineValue                    Float?
-  decimalOdds                  Float?
-  modelProbability             Float?
-  fairMarketProbability        Float?
-  edge                         Float?
-  expectedValue                Float?
-  stakeUnits                   Float
-  stakeFraction                Float
-  requestedStakeUnits          Float
-  fullKellyFraction            Float?
-  appliedKellyFraction         Float?
-  drawdownMultiplier           Float
-  riskBand                     String   @db.VarChar(24)
-  bankrollBeforeUnits          Float
-  peakBankrollBeforeUnits      Float
-  openExposureBeforeUnits      Float
-  dailyExposureBeforeUnits     Float
-  leagueExposureBeforeUnits    Float
-  dailyRealizedPnlBeforeUnits  Float
-  drawdownBeforeFraction       Float
-  riskReasons                  Json
-  cappedBy                     Json
-  calculationPayload           Json
-  stakeHash                    String   @unique @db.VarChar(64)
-  createdAt                    DateTime @default(now())
-
-  @@unique([riskPolicyId, paperDecisionId], map: "ScientificPaperStakeDecision_policy_decision_key")
-  @@index([riskPolicyId, evaluatedAt], map: "ScientificPaperStakeDecision_policy_evaluated_idx")
-  @@index([stakeDecisionType, evaluatedAt], map: "ScientificPaperStakeDecision_type_evaluated_idx")
-  @@index([providerFixtureId, horizonMinutes], map: "ScientificPaperStakeDecision_fixture_horizon_idx")
-  @@index([leagueId, evaluatedAt], map: "ScientificPaperStakeDecision_league_evaluated_idx")
-}
-
-model ScientificBankrollStakeSettlement {
-  id                       Int      @id @default(autoincrement())
-  riskPolicyId             Int
-  riskPolicyHash           String   @db.VarChar(64)
-  stakeDecisionId          Int      @unique
-  paperDecisionId          Int
-  paperSettlementId        Int
-  providerFixtureId        Int
-  settledAt                DateTime
-  result                   String   @db.VarChar(16)
-  stakeUnits               Float
-  decimalOdds              Float
-  profitUnits              Float
-  bankrollBeforeUnits      Float
-  bankrollAfterUnits       Float
-  peakBankrollAfterUnits   Float
-  drawdownAfterFraction    Float
-  settlementPayload        Json
-  settlementHash           String   @unique @db.VarChar(64)
-  createdAt                DateTime @default(now())
-
-  @@unique([riskPolicyId, paperSettlementId], map: "ScientificBankrollStakeSettlement_policy_paper_key")
-  @@index([riskPolicyId, settledAt], map: "ScientificBankrollStakeSettlement_policy_settled_idx")
-  @@index([result, settledAt], map: "ScientificBankrollStakeSettlement_result_settled_idx")
-  @@index([providerFixtureId, settledAt], map: "ScientificBankrollStakeSettlement_fixture_settled_idx")
 }

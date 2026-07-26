@@ -2,22 +2,22 @@ import Link from 'next/link';
 
 export function Header() {
   return (
-    <header className="site-header">
+    <header className="site-header beta1e-header">
       <div className="container header-inner">
         <Link href="/" className="brand">
           <span className="brand-mark">FA</span>
           <span>
-            <strong>Football Value AI</strong>
-            <small>Odds-driven decision support</small>
+            <strong>Football AI v7</strong>
+            <small>Personal research console</small>
           </span>
         </Link>
-        <nav className="navigation" aria-label="Điều hướng chính">
+
+        <nav className="navigation beta1e-navigation" aria-label="Điều hướng chính">
           <Link href="/">Tổng quan</Link>
-          <Link href="/matches">Trận đấu</Link>
-          <Link href="/recommendations">Khuyến nghị</Link>
-          <Link href="/scientific">Live AI</Link>
-          <Link href="/bet-history">Lịch sử bet</Link>
+          <Link href="/predictions">Dự đoán & BEST BET</Link>
           <Link href="/backtest">Backtest</Link>
+          <Link href="/matches">Trận đấu</Link>
+          <Link href="/bet-history">Lịch sử</Link>
         </nav>
       </div>
     </header>

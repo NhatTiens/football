@@ -95,4 +95,3 @@ export * from './scientific-best-bet-policy-contract.js';
 export * from './scientific-multi-market-replay-contract.js';
 export * from './real-odds-paper-bet-core.js';
 export * from './real-odds-paper-bet-engine.js';
-export * from './personal-console-engine.js';

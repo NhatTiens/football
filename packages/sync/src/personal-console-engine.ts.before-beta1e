@@ -1,0 +1,471 @@
+import { prisma } from '@football-ai/database';
+
+import { syncFixtures } from './fixtures.js';
+import { syncPredictions } from './predictions.js';
+import {
+  collectFreshOddsDue,
+  discoverFreshOddsFixtures,
+  planFreshOddsCheckpoints,
+} from './fresh-odds-collector-engine.js';
+import { runLiveScientificPaperBetDecisions } from './real-odds-paper-bet-engine.js';
+import { planUnallocatedScientificPaperStakes } from './bankroll-risk-engine.js';
+
+export const PERSONAL_CONSOLE_VERSION = 'v7.0-beta.1E-personal-console-v1';
+
+const DAY_MS = 86_400_000;
+
+type PredictionSource = 'SCIENTIFIC_DECISION' | 'API_FOOTBALL' | 'NONE';
+
+interface PersonalUpcomingOptions {
+  now?: Date;
+  days?: number;
+  leagueIds?: number[];
+  limit?: number;
+}
+
+interface PersonalRefreshOptions {
+  days?: number;
+  leagueIds?: number[];
+}
+
+function finiteInt(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+function uniqueInts(values: unknown): number[] {
+  if (!Array.isArray(values)) return [];
+  return [
+    ...new Set(
+      values
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0),
+    ),
+  ];
+}
+
+function numeric(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function predictedSelection(input: {
+  home: number | null;
+  draw: number | null;
+  away: number | null;
+}): 'HOME' | 'DRAW' | 'AWAY' | null {
+  const entries = [
+    ['HOME', input.home],
+    ['DRAW', input.draw],
+    ['AWAY', input.away],
+  ] as const;
+  const valid = entries.filter((entry) => entry[1] != null) as Array<
+    readonly ['HOME' | 'DRAW' | 'AWAY', number]
+  >;
+  if (valid.length !== 3) return null;
+  valid.sort((left, right) => right[1] - left[1]);
+  return valid[0]?.[0] ?? null;
+}
+
+function probabilityFromCandidates(
+  candidates: Array<{
+    marketType: string;
+    selection: string;
+    modelProbability: number;
+  }>,
+  selection: 'HOME' | 'DRAW' | 'AWAY',
+): number | null {
+  const row = candidates.find(
+    (candidate) =>
+      candidate.marketType === 'MATCH_WINNER' && candidate.selection === selection,
+  );
+  return row ? numeric(row.modelProbability) : null;
+}
+
+function nextCheckpointForFixture(
+  rows: Array<{
+    providerFixtureId: number;
+    horizonMinutes: number;
+    horizonLabel: string;
+    dueAt: Date;
+    status: string;
+    completedAt: Date | null;
+  }>,
+  providerFixtureId: number,
+) {
+  return (
+    rows
+      .filter(
+        (row) =>
+          row.providerFixtureId === providerFixtureId &&
+          row.completedAt == null &&
+          !['SUCCESS', 'EMPTY', 'FAILED', 'SKIPPED'].includes(row.status),
+      )
+      .sort((left, right) => left.dueAt.getTime() - right.dueAt.getTime())[0] ?? null
+  );
+}
+
+export async function getPersonalUpcomingAnalysis(
+  options: PersonalUpcomingOptions = {},
+): Promise<Record<string, unknown>> {
+  const now = options.now ?? new Date();
+  const days = finiteInt(options.days, 7, 1, 21);
+  const limit = finiteInt(options.limit, 100, 1, 250);
+  const leagueIds = uniqueInts(options.leagueIds);
+  const until = new Date(now.getTime() + days * DAY_MS);
+
+  const fixtures = await prisma.fixture.findMany({
+    where: {
+      status: 'UPCOMING',
+      kickoffAt: { gt: now, lte: until },
+      ...(leagueIds.length > 0 ? { leagueId: { in: leagueIds } } : {}),
+    },
+    include: {
+      league: true,
+      homeTeam: true,
+      awayTeam: true,
+      externalPrediction: true,
+    },
+    orderBy: { kickoffAt: 'asc' },
+    take: limit,
+  });
+
+  const providerFixtureIds = fixtures.map((fixture) => fixture.apiFixtureId);
+
+  const [decisionRows, checkpointRows] =
+    providerFixtureIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+          prisma.scientificPaperBetDecision.findMany({
+            where: {
+              providerFixtureId: { in: providerFixtureIds },
+              kickoffAt: { gt: now },
+            },
+            include: { candidates: true },
+            orderBy: [{ decisionAsOf: 'desc' }, { id: 'desc' }],
+          }),
+          prisma.apiFootballFreshOddsCheckpoint.findMany({
+            where: {
+              providerFixtureId: { in: providerFixtureIds },
+            },
+            select: {
+              providerFixtureId: true,
+              horizonMinutes: true,
+              horizonLabel: true,
+              dueAt: true,
+              status: true,
+              completedAt: true,
+            },
+            orderBy: [{ dueAt: 'asc' }, { id: 'asc' }],
+          }),
+        ]);
+
+  const latestDecision = new Map<number, (typeof decisionRows)[number]>();
+  for (const decision of decisionRows) {
+    if (!latestDecision.has(decision.providerFixtureId)) {
+      latestDecision.set(decision.providerFixtureId, decision);
+    }
+  }
+
+  const decisionIds = [...latestDecision.values()].map((decision) => decision.id);
+  const stakeRows =
+    decisionIds.length === 0
+      ? []
+      : await prisma.scientificPaperStakeDecision.findMany({
+          where: { paperDecisionId: { in: decisionIds } },
+          orderBy: [{ evaluatedAt: 'desc' }, { id: 'desc' }],
+        });
+  const latestStake = new Map<number, (typeof stakeRows)[number]>();
+  for (const stake of stakeRows) {
+    if (!latestStake.has(stake.paperDecisionId)) latestStake.set(stake.paperDecisionId, stake);
+  }
+
+  const data = fixtures.map((fixture) => {
+    const decision = latestDecision.get(fixture.apiFixtureId) ?? null;
+    const candidates = decision?.candidates ?? [];
+    const providerPrediction = fixture.externalPrediction;
+
+    const scientificHome = probabilityFromCandidates(candidates, 'HOME');
+    const scientificDraw = probabilityFromCandidates(candidates, 'DRAW');
+    const scientificAway = probabilityFromCandidates(candidates, 'AWAY');
+    const hasScientificHda =
+      scientificHome != null && scientificDraw != null && scientificAway != null;
+
+    const predictionSource: PredictionSource = hasScientificHda
+      ? 'SCIENTIFIC_DECISION'
+      : providerPrediction
+        ? 'API_FOOTBALL'
+        : 'NONE';
+
+    const probabilities = hasScientificHda
+      ? {
+          home: scientificHome,
+          draw: scientificDraw,
+          away: scientificAway,
+        }
+      : {
+          home: numeric(providerPrediction?.homeProbability),
+          draw: numeric(providerPrediction?.drawProbability),
+          away: numeric(providerPrediction?.awayProbability),
+        };
+
+    const prediction = predictedSelection(probabilities);
+    const stake = decision ? latestStake.get(decision.id) ?? null : null;
+    const nextCheckpoint = nextCheckpointForFixture(checkpointRows, fixture.apiFixtureId);
+
+    return {
+      fixture: {
+        id: fixture.id,
+        apiFixtureId: fixture.apiFixtureId,
+        kickoffAt: fixture.kickoffAt.toISOString(),
+        round: fixture.round,
+        league: {
+          id: fixture.league.id,
+          apiLeagueId: fixture.league.apiLeagueId,
+          name: fixture.league.name,
+          country: fixture.league.country,
+          season: fixture.league.season,
+          logoUrl: fixture.league.logoUrl,
+        },
+        homeTeam: {
+          id: fixture.homeTeam.id,
+          apiTeamId: fixture.homeTeam.apiTeamId,
+          name: fixture.homeTeam.name,
+          logoUrl: fixture.homeTeam.logoUrl,
+        },
+        awayTeam: {
+          id: fixture.awayTeam.id,
+          apiTeamId: fixture.awayTeam.apiTeamId,
+          name: fixture.awayTeam.name,
+          logoUrl: fixture.awayTeam.logoUrl,
+        },
+      },
+      prediction: {
+        source: predictionSource,
+        homeProbability: probabilities.home,
+        drawProbability: probabilities.draw,
+        awayProbability: probabilities.away,
+        predictedSelection: prediction,
+        providerAdvice: providerPrediction?.advice ?? null,
+        providerPredictedWinner: providerPrediction?.predictedWinner ?? null,
+        providerCapturedAt: providerPrediction?.capturedAt?.toISOString() ?? null,
+      },
+      decision: decision
+        ? {
+            id: decision.id,
+            decisionType: decision.decisionType,
+            horizonMinutes: decision.horizonMinutes,
+            decisionAsOf: decision.decisionAsOf.toISOString(),
+            selectedMarket: decision.selectedMarket,
+            selectedSelection: decision.selectedSelection,
+            lineValue: decision.lineValue,
+            decimalOdds: decision.decimalOdds,
+            bookmakerName: decision.bookmakerName,
+            modelProbability: decision.modelProbability,
+            fairMarketProbability: decision.fairMarketProbability,
+            edge: decision.edge,
+            expectedValue: decision.expectedValue,
+            reliabilityStatus: decision.reliabilityStatus,
+            modelVersion: decision.modelVersion,
+            policyVersion: decision.policyVersion,
+            candidateCount: decision.candidateCount,
+            rejectedCandidateCount: decision.rejectedCandidateCount,
+            candidates: candidates
+              .slice()
+              .sort((left, right) => right.expectedValue - left.expectedValue)
+              .slice(0, 20)
+              .map((candidate) => ({
+                marketType: candidate.marketType,
+                selection: candidate.selection,
+                lineValue: candidate.lineValue,
+                decimalOdds: candidate.decimalOdds,
+                bookmakerName: candidate.bookmakerName,
+                modelProbability: candidate.modelProbability,
+                fairMarketProbability: candidate.fairMarketProbability,
+                edge: candidate.edge,
+                expectedValue: candidate.expectedValue,
+                reliabilityStatus: candidate.reliabilityStatus,
+                eligible: candidate.eligible,
+                rejectionReasons: candidate.rejectionReasons,
+              })),
+          }
+        : null,
+      stake: stake
+        ? {
+            stakeDecisionType: stake.stakeDecisionType,
+            stakingMode: stake.stakingMode,
+            stakeUnits: stake.stakeUnits,
+            stakeFraction: stake.stakeFraction,
+            riskBand: stake.riskBand,
+            riskReasons: stake.riskReasons,
+            evaluatedAt: stake.evaluatedAt.toISOString(),
+          }
+        : null,
+      nextCheckpoint: nextCheckpoint
+        ? {
+            horizonMinutes: nextCheckpoint.horizonMinutes,
+            horizonLabel: nextCheckpoint.horizonLabel,
+            dueAt: nextCheckpoint.dueAt.toISOString(),
+            status: nextCheckpoint.status,
+          }
+        : null,
+      state:
+        decision?.decisionType === 'BEST_BET'
+          ? 'BEST_BET'
+          : decision?.decisionType === 'NO_BET'
+            ? 'NO_BET'
+            : predictionSource === 'NONE'
+              ? 'WAITING_PREDICTION'
+              : 'WAITING_SCIENTIFIC_DECISION',
+    };
+  });
+
+  const topBestBets = data
+    .filter((row) => row.decision?.decisionType === 'BEST_BET')
+    .sort(
+      (left, right) =>
+        (right.decision?.expectedValue ?? -999) - (left.decision?.expectedValue ?? -999) ||
+        (right.decision?.edge ?? -999) - (left.decision?.edge ?? -999),
+    )
+    .slice(0, 10);
+
+  const leagues = [...new Map(
+    fixtures.map((fixture) => [
+      fixture.league.id,
+      {
+        id: fixture.league.id,
+        apiLeagueId: fixture.league.apiLeagueId,
+        name: fixture.league.name,
+        country: fixture.league.country,
+        season: fixture.league.season,
+      },
+    ]),
+  ).values()];
+
+  return {
+    version: PERSONAL_CONSOLE_VERSION,
+    generatedAt: new Date().toISOString(),
+    window: {
+      from: now.toISOString(),
+      to: until.toISOString(),
+      days,
+    },
+    counts: {
+      fixtures: data.length,
+      predicted: data.filter((row) => row.prediction.source !== 'NONE').length,
+      scientificDecisions: data.filter((row) => row.decision != null).length,
+      bestBets: topBestBets.length,
+      noBets: data.filter((row) => row.decision?.decisionType === 'NO_BET').length,
+      waiting: data.filter((row) => row.decision == null).length,
+    },
+    leagues,
+    topBestBets,
+    fixtures: data,
+    integrity: {
+      personalMode: true,
+      readOnlyAnalysis: true,
+      bestBetComesOnlyFromScientificPaperDecision: true,
+      syntheticOddsUsed: false,
+      realMoneyExecution: false,
+      automaticBetPlacement: false,
+      automaticPromotion: false,
+    },
+  };
+}
+
+export async function refreshPersonalUpcomingAnalysis(
+  options: PersonalRefreshOptions = {},
+): Promise<Record<string, unknown>> {
+  const days = finiteInt(options.days, 7, 1, 21);
+  const leagueIds = uniqueInts(options.leagueIds);
+  const now = new Date();
+  const to = new Date(now.getTime() + days * DAY_MS);
+
+  const leagues =
+    leagueIds.length === 0
+      ? await prisma.league.findMany({
+          where: { enabled: true },
+          orderBy: [{ country: 'asc' }, { name: 'asc' }, { season: 'desc' }],
+          take: 24,
+        })
+      : await prisma.league.findMany({
+          where: { id: { in: leagueIds }, enabled: true },
+          orderBy: [{ country: 'asc' }, { name: 'asc' }],
+          take: 24,
+        });
+
+  const leagueConfigurations = leagues.map((league) => ({
+    leagueId: league.apiLeagueId,
+    season: league.season,
+  }));
+
+  if (leagueConfigurations.length === 0) {
+    throw new Error('NO_ENABLED_LEAGUES_SELECTED_FOR_PERSONAL_REFRESH');
+  }
+
+  const fixtureSync = await syncFixtures({
+    from: now.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+    leagueConfigurations,
+  });
+
+  const upcoming = await prisma.fixture.findMany({
+    where: {
+      leagueId: { in: leagues.map((league) => league.id) },
+      status: 'UPCOMING',
+      kickoffAt: { gt: now, lte: to },
+    },
+    select: { id: true },
+    take: 500,
+  });
+
+  const predictionSync = await syncPredictions({
+    fixtureIds: upcoming.map((fixture) => fixture.id),
+  });
+
+  const providerLeagueIds = leagues.map((league) => league.apiLeagueId);
+  const previousExplicit = process.env.FRESH_ODDS_LEAGUE_IDS;
+  let freshDiscovery: unknown;
+  try {
+    process.env.FRESH_ODDS_LEAGUE_IDS = providerLeagueIds.join(',');
+    freshDiscovery = await discoverFreshOddsFixtures();
+  } finally {
+    if (previousExplicit == null) delete process.env.FRESH_ODDS_LEAGUE_IDS;
+    else process.env.FRESH_ODDS_LEAGUE_IDS = previousExplicit;
+  }
+
+  const freshPlan = await planFreshOddsCheckpoints(now);
+  const freshCollect = await collectFreshOddsDue(now);
+  const paperDecisions = await runLiveScientificPaperBetDecisions({ now });
+  const riskOverlay = await planUnallocatedScientificPaperStakes({ limit: 250 });
+
+  return {
+    version: PERSONAL_CONSOLE_VERSION,
+    command: 'refresh',
+    startedAt: now.toISOString(),
+    finishedAt: new Date().toISOString(),
+    selectedLeagues: leagues.map((league) => ({
+      id: league.id,
+      apiLeagueId: league.apiLeagueId,
+      name: league.name,
+      season: league.season,
+    })),
+    fixtureSync,
+    predictionSync,
+    freshDiscovery,
+    freshPlan,
+    freshCollect,
+    paperDecisions,
+    riskOverlay,
+    safety: {
+      personalMode: true,
+      adminTokenRequired: false,
+      externalApiCalled: true,
+      databaseWritten: true,
+      syntheticOddsUsed: false,
+      automaticBetPlacement: false,
+      realMoneyExecution: false,
+      automaticPromotion: false,
+    },
+  };
+}

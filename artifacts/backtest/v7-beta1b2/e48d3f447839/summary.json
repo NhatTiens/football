@@ -1,0 +1,101 @@
+{
+  "version": "v7.0-beta.1B.2-real-odds-historical-best-bet-benchmark-v1",
+  "evidenceClass": "HISTORICAL_REAL_ODDS_DIAGNOSTIC_NON_PROMOTIONAL",
+  "promotional": false,
+  "policyVersion": "v7.0-beta.1A.4-best-bet-policy-reliability-v1",
+  "policy": {
+    "minimumOdds": 1.4,
+    "minimumEdge": 0.04,
+    "minimumExpectedValue": 0.03,
+    "maximumBetsPerFixture": 1,
+    "minimumReliabilityRows": 150,
+    "minimumRelativeBrierSkillVsClimatology": 0.005,
+    "minimumLogLossSkillVsClimatology": 0.005,
+    "maximumEce": 0.05,
+    "stakeUnitsForEvaluation": 1
+  },
+  "sourceReplay": {
+    "runId": 1,
+    "providerVersion": "v7.0-beta.1A-provider-replay-v1",
+    "payloadHash": "cda30efe820eaa81d8bfec6c039ea468ef504372f737c7ccef1a46928780546d",
+    "dateFrom": "2022-01-01T00:00:00.000Z",
+    "dateTo": "2024-12-31T23:59:59.000Z",
+    "horizonMinutes": 90
+  },
+  "reliability": {
+    "MATCH_WINNER": {
+      "status": "DIAGNOSTIC_ELIGIBLE",
+      "eligible": true,
+      "rows": 171,
+      "relativeBrierSkillVsClimatology": 0.057000929750785856,
+      "logLossSkillVsClimatology": 0.04859621157347482,
+      "ece": 0.025757603238431338
+    },
+    "blockedMarkets": [
+      "TOTAL_GOALS_1_5",
+      "TOTAL_GOALS_2_5",
+      "TOTAL_GOALS_3_5",
+      "BTTS"
+    ]
+  },
+  "coverage": {
+    "replayPredictionsLoaded": 171,
+    "evaluatedEvents": 171,
+    "skipped": {
+      "missingFixture": 0,
+      "missingFinalScore": 0,
+      "fixtureKickoffMismatch": 0
+    },
+    "maxOddsAgeMinutes": 360,
+    "fixtureLimit": 5000,
+    "oddsCoveredEvents": 0,
+    "noOddsCoverage": 171
+  },
+  "metrics": {
+    "replayEvents": 171,
+    "oddsCoveredEvents": 0,
+    "noOddsCoverage": 171,
+    "bestBets": 0,
+    "noBets": 0,
+    "wins": 0,
+    "losses": 0,
+    "hitRate": null,
+    "stakeUnits": 0,
+    "profitUnits": 0,
+    "roi": null,
+    "yieldRate": null,
+    "averageOdds": null,
+    "averageExpectedValue": null,
+    "maximumDrawdownUnits": 0,
+    "clvRows": 0,
+    "averageClvPriceRatio": null,
+    "positiveClvRate": null,
+    "futureOddsViolations": 0,
+    "providerFixtureMismatches": 0
+  },
+  "integrity": {
+    "pitViolations": 0,
+    "lateIngestionRows": 0,
+    "providerFixtureMismatches": 0,
+    "predictionRowsNotPitSafe": 0,
+    "maximumBetsPerFixtureObserved": 0,
+    "policyMaximumBetsPerFixture": 1,
+    "onlyReliabilityEligibleMarketCanBet": true,
+    "decisionUsesClosingOdds": false,
+    "syntheticOddsUsed": false,
+    "apiCalled": false,
+    "paperBetLedgerWritten": false,
+    "productionRoutingChanged": false,
+    "realMoneyExecution": false,
+    "promotional": false
+  },
+  "safety": {
+    "externalApiCalled": false,
+    "syntheticOddsUsed": false,
+    "productionModelChanged": false,
+    "automaticPromotion": false,
+    "realMoneyExecution": false,
+    "paperBetLedgerWritten": false
+  },
+  "nextStage": "v7.0-beta.1C-after-beta.1B.2-review"
+}

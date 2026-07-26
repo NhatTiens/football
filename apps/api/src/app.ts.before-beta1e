@@ -23,7 +23,6 @@ import {
   syncLineups,
   syncPredictions,
 } from '@football-ai/sync';
-import { getPersonalUpcomingAnalysis, refreshPersonalUpcomingAnalysis } from '@football-ai/sync';
 import { env } from './env.js';
 import { openApiDocument } from './openapi.js'; import { getScientificDashboard } from './scientific-dashboard.js';
 import { scientificRouter } from './scientific-routes.js';
@@ -557,130 +556,7 @@ app.post(
 
 app.use('/api/scientific', scientificRouter);
 
-app.get( '/api/scientific/dashboard', asyncRoute(async (_request, response) => { response.json(await getScientificDashboard(prisma as any)); }), ); 
-app.get(
-  '/api/personal/upcoming-analysis',
-  asyncRoute(async (request, response) => {
-    const days = request.query.days ? Number(request.query.days) : undefined;
-    const limit = request.query.limit ? Number(request.query.limit) : undefined;
-    const leagueIds =
-      typeof request.query.leagueIds === 'string'
-        ? request.query.leagueIds
-            .split(',')
-            .map(Number)
-            .filter((value) => Number.isInteger(value) && value > 0)
-        : undefined;
-    response.json(await getPersonalUpcomingAnalysis({ days, limit, leagueIds }));
-  }),
-);
-
-app.post(
-  '/api/personal/upcoming/refresh',
-  asyncRoute(async (request, response) => {
-    const body = request.body ?? {};
-    const leagueIds = Array.isArray(body.leagueIds)
-      ? body.leagueIds.map(Number).filter((value) => Number.isInteger(value) && value > 0)
-      : undefined;
-    response.json(
-      await refreshPersonalUpcomingAnalysis({
-        days: body.days ? Number(body.days) : undefined,
-        leagueIds,
-      }),
-    );
-  }),
-);
-
-app.get(
-  '/api/personal/backtest/leagues',
-  asyncRoute(async (_request, response) => {
-    const leagues = await prisma.league.findMany({
-      where: { enabled: true },
-      orderBy: [{ country: 'asc' }, { name: 'asc' }, { season: 'desc' }],
-      select: {
-        id: true,
-        apiLeagueId: true,
-        name: true,
-        country: true,
-        season: true,
-        logoUrl: true,
-      },
-    });
-    const finished = await prisma.fixture.groupBy({
-      by: ['leagueId'],
-      where: { status: FixtureStatus.FINISHED },
-      _count: { _all: true },
-    });
-    const upcoming = await prisma.fixture.groupBy({
-      by: ['leagueId'],
-      where: { status: FixtureStatus.UPCOMING, kickoffAt: { gt: new Date() } },
-      _count: { _all: true },
-    });
-    const finishedMap = new Map(finished.map((row) => [row.leagueId, row._count._all]));
-    const upcomingMap = new Map(upcoming.map((row) => [row.leagueId, row._count._all]));
-    response.json({
-      data: leagues
-        .map((league) => ({
-          ...league,
-          finishedFixtures: finishedMap.get(league.id) ?? 0,
-          upcomingFixtures: upcomingMap.get(league.id) ?? 0,
-        }))
-        .sort((left, right) => right.finishedFixtures - left.finishedFixtures || left.name.localeCompare(right.name)),
-    });
-  }),
-);
-
-app.post(
-  '/api/personal/backtests/run',
-  asyncRoute(async (request, response) => {
-    const body = request.body ?? {};
-    const requestedLeagueIds = Array.isArray(body.leagueIds)
-      ? [...new Set(body.leagueIds.map(Number).filter((value) => Number.isInteger(value) && value > 0))]
-      : [];
-    if (requestedLeagueIds.length > 24) {
-      response.status(400).json({ error: 'Maximum 24 leagues per personal backtest request.' });
-      return;
-    }
-
-    const leagueIds = requestedLeagueIds.length > 0 ? requestedLeagueIds : [undefined];
-    const runs = [];
-    for (const leagueId of leagueIds) {
-      const league =
-        typeof leagueId === 'number'
-          ? await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
-          : null;
-      const run = await runBacktest({
-        name:
-          typeof body.name === 'string'
-            ? body.name
-            : 'Personal Backtest' +
-              (league?.name ? ' · ' + league.name : ' · All leagues') +
-              ' · ' +
-              String(body.from ?? '') +
-              ' → ' +
-              String(body.to ?? ''),
-        leagueId,
-        from: body.from,
-        to: body.to,
-        fixtureLimit: body.fixtureLimit ? Number(body.fixtureLimit) : undefined,
-        stakeUnits: body.stakeUnits ? Number(body.stakeUnits) : undefined,
-        rules: body.rules && typeof body.rules === 'object' ? body.rules : undefined,
-      });
-      runs.push({ id: run.id, name: run.name });
-    }
-
-    response.status(201).json({
-      mode: 'PERSONAL',
-      adminTokenRequired: false,
-      runs,
-      safety: {
-        realMoneyExecution: false,
-        automaticBetPlacement: false,
-      },
-    });
-  }),
-);
-
-app.get('/api/openapi.json', (_request, response) => response.json(openApiDocument));
+app.get( '/api/scientific/dashboard', asyncRoute(async (_request, response) => { response.json(await getScientificDashboard(prisma as any)); }), ); app.get('/api/openapi.json', (_request, response) => response.json(openApiDocument));
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
 app.use((_request, response) => {

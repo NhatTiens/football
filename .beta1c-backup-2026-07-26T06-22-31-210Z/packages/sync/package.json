@@ -49,14 +49,7 @@
     "fresh-odds:tick": "tsx src/fresh-odds-collector-cli.ts tick",
     "fresh-odds:coverage": "tsx src/fresh-odds-collector-cli.ts coverage",
     "fresh-odds:once": "tsx src/fresh-odds-collector-cli.ts once",
-    "fresh-odds:daemon": "tsx src/fresh-odds-collector-cli.ts daemon",
-    "test:bankroll-risk": "vitest run tests/bankroll-risk.test.ts",
-    "bankroll:risk-readiness": "tsx src/bankroll-risk-cli.ts readiness",
-    "bankroll:risk-freeze-policy": "tsx src/bankroll-risk-cli.ts freeze-policy",
-    "bankroll:risk-plan": "tsx src/bankroll-risk-cli.ts plan",
-    "bankroll:risk-settle": "tsx src/bankroll-risk-cli.ts settle",
-    "bankroll:risk-coverage": "tsx src/bankroll-risk-cli.ts coverage",
-    "bankroll:risk-cycle": "tsx src/bankroll-risk-cli.ts cycle"
+    "fresh-odds:daemon": "tsx src/fresh-odds-collector-cli.ts daemon"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",

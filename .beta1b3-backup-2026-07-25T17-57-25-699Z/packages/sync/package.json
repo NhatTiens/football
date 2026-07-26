@@ -41,22 +41,7 @@
     "historical-odds:probe": "tsx src/historical-real-odds-backfill-cli.ts probe",
     "historical-odds:backfill-decision": "tsx src/historical-real-odds-backfill-cli.ts backfill-decision",
     "historical-odds:backfill-closing": "tsx src/historical-real-odds-backfill-cli.ts backfill-closing",
-    "historical-odds:coverage": "tsx src/historical-real-odds-backfill-cli.ts coverage",
-    "test:fresh-odds-collector": "vitest run tests/fresh-odds-collector.test.ts",
-    "fresh-odds:readiness": "tsx src/fresh-odds-collector-cli.ts readiness",
-    "fresh-odds:discover": "tsx src/fresh-odds-collector-cli.ts discover",
-    "fresh-odds:plan": "tsx src/fresh-odds-collector-cli.ts plan",
-    "fresh-odds:tick": "tsx src/fresh-odds-collector-cli.ts tick",
-    "fresh-odds:coverage": "tsx src/fresh-odds-collector-cli.ts coverage",
-    "fresh-odds:once": "tsx src/fresh-odds-collector-cli.ts once",
-    "fresh-odds:daemon": "tsx src/fresh-odds-collector-cli.ts daemon",
-    "test:bankroll-risk": "vitest run tests/bankroll-risk.test.ts",
-    "bankroll:risk-readiness": "tsx src/bankroll-risk-cli.ts readiness",
-    "bankroll:risk-freeze-policy": "tsx src/bankroll-risk-cli.ts freeze-policy",
-    "bankroll:risk-plan": "tsx src/bankroll-risk-cli.ts plan",
-    "bankroll:risk-settle": "tsx src/bankroll-risk-cli.ts settle",
-    "bankroll:risk-coverage": "tsx src/bankroll-risk-cli.ts coverage",
-    "bankroll:risk-cycle": "tsx src/bankroll-risk-cli.ts cycle"
+    "historical-odds:coverage": "tsx src/historical-real-odds-backfill-cli.ts coverage"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",
