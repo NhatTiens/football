@@ -1,0 +1,14 @@
+[
+  {
+    "relative": "packages/sync/src/context-coverage-audit-cli.ts",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/context-snapshots.ts",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/scientific-features.ts",
+    "existed": true
+  }
+]

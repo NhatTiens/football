@@ -211,10 +211,15 @@ export async function runScientificWalkForward(
       const testFrom = fixtures[testStartIndex]!.kickoffAt;
       const testTo = fixtures[testEndExclusive - 1]!.kickoffAt;
 
-      process.env.SCIENTIFIC_TRAINING_LIMIT = String(trainingCount);
-      process.env.SCIENTIFIC_TRAINING_PURPOSE = `walk-forward-fold-${foldIndex}`;
-      process.env.SCIENTIFIC_TRAINING_NO_PROMOTE = 'true';
-      await trainScientificModel();
+      const trainingCompletedAt = plusOneMillisecond(trainThrough);
+      await trainScientificModel({
+        limit: trainingCount,
+        through: trainThrough,
+        ...(options.leagueId ? { leagueId: options.leagueId } : {}),
+        trainedAt: trainingCompletedAt,
+        purpose: `walk-forward-fold-${foldIndex}`,
+        noPromote: true,
+      });
 
       const artifactSetting = await prisma.appSetting.findUnique({
         where: { key: SCIENTIFIC_MODEL_KEY },
@@ -223,6 +228,27 @@ export async function runScientificWalkForward(
         throw new Error(`Fold ${foldIndex} did not produce a model artifact.`);
       }
       const artifact = artifactSetting.value as unknown as ScientificModelArtifact;
+      const artifactTrainedThrough = new Date(artifact.trainedThrough);
+      const artifactTrainedAt = new Date(artifact.trainedAt);
+      const firstPredictionAsOf = new Date(
+        testFrom.getTime() - horizonMinutes * 60_000,
+      );
+      if (
+        !Number.isFinite(artifactTrainedThrough.getTime()) ||
+        artifactTrainedThrough.getTime() > trainThrough.getTime()
+      ) {
+        throw new Error(
+          `Fold ${foldIndex} artifact trainedThrough is outside the historical training cutoff.`,
+        );
+      }
+      if (
+        !Number.isFinite(artifactTrainedAt.getTime()) ||
+        artifactTrainedAt.getTime() > firstPredictionAsOf.getTime()
+      ) {
+        throw new Error(
+          `Fold ${foldIndex} artifact trainedAt is after the first predictionAsOf; ML would be disabled by the leakage guard.`,
+        );
+      }
       const metadata = await saveScientificModelArtifact({
         artifact,
         purpose: `walk-forward-fold-${foldIndex}`,

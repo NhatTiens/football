@@ -101,6 +101,7 @@ model Fixture {
   awayTeam                  Team                       @relation("AwayTeam", fields: [awayTeamId], references: [id])
   oddsSnapshots             OddsSnapshot[]
   oddsCollectionCheckpoints OddsCollectionCheckpoint[]
+  contextCollectionCheckpoints FixtureContextCollectionCheckpoint[]
   externalPrediction        ExternalPrediction?
   recommendations           Recommendation[]
   backtestBets              BacktestBet[]
@@ -1133,6 +1134,74 @@ model FixtureInjury {
   @@unique([fixtureId, teamId, apiPlayerId])
   @@index([teamId, fixtureId])
   @@index([capturedAt])
+}
+
+
+model FixtureInjurySnapshot {
+  id          Int      @id @default(autoincrement())
+  fixtureId   Int
+  capturedAt  DateTime
+  contentHash String   @db.VarChar(64)
+  playerCount Int      @default(0)
+  rawPayload  Json?
+  createdAt   DateTime @default(now())
+  players     FixtureInjurySnapshotPlayer[]
+
+  @@unique([fixtureId, capturedAt], map: "FixtureInjurySnapshot_fixture_captured_key")
+  @@index([fixtureId, capturedAt], map: "FixtureInjurySnapshot_fixture_captured_idx")
+  @@index([contentHash], map: "FixtureInjurySnapshot_hash_idx")
+}
+
+model FixtureInjurySnapshotPlayer {
+  id          Int                   @id @default(autoincrement())
+  snapshotId  Int
+  teamId      Int
+  apiPlayerId Int
+  playerName  String
+  reason      String?
+  injuryType  String?
+  rawPayload  Json?
+  snapshot    FixtureInjurySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, teamId, apiPlayerId], map: "FixtureInjurySnapshotPlayer_snapshot_team_player_key")
+  @@index([teamId, apiPlayerId], map: "FixtureInjurySnapshotPlayer_team_player_idx")
+}
+
+model FixtureContextCoverageSnapshot {
+  id            Int      @id @default(autoincrement())
+  fixtureId     Int
+  dataType      String   @db.VarChar(24)
+  capturedAt    DateTime
+  responseCount Int      @default(0)
+  contentHash   String   @db.VarChar(64)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([fixtureId, dataType, capturedAt], map: "FixtureContextCoverage_fixture_type_captured_idx")
+  @@index([dataType, capturedAt], map: "FixtureContextCoverage_type_captured_idx")
+  @@index([contentHash], map: "FixtureContextCoverage_hash_idx")
+}
+
+model FixtureContextCollectionCheckpoint {
+  id              Int       @id @default(autoincrement())
+  fixtureId       Int
+  horizonMinutes  Int
+  dueAt           DateTime
+  status          String    @default("PENDING") @db.VarChar(32)
+  attemptedAt     DateTime?
+  completedAt     DateTime?
+  attempts        Int       @default(0)
+  lineupProcessed Int       @default(0)
+  injuryProcessed Int       @default(0)
+  lockToken       String?   @db.VarChar(64)
+  errorMessage    String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  fixture         Fixture   @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+
+  @@unique([fixtureId, horizonMinutes])
+  @@index([status, dueAt])
+  @@index([fixtureId, completedAt])
 }
 
 model TeamElo {

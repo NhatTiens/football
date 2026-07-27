@@ -27,14 +27,18 @@ export type ScientificFeatureName = (typeof SCIENTIFIC_FEATURE_NAMES)[number];
 export interface ScientificTrainingSample {
   features: number[];
   matchWinnerClass: 0 | 1 | 2;
+  over15?: 0 | 1;
   over25: 0 | 1;
+  over35?: 0 | 1;
   btts: 0 | 1;
   kickoffAt: Date;
 }
 
 export interface ScientificModelMember {
   matchWinnerWeights: number[][];
+  over15Weights?: number[];
   over25Weights: number[];
+  over35Weights?: number[];
   bttsWeights: number[];
   seed: number;
 }
@@ -46,7 +50,9 @@ export interface BinaryCalibration {
 
 export interface ScientificCalibration {
   matchWinnerTemperature: number;
+  over15?: BinaryCalibration;
   over25: BinaryCalibration;
+  over35?: BinaryCalibration;
   btts: BinaryCalibration;
 }
 
@@ -73,7 +79,9 @@ export interface ScientificModelArtifact {
   means: number[];
   standardDeviations: number[];
   matchWinnerWeights: number[][];
+  over15Weights?: number[];
   over25Weights: number[];
+  over35Weights?: number[];
   bttsWeights: number[];
   sampleSize: number;
   trainedAt: string;
@@ -92,14 +100,18 @@ export interface ScientificModelArtifact {
 
 export interface ScientificPredictionUncertainty {
   matchWinner: number;
+  over15?: number;
   over25: number;
+  over35?: number;
   btts: number;
   memberCount: number;
 }
 
 export interface ScientificModelPrediction {
   matchWinner: Record<'HOME' | 'DRAW' | 'AWAY', number>;
+  over15?: Record<'OVER' | 'UNDER', number>;
   over25: Record<'OVER' | 'UNDER', number>;
+  over35?: Record<'OVER' | 'UNDER', number>;
   btts: Record<'YES' | 'NO', number>;
   uncertainty?: ScientificPredictionUncertainty;
 }
@@ -119,7 +131,9 @@ export interface GoalMarketProbabilities {
 
 interface ModelProbabilities {
   matchWinner: number[];
+  over15: number;
   over25: number;
+  over35: number;
   btts: number;
 }
 
@@ -511,22 +525,27 @@ function memberPrediction(member: ScientificModelMember, features: number[]): Mo
   const matchWinner = softmax(
     member.matchWinnerWeights.map((weights) => dot(weights, features)),
   );
+  const over25 = sigmoid(dot(member.over25Weights, features));
   return {
     matchWinner,
-    over25: sigmoid(dot(member.over25Weights, features)),
+    over15: member.over15Weights ? sigmoid(dot(member.over15Weights, features)) : over25,
+    over25,
+    over35: member.over35Weights ? sigmoid(dot(member.over35Weights, features)) : over25,
     btts: sigmoid(dot(member.bttsWeights, features)),
   };
 }
 
 function averageMemberPredictions(predictions: ModelProbabilities[]): ModelProbabilities {
   if (predictions.length === 0) {
-    return { matchWinner: [1 / 3, 1 / 3, 1 / 3], over25: 0.5, btts: 0.5 };
+    return { matchWinner: [1 / 3, 1 / 3, 1 / 3], over15: 0.5, over25: 0.5, over35: 0.5, btts: 0.5 };
   }
   return {
     matchWinner: [0, 1, 2].map((index) =>
       mean(predictions.map((prediction) => prediction.matchWinner[index] ?? 1 / 3)),
     ),
+    over15: mean(predictions.map((prediction) => prediction.over15)),
     over25: mean(predictions.map((prediction) => prediction.over25)),
+    over35: mean(predictions.map((prediction) => prediction.over35)),
     btts: mean(predictions.map((prediction) => prediction.btts)),
   };
 }
@@ -687,6 +706,7 @@ export function trainScientificArtifact(input: {
   ensembleMembers?: number;
   randomSeed?: number;
   validationFraction?: number;
+  trainedAt?: Date;
 }): ScientificModelArtifact {
   if (input.samples.length === 0) {
     throw new Error('Scientific model training requires at least one sample.');
@@ -741,11 +761,23 @@ export function trainScientificArtifact(input: {
       recencyWeights,
       seed + 11,
     );
+    const over15Bootstrap = bootstrapRows(
+      trainingMatrix,
+      trainingSamples.map((sample) => sample.over15 ?? sample.over25),
+      recencyWeights,
+      seed + 17,
+    );
     const overBootstrap = bootstrapRows(
       trainingMatrix,
       trainingSamples.map((sample) => sample.over25),
       recencyWeights,
       seed + 23,
+    );
+    const over35Bootstrap = bootstrapRows(
+      trainingMatrix,
+      trainingSamples.map((sample) => sample.over35 ?? sample.over25),
+      recencyWeights,
+      seed + 29,
     );
     const bttsBootstrap = bootstrapRows(
       trainingMatrix,
@@ -766,6 +798,17 @@ export function trainScientificArtifact(input: {
       l2,
       seed: seed + 41,
     });
+    const over15Weights = trainBinaryLogistic({
+      matrix: over15Bootstrap.matrix,
+      labels: over15Bootstrap.labels,
+      sampleWeights: over15Bootstrap.sampleWeights,
+      validationMatrix,
+      validationLabels: validationSamples.map((sample) => sample.over15 ?? sample.over25),
+      epochs,
+      learningRate,
+      l2,
+      seed: seed + 47,
+    });
     const over25Weights = trainBinaryLogistic({
       matrix: overBootstrap.matrix,
       labels: overBootstrap.labels,
@@ -776,6 +819,17 @@ export function trainScientificArtifact(input: {
       learningRate,
       l2,
       seed: seed + 53,
+    });
+    const over35Weights = trainBinaryLogistic({
+      matrix: over35Bootstrap.matrix,
+      labels: over35Bootstrap.labels,
+      sampleWeights: over35Bootstrap.sampleWeights,
+      validationMatrix,
+      validationLabels: validationSamples.map((sample) => sample.over35 ?? sample.over25),
+      epochs,
+      learningRate,
+      l2,
+      seed: seed + 59,
     });
     const bttsWeights = trainBinaryLogistic({
       matrix: bttsBootstrap.matrix,
@@ -788,7 +842,7 @@ export function trainScientificArtifact(input: {
       l2,
       seed: seed + 67,
     });
-    members.push({ matchWinnerWeights, over25Weights, bttsWeights, seed });
+    members.push({ matchWinnerWeights, over15Weights, over25Weights, over35Weights, bttsWeights, seed });
   }
 
   const rawValidationPredictions = validationMatrix.map((features) =>
@@ -799,9 +853,17 @@ export function trainScientificArtifact(input: {
       rawValidationPredictions.map((prediction) => prediction.matchWinner),
       validationSamples.map((sample) => sample.matchWinnerClass),
     ),
+    over15: fitBinaryCalibration(
+      rawValidationPredictions.map((prediction) => prediction.over15),
+      validationSamples.map((sample) => sample.over15 ?? sample.over25),
+    ),
     over25: fitBinaryCalibration(
       rawValidationPredictions.map((prediction) => prediction.over25),
       validationSamples.map((sample) => sample.over25),
+    ),
+    over35: fitBinaryCalibration(
+      rawValidationPredictions.map((prediction) => prediction.over35),
+      validationSamples.map((sample) => sample.over35 ?? sample.over25),
     ),
     btts: fitBinaryCalibration(
       rawValidationPredictions.map((prediction) => prediction.btts),
@@ -814,7 +876,9 @@ export function trainScientificArtifact(input: {
       prediction.matchWinner,
       calibration.matchWinnerTemperature,
     ),
+    over15: applyBinaryCalibration(prediction.over15, calibration.over15),
     over25: applyBinaryCalibration(prediction.over25, calibration.over25),
+    over35: applyBinaryCalibration(prediction.over35, calibration.over35),
     btts: applyBinaryCalibration(prediction.btts, calibration.btts),
   }));
   const validationMetrics = calculateValidationMetrics({
@@ -828,6 +892,10 @@ export function trainScientificArtifact(input: {
 
   const firstMember = members[0]!;
   const trainedThrough = normalizedSamples[normalizedSamples.length - 1]!.kickoffAt;
+  const requestedTrainedAt = input.trainedAt ?? new Date();
+  const trainedAt = new Date(
+    Math.max(requestedTrainedAt.getTime(), trainedThrough.getTime() + 1),
+  );
   return {
     version: SCIENTIFIC_MODEL_VERSION,
     featureNames: Array.from({ length: featureWidth }, (_, index) =>
@@ -836,10 +904,12 @@ export function trainScientificArtifact(input: {
     means,
     standardDeviations,
     matchWinnerWeights: firstMember.matchWinnerWeights,
+    over15Weights: firstMember.over15Weights,
     over25Weights: firstMember.over25Weights,
+    over35Weights: firstMember.over35Weights,
     bttsWeights: firstMember.bttsWeights,
     sampleSize: normalizedSamples.length,
-    trainedAt: new Date().toISOString(),
+    trainedAt: trainedAt.toISOString(),
     trainedThrough: trainedThrough.toISOString(),
     epochs,
     learningRate,
@@ -884,6 +954,8 @@ function legacyPrediction(
     artifact.matchWinnerWeights.map((weights) => dot(weights, standardized)),
   );
   const over = sigmoid(dot(artifact.over25Weights, standardized));
+  const over15 = artifact.over15Weights ? sigmoid(dot(artifact.over15Weights, standardized)) : null;
+  const over35 = artifact.over35Weights ? sigmoid(dot(artifact.over35Weights, standardized)) : null;
   const yes = sigmoid(dot(artifact.bttsWeights, standardized));
   return {
     matchWinner: normalizeProbabilities({
@@ -891,7 +963,9 @@ function legacyPrediction(
       DRAW: matchWinnerValues[1] ?? 1 / 3,
       AWAY: matchWinnerValues[2] ?? 1 / 3,
     }),
+    ...(over15 == null ? {} : { over15: normalizeProbabilities({ OVER: over15, UNDER: 1 - over15 }) }),
     over25: normalizeProbabilities({ OVER: over, UNDER: 1 - over }),
+    ...(over35 == null ? {} : { over35: normalizeProbabilities({ OVER: over35, UNDER: 1 - over35 }) }),
     btts: normalizeProbabilities({ YES: yes, NO: 1 - yes }),
     uncertainty: { matchWinner: 0.08, over25: 0.08, btts: 0.08, memberCount: 1 },
   };
@@ -918,7 +992,16 @@ export function predictScientificModel(
     average.matchWinner,
     artifact.calibration?.matchWinnerTemperature ?? 1,
   );
+  const hasOuSpecialist = artifact.members.every(
+    (member) => Array.isArray(member.over15Weights) && Array.isArray(member.over35Weights),
+  );
+  const over15 = hasOuSpecialist
+    ? applyBinaryCalibration(average.over15, artifact.calibration?.over15)
+    : null;
   const over = applyBinaryCalibration(average.over25, artifact.calibration?.over25);
+  const over35 = hasOuSpecialist
+    ? applyBinaryCalibration(average.over35, artifact.calibration?.over35)
+    : null;
   const yes = applyBinaryCalibration(average.btts, artifact.calibration?.btts);
   const matchWinnerUncertainty = Math.max(
     ...[0, 1, 2].map((classIndex) =>
@@ -935,15 +1018,35 @@ export function predictScientificModel(
       DRAW: matchWinnerValues[1] ?? 1 / 3,
       AWAY: matchWinnerValues[2] ?? 1 / 3,
     }),
+    ...(over15 == null ? {} : { over15: normalizeProbabilities({ OVER: over15, UNDER: 1 - over15 }) }),
     over25: normalizeProbabilities({ OVER: over, UNDER: 1 - over }),
+    ...(over35 == null ? {} : { over35: normalizeProbabilities({ OVER: over35, UNDER: 1 - over35 }) }),
     btts: normalizeProbabilities({ YES: yes, NO: 1 - yes }),
     uncertainty: {
       matchWinner: clamp(matchWinnerUncertainty, 0, 0.25),
+      ...(hasOuSpecialist
+        ? {
+            over15: clamp(
+              probabilityStddev(memberPredictions.map((prediction) => prediction.over15)),
+              0,
+              0.25,
+            ),
+          }
+        : {}),
       over25: clamp(
         probabilityStddev(memberPredictions.map((prediction) => prediction.over25)),
         0,
         0.25,
       ),
+      ...(hasOuSpecialist
+        ? {
+            over35: clamp(
+              probabilityStddev(memberPredictions.map((prediction) => prediction.over35)),
+              0,
+              0.25,
+            ),
+          }
+        : {}),
       btts: clamp(
         probabilityStddev(memberPredictions.map((prediction) => prediction.btts)),
         0,

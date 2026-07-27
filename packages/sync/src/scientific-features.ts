@@ -3,6 +3,10 @@ import { FixtureStatus, prisma } from '@football-ai/database';
 import { getLineupAnalysisRules } from './config.js';
 import { getFixtureLineupAnalysis } from './lineup-analysis.js';
 import {
+  getFixtureContextCoverageAsOf,
+  getFixtureInjurySnapshotAsOf,
+} from './context-snapshots.js';
+import {
   PointInTimeAudit,
   createPredictionContext,
   estimateFixtureResultAvailableAt,
@@ -33,6 +37,10 @@ import {
   type ScientificModelArtifact,
   type ScientificModelPrediction,
 } from './scientific-model.js';
+import {
+  buildThreeMarketProjection,
+  type ThreeMarketProjection,
+} from './three-market-core.js';
 
 interface HistoryFixtureRow {
   id: number;
@@ -90,6 +98,7 @@ export interface ScientificFixtureAnalysis {
   matchWinner: Record<'HOME' | 'DRAW' | 'AWAY', number>;
   over25: Record<'OVER' | 'UNDER', number>;
   btts: Record<'YES' | 'NO', number>;
+  threeMarket: ThreeMarketProjection;
   modelPrediction: ScientificModelPrediction | null;
   modelArtifact: ScientificModelArtifact | null;
   historySampleSize: number;
@@ -458,8 +467,17 @@ export async function getScientificFixtureAnalysis(input: {
   const homeSummary = summarizeTeam(homeRecords, historyLimit, input.kickoffAt, leagueHomeXg);
   const awaySummary = summarizeTeam(awayRecords, historyLimit, input.kickoffAt, leagueAwayXg);
 
-  const [lineupAnalysis, injuryRows, coverage, currentLineups, external, setting] =
-    await Promise.all([
+  const [
+    lineupAnalysis,
+    legacyInjuryRows,
+    coverage,
+    currentLineups,
+    external,
+    setting,
+    injurySnapshot,
+    injuryCoverageSnapshot,
+    lineupCoverageSnapshot,
+  ] = await Promise.all([
       getFixtureLineupAnalysis({
         fixtureId: input.fixtureId,
         homeTeamId: input.homeTeamId,
@@ -492,8 +510,23 @@ export async function getScientificFixtureAnalysis(input: {
         predictionAsOf,
       }),
       prisma.appSetting.findUnique({ where: { key: SCIENTIFIC_MODEL_KEY } }),
+      getFixtureInjurySnapshotAsOf({
+        fixtureId: input.fixtureId,
+        predictionAsOf,
+      }),
+      getFixtureContextCoverageAsOf({
+        fixtureId: input.fixtureId,
+        dataType: 'INJURY',
+        predictionAsOf,
+      }),
+      getFixtureContextCoverageAsOf({
+        fixtureId: input.fixtureId,
+        dataType: 'LINEUP',
+        predictionAsOf,
+      }),
     ]);
 
+  const injuryRows = injurySnapshot?.players ?? legacyInjuryRows;
   const marketMovement = await getMatchWinnerOddsMovement({
     fixtureId: input.fixtureId,
     kickoffAt: input.kickoffAt,
@@ -503,8 +536,9 @@ export async function getScientificFixtureAnalysis(input: {
   audit.registerMany('ODDS', marketMovement.auditObservations);
 
   const injuriesCoverageAvailable =
-    coverage?.injuriesFetchedAt != null &&
-    isAvailableAtOrBefore(coverage.injuriesFetchedAt, predictionAsOf);
+    injuryCoverageSnapshot != null ||
+    (coverage?.injuriesFetchedAt != null &&
+      isAvailableAtOrBefore(coverage.injuriesFetchedAt, predictionAsOf));
   const statisticsCoverageAvailable =
     coverage?.statisticsFetchedAt != null &&
     isAvailableAtOrBefore(coverage.statisticsFetchedAt, predictionAsOf);
@@ -546,8 +580,23 @@ export async function getScientificFixtureAnalysis(input: {
       storage: external.storage,
     });
   }
-  if (injuriesCoverageAvailable && coverage?.injuriesFetchedAt) {
+  if (injuryCoverageSnapshot) {
+    audit.register(
+      'COVERAGE',
+      `fixture:${input.fixtureId}:injuries:snapshot`,
+      injuryCoverageSnapshot.capturedAt,
+      { responseCount: injuryCoverageSnapshot.responseCount },
+    );
+  } else if (injuriesCoverageAvailable && coverage?.injuriesFetchedAt) {
     audit.register('COVERAGE', `fixture:${input.fixtureId}:injuries`, coverage.injuriesFetchedAt);
+  }
+  if (lineupCoverageSnapshot) {
+    audit.register(
+      'COVERAGE',
+      `fixture:${input.fixtureId}:context:lineup-coverage`,
+      lineupCoverageSnapshot.capturedAt,
+      { responseCount: lineupCoverageSnapshot.responseCount },
+    );
   }
   if (statisticsCoverageAvailable && coverage?.statisticsFetchedAt) {
     audit.register(
@@ -800,6 +849,28 @@ export async function getScientificFixtureAnalysis(input: {
   const confidenceScore = marketMovement.available
     ? clamp(baseConfidenceScore * 0.88 + marketAgreementScore * 0.12, 0, 1)
     : baseConfidenceScore;
+  const threeMarket = buildThreeMarketProjection({
+    homeExpectedGoals,
+    awayExpectedGoals,
+    dataQuality: dataQualityScore,
+    directModelReliability: modelSampleReliability,
+    uncertainty: {
+      hda: modelUncertainty?.matchWinner,
+      ...(modelUncertainty?.over15 == null ? {} : { over15: modelUncertainty.over15 }),
+      over25: modelUncertainty?.over25,
+      ...(modelUncertainty?.over35 == null ? {} : { over35: modelUncertainty.over35 }),
+      btts: modelUncertainty?.btts,
+    },
+    directModel: modelPrediction
+      ? {
+          hda: modelPrediction.matchWinner,
+          ...(modelPrediction.over15 ? { over15: modelPrediction.over15.OVER } : {}),
+          over25: modelPrediction.over25.OVER,
+          ...(modelPrediction.over35 ? { over35: modelPrediction.over35.OVER } : {}),
+          bttsYes: modelPrediction.btts.YES,
+        }
+      : undefined,
+  });
   const reasons = [
     `xG kỳ vọng: ${input.homeTeamName} ${homeExpectedGoals.toFixed(2)} - ${awayExpectedGoals.toFixed(2)} ${input.awayTeamName}.`,
     `Phong độ ${historyLimit} trận: ${homeSummary.pointsPerGame.toFixed(2)} - ${awaySummary.pointsPerGame.toFixed(2)} điểm/trận.`,
@@ -830,6 +901,7 @@ export async function getScientificFixtureAnalysis(input: {
     matchWinner,
     over25,
     btts,
+    threeMarket,
     modelPrediction,
     modelArtifact: artifact,
     historySampleSize,

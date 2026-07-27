@@ -10,6 +10,8 @@ export * from './backtest.js';
 export * from './lineups.js';
 export * from './lineup-analysis.js';
 export * from './scientific-model.js';
+export * from './three-market-core.js';
+export * from './three-market-evaluation-engine.js';
 export * from './scientific-features.js';
 export * from './scientific-sync.js';
 export * from './scientific-recommendations.js';
@@ -97,3 +99,11 @@ export * from './real-odds-paper-bet-core.js';
 export * from './real-odds-paper-bet-engine.js';
 export { getPersonalUpcomingAnalysis, refreshPersonalUpcomingAnalysis } from './personal-console-engine.js';
 export { discoverCurrentPriorityCompetitions } from './current-competition-discovery.js';
+
+export * from './predictive-signal-audit.js';
+
+export * from './context-snapshots.js';
+
+export * from './repeated-context-core.js';
+
+export * from './repeated-context.js';

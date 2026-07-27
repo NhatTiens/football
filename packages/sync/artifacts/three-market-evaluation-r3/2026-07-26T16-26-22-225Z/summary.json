@@ -1,0 +1,2590 @@
+{
+  "version": "v7.2-market-specialist-evaluation-r2",
+  "generatedAt": "2026-07-26T16:26:22.225Z",
+  "options": {
+    "from": "2024-07-26T16:25:42.557Z",
+    "to": "2026-07-26T16:25:42.557Z",
+    "leagueId": null,
+    "fixtureLimit": 500,
+    "horizons": [
+      90,
+      30,
+      5
+    ],
+    "useMachineLearning": true,
+    "minimumSelectiveRows": 25
+  },
+  "fixturesLoaded": 500,
+  "successfulAnalyses": 1500,
+  "failedAnalyses": 0,
+  "failureRate": 0,
+  "errors": [],
+  "horizons": [
+    {
+      "horizonMinutes": 90,
+      "fixtureRows": 500,
+      "mlEligibleRows": 4,
+      "mlCoverage": 0.008,
+      "pointInTimeViolations": 0,
+      "averageDataQuality": 0.4275933333333296,
+      "averageConfidence": 0.5343973333333283,
+      "markets": {
+        "HDA": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 3,
+            "accuracy": 0.482,
+            "brier": 0.6257568785719001,
+            "logLoss": 1.0473758663548935,
+            "ece": 0.04851672830766257,
+            "brierSkillVsUniform": 0.06136468214214985,
+            "logLossSkillVsUniform": 0.04663740142150774,
+            "positiveRate": null,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 116,
+                "meanConfidence": 0.376034542864729,
+                "accuracy": 0.4482758620689655,
+                "absoluteGap": 0.07224131920423654
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 227,
+                "meanConfidence": 0.4485848448516428,
+                "accuracy": 0.4185022026431718,
+                "absoluteGap": 0.03008264220847101
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 97,
+                "meanConfidence": 0.5424984976277192,
+                "accuracy": 0.5567010309278351,
+                "absoluteGap": 0.014202533300115894
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 36,
+                "meanConfidence": 0.6440742533990195,
+                "accuracy": 0.7222222222222222,
+                "absoluteGap": 0.07814796882320274
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 16,
+                "meanConfidence": 0.7247804382743874,
+                "accuracy": 0.6875,
+                "absoluteGap": 0.03728043827438743
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 4,
+                "meanConfidence": 0.8642725433237104,
+                "accuracy": 0.25,
+                "absoluteGap": 0.6142725433237104
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.9512653878463362,
+                "accuracy": 0.5,
+                "absoluteGap": 0.4512653878463362
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.428,
+          "accuracySkillVsMajority": 0.05399999999999999,
+          "champion": {
+            "rows": 500,
+            "classCount": 3,
+            "accuracy": 0.496,
+            "brier": 0.6167928630213813,
+            "logLoss": 1.0275540391327445,
+            "ece": 0.04057140045490185,
+            "brierSkillVsUniform": 0.07481070546792812,
+            "logLossSkillVsUniform": 0.06468000610252755,
+            "positiveRate": null,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 121,
+                "meanConfidence": 0.3800391334054673,
+                "accuracy": 0.4380165289256198,
+                "absoluteGap": 0.05797739552015252
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 246,
+                "meanConfidence": 0.442189880811099,
+                "accuracy": 0.44308943089430897,
+                "absoluteGap": 0.0008995500832099657
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 89,
+                "meanConfidence": 0.5395323014719513,
+                "accuracy": 0.6629213483146067,
+                "absoluteGap": 0.12338904684265539
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 40,
+                "meanConfidence": 0.6403010885143221,
+                "accuracy": 0.6,
+                "absoluteGap": 0.040301088514322125
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 3,
+                "meanConfidence": 0.7544110317933314,
+                "accuracy": 0.6666666666666666,
+                "absoluteGap": 0.08774436512666473
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 1,
+                "meanConfidence": 0.8077557559063899,
+                "accuracy": 1,
+                "absoluteGap": 0.19224424409361007
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": -0.014000000000000012,
+            "brier": 0.008964015550518845,
+            "logLoss": 0.01982182722214909,
+            "ece": 0.007945327852760718
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 17,
+            "coverage": 0.034,
+            "correct": 11,
+            "hitRate": 0.6470588235294118,
+            "wilsonLower95": 0.4130036348521869,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "O1.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.794,
+            "brier": 0.1660735173722209,
+            "logLoss": 0.5181957396706338,
+            "ece": 0.05383574271206208,
+            "brierSkillVsUniform": 0.3357059305111164,
+            "logLossSkillVsUniform": 0.25240157616738834,
+            "positiveRate": 0.796,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 23,
+                "meanConfidence": 0.5608396952773539,
+                "accuracy": 0.6956521739130435,
+                "absoluteGap": 0.13481247863568957
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 36,
+                "meanConfidence": 0.6614557718165717,
+                "accuracy": 0.7222222222222222,
+                "absoluteGap": 0.06076645040565054
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 201,
+                "meanConfidence": 0.7579754741063001,
+                "accuracy": 0.8109452736318408,
+                "absoluteGap": 0.052969799525540706
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 222,
+                "meanConfidence": 0.8391368063680731,
+                "accuracy": 0.8018018018018018,
+                "absoluteGap": 0.03733500456627126
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 18,
+                "meanConfidence": 0.9274606341367142,
+                "accuracy": 0.7777777777777778,
+                "absoluteGap": 0.1496828563589364
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.796,
+          "accuracySkillVsMajority": -0.0020000000000000018,
+          "champion": null,
+          "deltaVsChampion": null,
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 305,
+            "coverage": 0.61,
+            "correct": 245,
+            "hitRate": 0.8032786885245902,
+            "wilsonLower95": 0.7550119999042277,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "O2.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.554,
+            "brier": 0.2534718533385595,
+            "logLoss": 0.7116003514404948,
+            "ece": 0.04883989761773841,
+            "brierSkillVsUniform": -0.013887413354237932,
+            "logLossSkillVsUniform": -0.026622298118045506,
+            "positiveRate": 0.554,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 288,
+                "meanConfidence": 0.5471512506113384,
+                "accuracy": 0.5277777777777778,
+                "absoluteGap": 0.019373472833560612
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 154,
+                "meanConfidence": 0.6448199376810985,
+                "accuracy": 0.5844155844155844,
+                "absoluteGap": 0.06040435326551408
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 44,
+                "meanConfidence": 0.7348661062803625,
+                "accuracy": 0.6136363636363636,
+                "absoluteGap": 0.12122974264399888
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8423717632662229,
+                "accuracy": 0.7,
+                "absoluteGap": 0.14237176326622292
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.9450729802291008,
+                "accuracy": 0.25,
+                "absoluteGap": 0.6950729802291008
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.554,
+          "accuracySkillVsMajority": 0,
+          "champion": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.554,
+            "brier": 0.25346347354514687,
+            "logLoss": 0.7115835430392876,
+            "ece": 0.04882476827693519,
+            "brierSkillVsUniform": -0.013853894180587467,
+            "logLossSkillVsUniform": -0.026598048720978484,
+            "positiveRate": 0.554,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 288,
+                "meanConfidence": 0.5471249843946663,
+                "accuracy": 0.5277777777777778,
+                "absoluteGap": 0.01934720661688849
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 154,
+                "meanConfidence": 0.6448199376810982,
+                "accuracy": 0.5844155844155844,
+                "absoluteGap": 0.060404353265513855
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 44,
+                "meanConfidence": 0.7348661062803624,
+                "accuracy": 0.6136363636363636,
+                "absoluteGap": 0.12122974264399877
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8423717632662227,
+                "accuracy": 0.7,
+                "absoluteGap": 0.1423717632662227
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.9450729802291008,
+                "accuracy": 0.25,
+                "absoluteGap": 0.6950729802291008
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": 0,
+            "brier": 0.000008379793412616188,
+            "logLoss": 0.000016808401207213386,
+            "ece": 0.000015129340803221591
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 10,
+            "coverage": 0.02,
+            "correct": 4,
+            "hitRate": 0.4,
+            "wilsonLower95": 0.16818032970623617,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "O3.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.65,
+            "brier": 0.2321443139954746,
+            "logLoss": 0.6622492366050226,
+            "ece": 0.04879976222229492,
+            "brierSkillVsUniform": 0.07142274401810156,
+            "logLossSkillVsUniform": 0.04457631051743216,
+            "positiveRate": 0.326,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 118,
+                "meanConfidence": 0.5520023952523329,
+                "accuracy": 0.5847457627118644,
+                "absoluteGap": 0.03274336745953155
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 199,
+                "meanConfidence": 0.6519779994609515,
+                "accuracy": 0.6633165829145728,
+                "absoluteGap": 0.011338583453621376
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 133,
+                "meanConfidence": 0.741681399434653,
+                "accuracy": 0.6541353383458647,
+                "absoluteGap": 0.08754606108878837
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 37,
+                "meanConfidence": 0.847928858049293,
+                "accuracy": 0.7297297297297297,
+                "absoluteGap": 0.11819912831956325
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 13,
+                "meanConfidence": 0.9432916746937993,
+                "accuracy": 0.7692307692307693,
+                "absoluteGap": 0.17406090546303
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.674,
+          "accuracySkillVsMajority": -0.02400000000000002,
+          "champion": null,
+          "deltaVsChampion": null,
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 63,
+            "coverage": 0.126,
+            "correct": 45,
+            "hitRate": 0.7142857142857143,
+            "wilsonLower95": 0.5929728343259287,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "BTTS": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.558,
+            "brier": 0.24938448851769754,
+            "logLoss": 0.6957599997968904,
+            "ece": 0.0393538591140859,
+            "brierSkillVsUniform": 0.002462045929209844,
+            "logLossSkillVsUniform": -0.003769501355880056,
+            "positiveRate": 0.574,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 287,
+                "meanConfidence": 0.5500149294150207,
+                "accuracy": 0.5435540069686411,
+                "absoluteGap": 0.0064609224463796355
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 177,
+                "meanConfidence": 0.6375062700594476,
+                "accuracy": 0.576271186440678,
+                "absoluteGap": 0.061235083618769615
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 24,
+                "meanConfidence": 0.7267167320343919,
+                "accuracy": 0.5,
+                "absoluteGap": 0.2267167320343919
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8655645164296202,
+                "accuracy": 0.8,
+                "absoluteGap": 0.06556451642962013
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 2,
+                "meanConfidence": 0.943594140644083,
+                "accuracy": 0.5,
+                "absoluteGap": 0.443594140644083
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.574,
+          "accuracySkillVsMajority": -0.015999999999999903,
+          "champion": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.558,
+            "brier": 0.24944409561690048,
+            "logLoss": 0.6958796973887367,
+            "ece": 0.039290216942800694,
+            "brierSkillVsUniform": 0.002223617532398081,
+            "logLossSkillVsUniform": -0.003942188478043063,
+            "positiveRate": 0.574,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 287,
+                "meanConfidence": 0.5499040545521545,
+                "accuracy": 0.5435540069686411,
+                "absoluteGap": 0.00635004758351343
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 177,
+                "meanConfidence": 0.6375062700594476,
+                "accuracy": 0.576271186440678,
+                "absoluteGap": 0.061235083618769615
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 24,
+                "meanConfidence": 0.7267167320343919,
+                "accuracy": 0.5,
+                "absoluteGap": 0.2267167320343919
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8655645164296202,
+                "accuracy": 0.8,
+                "absoluteGap": 0.06556451642962013
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 2,
+                "meanConfidence": 0.943594140644083,
+                "accuracy": 0.5,
+                "absoluteGap": 0.443594140644083
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": 0,
+            "brier": -0.000059607099202940717,
+            "logLoss": -0.00011969759184626838,
+            "ece": 0.00006364217128520394
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 8,
+            "coverage": 0.016,
+            "correct": 5,
+            "hitRate": 0.625,
+            "wilsonLower95": 0.3057423946026273,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        }
+      }
+    },
+    {
+      "horizonMinutes": 30,
+      "fixtureRows": 500,
+      "mlEligibleRows": 4,
+      "mlCoverage": 0.008,
+      "pointInTimeViolations": 0,
+      "averageDataQuality": 0.45243103717402383,
+      "averageConfidence": 0.5696775137106146,
+      "markets": {
+        "HDA": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 3,
+            "accuracy": 0.482,
+            "brier": 0.6258932668213552,
+            "logLoss": 1.047903346587538,
+            "ece": 0.04849381359261506,
+            "brierSkillVsUniform": 0.06116009976796721,
+            "logLossSkillVsUniform": 0.04615726822248456,
+            "positiveRate": null,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 116,
+                "meanConfidence": 0.376171341108287,
+                "accuracy": 0.4482758620689655,
+                "absoluteGap": 0.07210452096067854
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 227,
+                "meanConfidence": 0.44853294032904456,
+                "accuracy": 0.4185022026431718,
+                "absoluteGap": 0.030030737685872777
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 97,
+                "meanConfidence": 0.542560651744995,
+                "accuracy": 0.5567010309278351,
+                "absoluteGap": 0.014140379182840057
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 36,
+                "meanConfidence": 0.6438670641262335,
+                "accuracy": 0.7222222222222222,
+                "absoluteGap": 0.0783551580959887
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 16,
+                "meanConfidence": 0.7247804382743874,
+                "accuracy": 0.6875,
+                "absoluteGap": 0.03728043827438743
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 4,
+                "meanConfidence": 0.866012570751077,
+                "accuracy": 0.25,
+                "absoluteGap": 0.616012570751077
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.953216285647527,
+                "accuracy": 0.5,
+                "absoluteGap": 0.45321628564752703
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.428,
+          "accuracySkillVsMajority": 0.05399999999999999,
+          "champion": {
+            "rows": 500,
+            "classCount": 3,
+            "accuracy": 0.496,
+            "brier": 0.6168666407980237,
+            "logLoss": 1.0276661083436105,
+            "ece": 0.042115317903632765,
+            "brierSkillVsUniform": 0.0747000388029645,
+            "logLossSkillVsUniform": 0.06457799631070016,
+            "positiveRate": null,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 122,
+                "meanConfidence": 0.38020111739440143,
+                "accuracy": 0.4426229508196721,
+                "absoluteGap": 0.06242183342527069
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 245,
+                "meanConfidence": 0.44236567689839346,
+                "accuracy": 0.44081632653061226,
+                "absoluteGap": 0.0015493503677811993
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 89,
+                "meanConfidence": 0.5394791934840272,
+                "accuracy": 0.6629213483146067,
+                "absoluteGap": 0.12344215483057952
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 40,
+                "meanConfidence": 0.6405050443264233,
+                "accuracy": 0.6,
+                "absoluteGap": 0.04050504432642332
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 3,
+                "meanConfidence": 0.7546022122516151,
+                "accuracy": 0.6666666666666666,
+                "absoluteGap": 0.08793554558494843
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 1,
+                "meanConfidence": 0.8077557559063899,
+                "accuracy": 1,
+                "absoluteGap": 0.19224424409361007
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": -0.014000000000000012,
+            "brier": 0.009026626023331485,
+            "logLoss": 0.020237238243927536,
+            "ece": 0.006378495688982293
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 17,
+            "coverage": 0.034,
+            "correct": 11,
+            "hitRate": 0.6470588235294118,
+            "wilsonLower95": 0.4130036348521869,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "O1.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.794,
+            "brier": 0.1660363721314384,
+            "logLoss": 0.5180791616785146,
+            "ece": 0.05779902136171941,
+            "brierSkillVsUniform": 0.3358545114742464,
+            "logLossSkillVsUniform": 0.2525697626584954,
+            "positiveRate": 0.796,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 23,
+                "meanConfidence": 0.56140039054121,
+                "accuracy": 0.6956521739130435,
+                "absoluteGap": 0.1342517833718334
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 36,
+                "meanConfidence": 0.6616159370090766,
+                "accuracy": 0.7222222222222222,
+                "absoluteGap": 0.060606285213145594
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 201,
+                "meanConfidence": 0.7579768631510908,
+                "accuracy": 0.8159203980099502,
+                "absoluteGap": 0.05794353485885939
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 222,
+                "meanConfidence": 0.8391680804212053,
+                "accuracy": 0.7972972972972973,
+                "absoluteGap": 0.04187078312390802
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 18,
+                "meanConfidence": 0.9271071686386654,
+                "accuracy": 0.7777777777777778,
+                "absoluteGap": 0.1493293908608876
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.796,
+          "accuracySkillVsMajority": -0.0020000000000000018,
+          "champion": null,
+          "deltaVsChampion": null,
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 319,
+            "coverage": 0.638,
+            "correct": 256,
+            "hitRate": 0.8025078369905956,
+            "wilsonLower95": 0.755333084900776,
+            "highRows": 5,
+            "highCorrect": 3,
+            "highHitRate": 0.6
+          }
+        },
+        "O2.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.554,
+            "brier": 0.25338363351766363,
+            "logLoss": 0.7113611551956679,
+            "ece": 0.04875147312047742,
+            "brierSkillVsUniform": -0.013534534070654525,
+            "logLossSkillVsUniform": -0.026277210881834323,
+            "positiveRate": 0.554,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 287,
+                "meanConfidence": 0.5468670175651213,
+                "accuracy": 0.5261324041811847,
+                "absoluteGap": 0.020734613383936673
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 156,
+                "meanConfidence": 0.6450117222523105,
+                "accuracy": 0.5897435897435898,
+                "absoluteGap": 0.05526813250872076
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 43,
+                "meanConfidence": 0.7349437341261891,
+                "accuracy": 0.6046511627906976,
+                "absoluteGap": 0.13029257133549144
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8420300266489746,
+                "accuracy": 0.7,
+                "absoluteGap": 0.14203002664897468
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.945048253443143,
+                "accuracy": 0.25,
+                "absoluteGap": 0.695048253443143
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.554,
+          "accuracySkillVsMajority": 0,
+          "champion": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.554,
+            "brier": 0.253375253724251,
+            "logLoss": 0.7113443467944608,
+            "ece": 0.0487363437796744,
+            "brierSkillVsUniform": -0.01350101489700406,
+            "logLossSkillVsUniform": -0.026252961484767523,
+            "positiveRate": 0.554,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 287,
+                "meanConfidence": 0.5468406598285308,
+                "accuracy": 0.5261324041811847,
+                "absoluteGap": 0.02070825564734613
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 156,
+                "meanConfidence": 0.6450117222523103,
+                "accuracy": 0.5897435897435898,
+                "absoluteGap": 0.055268132508720536
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 43,
+                "meanConfidence": 0.7349437341261893,
+                "accuracy": 0.6046511627906976,
+                "absoluteGap": 0.13029257133549166
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8420300266489745,
+                "accuracy": 0.7,
+                "absoluteGap": 0.14203002664897457
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.945048253443143,
+                "accuracy": 0.25,
+                "absoluteGap": 0.695048253443143
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": 0,
+            "brier": 0.000008379793412616188,
+            "logLoss": 0.000016808401207102364,
+            "ece": 0.000015129340803020364
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 15,
+            "coverage": 0.03,
+            "correct": 7,
+            "hitRate": 0.4666666666666667,
+            "wilsonLower95": 0.24809535365737387,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "O3.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.65,
+            "brier": 0.23200461851162313,
+            "logLoss": 0.6618876127258898,
+            "ece": 0.04999895057856557,
+            "brierSkillVsUniform": 0.07198152595350749,
+            "logLossSkillVsUniform": 0.045098023494523964,
+            "positiveRate": 0.326,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 118,
+                "meanConfidence": 0.5519088396534017,
+                "accuracy": 0.576271186440678,
+                "absoluteGap": 0.024362346787276334
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 200,
+                "meanConfidence": 0.652163721536292,
+                "accuracy": 0.67,
+                "absoluteGap": 0.017836278463708055
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 132,
+                "meanConfidence": 0.7418557294554532,
+                "accuracy": 0.6515151515151515,
+                "absoluteGap": 0.0903405779403017
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 37,
+                "meanConfidence": 0.8477535111957741,
+                "accuracy": 0.7297297297297297,
+                "absoluteGap": 0.11802378146604442
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 13,
+                "meanConfidence": 0.9435097287137766,
+                "accuracy": 0.7692307692307693,
+                "absoluteGap": 0.1742789594830073
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.674,
+          "accuracySkillVsMajority": -0.02400000000000002,
+          "champion": null,
+          "deltaVsChampion": null,
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 67,
+            "coverage": 0.134,
+            "correct": 48,
+            "hitRate": 0.7164179104477612,
+            "wilsonLower95": 0.599067617155195,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "BTTS": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.558,
+            "brier": 0.2492005946690733,
+            "logLoss": 0.695369539813532,
+            "ece": 0.03928443479671375,
+            "brierSkillVsUniform": 0.003197621323706823,
+            "logLossSkillVsUniform": -0.0032061866742232326,
+            "positiveRate": 0.574,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 285,
+                "meanConfidence": 0.5496796435091497,
+                "accuracy": 0.543859649122807,
+                "absoluteGap": 0.0058199943863426196
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 179,
+                "meanConfidence": 0.6369264017095224,
+                "accuracy": 0.5754189944134078,
+                "absoluteGap": 0.06150740729611459
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 24,
+                "meanConfidence": 0.7262990489185338,
+                "accuracy": 0.5,
+                "absoluteGap": 0.2262990489185338
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8655452924177552,
+                "accuracy": 0.8,
+                "absoluteGap": 0.0655452924177552
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 2,
+                "meanConfidence": 0.9435314970111779,
+                "accuracy": 0.5,
+                "absoluteGap": 0.4435314970111779
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.574,
+          "accuracySkillVsMajority": -0.015999999999999903,
+          "champion": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.558,
+            "brier": 0.24926020176827626,
+            "logLoss": 0.6954892374053784,
+            "ece": 0.039220792625428574,
+            "brierSkillVsUniform": 0.002959192926894949,
+            "logLossSkillVsUniform": -0.0033788737963864612,
+            "positiveRate": 0.574,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 285,
+                "meanConfidence": 0.5495679905770704,
+                "accuracy": 0.543859649122807,
+                "absoluteGap": 0.005708341454263355
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 179,
+                "meanConfidence": 0.6369264017095224,
+                "accuracy": 0.5754189944134078,
+                "absoluteGap": 0.06150740729611459
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 24,
+                "meanConfidence": 0.7262990489185338,
+                "accuracy": 0.5,
+                "absoluteGap": 0.2262990489185338
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8655452924177552,
+                "accuracy": 0.8,
+                "absoluteGap": 0.0655452924177552
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 2,
+                "meanConfidence": 0.9435314970111779,
+                "accuracy": 0.5,
+                "absoluteGap": 0.4435314970111779
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": 0,
+            "brier": -0.00005960709920296847,
+            "logLoss": -0.0001196975918463794,
+            "ece": 0.00006364217128517619
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 13,
+            "coverage": 0.026,
+            "correct": 8,
+            "hitRate": 0.6153846153846154,
+            "wilsonLower95": 0.3552289151266569,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        }
+      }
+    },
+    {
+      "horizonMinutes": 5,
+      "fixtureRows": 500,
+      "mlEligibleRows": 4,
+      "mlCoverage": 0.008,
+      "pointInTimeViolations": 0,
+      "averageDataQuality": 0.45168103717402386,
+      "averageConfidence": 0.5694135137106148,
+      "markets": {
+        "HDA": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 3,
+            "accuracy": 0.482,
+            "brier": 0.6258932668213553,
+            "logLoss": 1.047903346587538,
+            "ece": 0.048493813592615086,
+            "brierSkillVsUniform": 0.0611600997679671,
+            "logLossSkillVsUniform": 0.04615726822248456,
+            "positiveRate": null,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 116,
+                "meanConfidence": 0.376171341108287,
+                "accuracy": 0.4482758620689655,
+                "absoluteGap": 0.07210452096067854
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 227,
+                "meanConfidence": 0.4485329403290446,
+                "accuracy": 0.4185022026431718,
+                "absoluteGap": 0.030030737685872833
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 97,
+                "meanConfidence": 0.542560651744995,
+                "accuracy": 0.5567010309278351,
+                "absoluteGap": 0.014140379182840057
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 36,
+                "meanConfidence": 0.6438670641262334,
+                "accuracy": 0.7222222222222222,
+                "absoluteGap": 0.07835515809598881
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 16,
+                "meanConfidence": 0.7247804382743874,
+                "accuracy": 0.6875,
+                "absoluteGap": 0.03728043827438743
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 4,
+                "meanConfidence": 0.866012570751077,
+                "accuracy": 0.25,
+                "absoluteGap": 0.616012570751077
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.953216285647527,
+                "accuracy": 0.5,
+                "absoluteGap": 0.45321628564752703
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.428,
+          "accuracySkillVsMajority": 0.05399999999999999,
+          "champion": {
+            "rows": 500,
+            "classCount": 3,
+            "accuracy": 0.496,
+            "brier": 0.6168666407980237,
+            "logLoss": 1.0276661083436105,
+            "ece": 0.04211531790363274,
+            "brierSkillVsUniform": 0.0747000388029645,
+            "logLossSkillVsUniform": 0.06457799631070016,
+            "positiveRate": null,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 122,
+                "meanConfidence": 0.38020111739440143,
+                "accuracy": 0.4426229508196721,
+                "absoluteGap": 0.06242183342527069
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 245,
+                "meanConfidence": 0.4423656768983934,
+                "accuracy": 0.44081632653061226,
+                "absoluteGap": 0.0015493503677811438
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 89,
+                "meanConfidence": 0.5394791934840272,
+                "accuracy": 0.6629213483146067,
+                "absoluteGap": 0.12344215483057952
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 40,
+                "meanConfidence": 0.6405050443264233,
+                "accuracy": 0.6,
+                "absoluteGap": 0.04050504432642332
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 3,
+                "meanConfidence": 0.7546022122516151,
+                "accuracy": 0.6666666666666666,
+                "absoluteGap": 0.08793554558494843
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 1,
+                "meanConfidence": 0.8077557559063899,
+                "accuracy": 1,
+                "absoluteGap": 0.19224424409361007
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": -0.014000000000000012,
+            "brier": 0.009026626023331596,
+            "logLoss": 0.020237238243927536,
+            "ece": 0.006378495688982348
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 17,
+            "coverage": 0.034,
+            "correct": 11,
+            "hitRate": 0.6470588235294118,
+            "wilsonLower95": 0.4130036348521869,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "O1.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.794,
+            "brier": 0.1660363721314384,
+            "logLoss": 0.5180791616785146,
+            "ece": 0.05779902136171952,
+            "brierSkillVsUniform": 0.3358545114742464,
+            "logLossSkillVsUniform": 0.2525697626584954,
+            "positiveRate": 0.796,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 23,
+                "meanConfidence": 0.5614003905412099,
+                "accuracy": 0.6956521739130435,
+                "absoluteGap": 0.13425178337183352
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 36,
+                "meanConfidence": 0.6616159370090765,
+                "accuracy": 0.7222222222222222,
+                "absoluteGap": 0.060606285213145705
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 201,
+                "meanConfidence": 0.7579768631510908,
+                "accuracy": 0.8159203980099502,
+                "absoluteGap": 0.05794353485885939
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 222,
+                "meanConfidence": 0.8391680804212055,
+                "accuracy": 0.7972972972972973,
+                "absoluteGap": 0.04187078312390824
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 18,
+                "meanConfidence": 0.9271071686386654,
+                "accuracy": 0.7777777777777778,
+                "absoluteGap": 0.1493293908608876
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.796,
+          "accuracySkillVsMajority": -0.0020000000000000018,
+          "champion": null,
+          "deltaVsChampion": null,
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 319,
+            "coverage": 0.638,
+            "correct": 256,
+            "hitRate": 0.8025078369905956,
+            "wilsonLower95": 0.755333084900776,
+            "highRows": 5,
+            "highCorrect": 3,
+            "highHitRate": 0.6
+          }
+        },
+        "O2.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.554,
+            "brier": 0.25338363351766363,
+            "logLoss": 0.7113611551956679,
+            "ece": 0.048751473120477375,
+            "brierSkillVsUniform": -0.013534534070654525,
+            "logLossSkillVsUniform": -0.026277210881834323,
+            "positiveRate": 0.554,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 287,
+                "meanConfidence": 0.5468670175651213,
+                "accuracy": 0.5261324041811847,
+                "absoluteGap": 0.020734613383936673
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 156,
+                "meanConfidence": 0.6450117222523103,
+                "accuracy": 0.5897435897435898,
+                "absoluteGap": 0.055268132508720536
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 43,
+                "meanConfidence": 0.7349437341261893,
+                "accuracy": 0.6046511627906976,
+                "absoluteGap": 0.13029257133549166
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8420300266489746,
+                "accuracy": 0.7,
+                "absoluteGap": 0.14203002664897468
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.945048253443143,
+                "accuracy": 0.25,
+                "absoluteGap": 0.695048253443143
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.554,
+          "accuracySkillVsMajority": 0,
+          "champion": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.554,
+            "brier": 0.253375253724251,
+            "logLoss": 0.7113443467944607,
+            "ece": 0.0487363437796744,
+            "brierSkillVsUniform": -0.01350101489700406,
+            "logLossSkillVsUniform": -0.026252961484767523,
+            "positiveRate": 0.554,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 287,
+                "meanConfidence": 0.5468406598285308,
+                "accuracy": 0.5261324041811847,
+                "absoluteGap": 0.02070825564734613
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 156,
+                "meanConfidence": 0.6450117222523103,
+                "accuracy": 0.5897435897435898,
+                "absoluteGap": 0.055268132508720536
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 43,
+                "meanConfidence": 0.7349437341261893,
+                "accuracy": 0.6046511627906976,
+                "absoluteGap": 0.13029257133549166
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8420300266489746,
+                "accuracy": 0.7,
+                "absoluteGap": 0.14203002664897468
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 4,
+                "meanConfidence": 0.945048253443143,
+                "accuracy": 0.25,
+                "absoluteGap": 0.695048253443143
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": 0,
+            "brier": 0.000008379793412616188,
+            "logLoss": 0.000016808401207213386,
+            "ece": 0.000015129340802971791
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 15,
+            "coverage": 0.03,
+            "correct": 7,
+            "hitRate": 0.4666666666666667,
+            "wilsonLower95": 0.24809535365737387,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "O3.5": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.65,
+            "brier": 0.23200461851162313,
+            "logLoss": 0.66188761272589,
+            "ece": 0.04999895057856557,
+            "brierSkillVsUniform": 0.07198152595350749,
+            "logLossSkillVsUniform": 0.04509802349452363,
+            "positiveRate": 0.326,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 118,
+                "meanConfidence": 0.5519088396534017,
+                "accuracy": 0.576271186440678,
+                "absoluteGap": 0.024362346787276334
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 200,
+                "meanConfidence": 0.652163721536292,
+                "accuracy": 0.67,
+                "absoluteGap": 0.017836278463708055
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 132,
+                "meanConfidence": 0.7418557294554532,
+                "accuracy": 0.6515151515151515,
+                "absoluteGap": 0.0903405779403017
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 37,
+                "meanConfidence": 0.8477535111957741,
+                "accuracy": 0.7297297297297297,
+                "absoluteGap": 0.11802378146604442
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 13,
+                "meanConfidence": 0.9435097287137766,
+                "accuracy": 0.7692307692307693,
+                "absoluteGap": 0.1742789594830073
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.674,
+          "accuracySkillVsMajority": -0.02400000000000002,
+          "champion": null,
+          "deltaVsChampion": null,
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 67,
+            "coverage": 0.134,
+            "correct": 48,
+            "hitRate": 0.7164179104477612,
+            "wilsonLower95": 0.599067617155195,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        },
+        "BTTS": {
+          "candidate": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.558,
+            "brier": 0.24920059466907327,
+            "logLoss": 0.695369539813532,
+            "ece": 0.03928443479671375,
+            "brierSkillVsUniform": 0.003197621323706934,
+            "logLossSkillVsUniform": -0.0032061866742232326,
+            "positiveRate": 0.574,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 285,
+                "meanConfidence": 0.5496796435091497,
+                "accuracy": 0.543859649122807,
+                "absoluteGap": 0.0058199943863426196
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 179,
+                "meanConfidence": 0.6369264017095224,
+                "accuracy": 0.5754189944134078,
+                "absoluteGap": 0.06150740729611459
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 24,
+                "meanConfidence": 0.7262990489185338,
+                "accuracy": 0.5,
+                "absoluteGap": 0.2262990489185338
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8655452924177552,
+                "accuracy": 0.8,
+                "absoluteGap": 0.0655452924177552
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 2,
+                "meanConfidence": 0.9435314970111779,
+                "accuracy": 0.5,
+                "absoluteGap": 0.4435314970111779
+              }
+            ]
+          },
+          "majorityBaselineAccuracy": 0.574,
+          "accuracySkillVsMajority": -0.015999999999999903,
+          "champion": {
+            "rows": 500,
+            "classCount": 2,
+            "accuracy": 0.558,
+            "brier": 0.24926020176827623,
+            "logLoss": 0.6954892374053784,
+            "ece": 0.039220792625428574,
+            "brierSkillVsUniform": 0.00295919292689506,
+            "logLossSkillVsUniform": -0.0033788737963864612,
+            "positiveRate": 0.574,
+            "calibration": [
+              {
+                "lowerInclusive": 0,
+                "upperExclusive": 0.1,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.1,
+                "upperExclusive": 0.2,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.2,
+                "upperExclusive": 0.3,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.3,
+                "upperExclusive": 0.4,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.4,
+                "upperExclusive": 0.5,
+                "rows": 0,
+                "meanConfidence": null,
+                "accuracy": null,
+                "absoluteGap": null
+              },
+              {
+                "lowerInclusive": 0.5,
+                "upperExclusive": 0.6,
+                "rows": 285,
+                "meanConfidence": 0.5495679905770704,
+                "accuracy": 0.543859649122807,
+                "absoluteGap": 0.005708341454263355
+              },
+              {
+                "lowerInclusive": 0.6,
+                "upperExclusive": 0.7,
+                "rows": 179,
+                "meanConfidence": 0.6369264017095224,
+                "accuracy": 0.5754189944134078,
+                "absoluteGap": 0.06150740729611459
+              },
+              {
+                "lowerInclusive": 0.7,
+                "upperExclusive": 0.8,
+                "rows": 24,
+                "meanConfidence": 0.7262990489185338,
+                "accuracy": 0.5,
+                "absoluteGap": 0.2262990489185338
+              },
+              {
+                "lowerInclusive": 0.8,
+                "upperExclusive": 0.9,
+                "rows": 10,
+                "meanConfidence": 0.8655452924177552,
+                "accuracy": 0.8,
+                "absoluteGap": 0.0655452924177552
+              },
+              {
+                "lowerInclusive": 0.9,
+                "upperExclusive": 1,
+                "rows": 2,
+                "meanConfidence": 0.9435314970111779,
+                "accuracy": 0.5,
+                "absoluteGap": 0.4435314970111779
+              }
+            ]
+          },
+          "deltaVsChampion": {
+            "accuracy": 0,
+            "brier": -0.00005960709920296847,
+            "logLoss": -0.0001196975918463794,
+            "ece": 0.00006364217128517619
+          },
+          "selective": {
+            "totalRows": 500,
+            "releasedRows": 13,
+            "coverage": 0.026,
+            "correct": 8,
+            "hitRate": 0.6153846153846154,
+            "wilsonLower95": 0.3552289151266569,
+            "highRows": 0,
+            "highCorrect": 0,
+            "highHitRate": null
+          }
+        }
+      }
+    }
+  ],
+  "bestMarket": {
+    "market": "O1.5",
+    "horizonMinutes": 30,
+    "releasedRows": 319,
+    "coverage": 0.638,
+    "hitRate": 0.8025078369905956,
+    "wilsonLower95": 0.755333084900776
+  },
+  "readiness": "PASS",
+  "readinessReasons": []
+}

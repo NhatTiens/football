@@ -1,0 +1,1507 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum FixtureStatus {
+  UPCOMING
+  LIVE
+  FINISHED
+  POSTPONED
+  CANCELLED
+}
+
+enum RecommendationStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  SETTLED
+}
+
+enum SettlementResult {
+  PENDING
+  WIN
+  LOSS
+  PUSH
+  VOID
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum BacktestStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model League {
+  id           Int           @id @default(autoincrement())
+  apiLeagueId  Int
+  season       Int
+  name         String
+  country      String?
+  logoUrl      String?       @db.Text
+  coverage     Json?
+  enabled      Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  fixtures     Fixture[]
+  backtestRuns BacktestRun[]
+
+  @@unique([apiLeagueId, season])
+  @@index([enabled])
+}
+
+model Team {
+  id              Int                     @id @default(autoincrement())
+  apiTeamId       Int                     @unique
+  name            String
+  code            String?
+  country         String?
+  logoUrl         String?                 @db.Text
+  venueName       String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  homeFixtures    Fixture[]               @relation("HomeTeam")
+  awayFixtures    Fixture[]               @relation("AwayTeam")
+  lineupSnapshots FixtureLineupSnapshot[]
+}
+
+model Fixture {
+  id                        Int                        @id @default(autoincrement())
+  apiFixtureId              Int                        @unique
+  leagueId                  Int
+  homeTeamId                Int
+  awayTeamId                Int
+  kickoffAt                 DateTime
+  timezone                  String?
+  round                     String?
+  venueName                 String?
+  referee                   String?
+  status                    FixtureStatus              @default(UPCOMING)
+  apiStatusShort            String?
+  elapsedMinutes            Int?
+  homeGoals                 Int?
+  awayGoals                 Int?
+  halftimeHomeGoals         Int?
+  halftimeAwayGoals         Int?
+  rawPayload                Json?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  league                    League                     @relation(fields: [leagueId], references: [id])
+  homeTeam                  Team                       @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam                  Team                       @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  oddsSnapshots             OddsSnapshot[]
+  oddsCollectionCheckpoints OddsCollectionCheckpoint[]
+  externalPrediction        ExternalPrediction?
+  recommendations           Recommendation[]
+  backtestBets              BacktestBet[]
+  lineupSnapshots           FixtureLineupSnapshot[]
+
+  @@index([kickoffAt])
+  @@index([leagueId, status, kickoffAt])
+  @@index([homeTeamId, kickoffAt])
+  @@index([awayTeamId, kickoffAt])
+}
+
+model Player {
+  id              Int                   @id @default(autoincrement())
+  apiPlayerId     Int                   @unique
+  name            String
+  photoUrl        String?               @db.Text
+  defaultPosition String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  lineupEntries   FixtureLineupPlayer[]
+
+  @@index([name])
+}
+
+model FixtureLineupSnapshot {
+  id              Int                   @id @default(autoincrement())
+  fixtureId       Int
+  teamId          Int
+  formation       String?
+  coachApiId      Int?
+  coachName       String?
+  isConfirmed     Boolean               @default(false)
+  starterCount    Int                   @default(0)
+  substituteCount Int                   @default(0)
+  contentHash     String
+  capturedAt      DateTime              @default(now())
+  rawPayload      Json?
+  fixture         Fixture               @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  team            Team                  @relation(fields: [teamId], references: [id])
+  players         FixtureLineupPlayer[]
+
+  @@unique([fixtureId, teamId, contentHash])
+  @@index([fixtureId, teamId, capturedAt])
+  @@index([teamId, capturedAt])
+}
+
+model FixtureLineupPlayer {
+  id               Int                   @id @default(autoincrement())
+  lineupSnapshotId Int
+  playerId         Int
+  isStarter        Boolean
+  shirtNumber      Int?
+  position         String?
+  grid             String?
+  lineupOrder      Int?
+  lineupSnapshot   FixtureLineupSnapshot @relation(fields: [lineupSnapshotId], references: [id], onDelete: Cascade)
+  player           Player                @relation(fields: [playerId], references: [id])
+
+  @@unique([lineupSnapshotId, playerId])
+  @@index([playerId, isStarter])
+  @@index([lineupSnapshotId, isStarter])
+}
+
+model Bookmaker {
+  id              Int              @id @default(autoincrement())
+  apiBookmakerId  Int              @unique
+  name            String
+  enabled         Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  oddsSnapshots   OddsSnapshot[]
+  recommendations Recommendation[]
+  backtestBets    BacktestBet[]
+}
+
+model BettingMarket {
+  id            Int            @id @default(autoincrement())
+  apiBetId      Int?
+  marketCode    String         @unique
+  name          String
+  marketGroup   String
+  lineValue     Float?
+  enabled       Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  oddsSnapshots OddsSnapshot[]
+}
+
+model OddsSnapshot {
+  id              Int              @id @default(autoincrement())
+  fixtureId       Int
+  bookmakerId     Int
+  marketId        Int
+  selectionCode   String
+  selectionName   String
+  lineValue       Float?
+  decimalOdds     Float
+  isLive          Boolean          @default(false)
+  apiUpdatedAt    DateTime?
+  capturedAt      DateTime         @default(now())
+  rawPayload      Json?
+  fixture         Fixture          @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  bookmaker       Bookmaker        @relation(fields: [bookmakerId], references: [id])
+  market          BettingMarket    @relation(fields: [marketId], references: [id])
+  recommendations Recommendation[]
+  backtestBets    BacktestBet[]
+
+  @@index([fixtureId, marketId, capturedAt])
+  @@index([fixtureId, bookmakerId, marketId, selectionCode, capturedAt])
+}
+
+model OddsCollectionCheckpoint {
+  id             Int       @id @default(autoincrement())
+  fixtureId      Int
+  horizonMinutes Int
+  dueAt          DateTime
+  status         String    @default("PENDING") @db.VarChar(32)
+  attemptedAt    DateTime?
+  completedAt    DateTime?
+  nextRetryAt    DateTime?
+  attempts       Int       @default(0)
+  processed      Int       @default(0)
+  inserted       Int       @default(0)
+  lockToken      String?   @db.VarChar(64)
+  errorMessage   String?   @db.Text
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  fixture Fixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+
+  @@unique([fixtureId, horizonMinutes])
+  @@index([status, dueAt])
+  @@index([fixtureId, completedAt])
+}
+
+model ExternalPrediction {
+  id              Int      @id @default(autoincrement())
+  fixtureId       Int      @unique
+  homeProbability Float?
+  drawProbability Float?
+  awayProbability Float?
+  advice          String?  @db.Text
+  predictedWinner String?
+  rawPayload      Json?
+  capturedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  fixture         Fixture  @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+}
+
+model ExternalPredictionSnapshot {
+  id              Int      @id @default(autoincrement())
+  fixtureId       Int
+  homeProbability Float?
+  drawProbability Float?
+  awayProbability Float?
+  advice          String?  @db.Text
+  predictedWinner String?
+  rawPayload      Json?
+  payloadHash     String   @db.VarChar(64)
+  capturedAt      DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([fixtureId, payloadHash])
+  @@index([fixtureId, capturedAt])
+}
+
+model Recommendation {
+  id                    Int                  @id @default(autoincrement())
+  fixtureId             Int
+  bookmakerId           Int
+  oddsSnapshotId        Int
+  marketCode            String
+  marketName            String
+  marketGroup           String
+  selectionCode         String
+  selectionName         String
+  lineValue             Float?
+  decimalOdds           Float
+  modelProbability      Float
+  fairMarketProbability Float
+  impliedProbability    Float
+  edge                  Float
+  expectedValue         Float
+  confidenceScore       Float
+  dataQualityScore      Float
+  recommendationScore   Float
+  rankNumber            Int?
+  modelVersion          String
+  reasons               Json
+  status                RecommendationStatus @default(ACTIVE)
+  settlementResult      SettlementResult     @default(PENDING)
+  simulatedProfitUnits  Float?
+  generatedAt           DateTime             @default(now())
+  expiresAt             DateTime
+  settledAt             DateTime?
+  fixture               Fixture              @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  bookmaker             Bookmaker            @relation(fields: [bookmakerId], references: [id])
+  oddsSnapshot          OddsSnapshot         @relation(fields: [oddsSnapshotId], references: [id])
+
+  @@index([status, generatedAt])
+  @@index([fixtureId, status])
+  @@index([marketCode, settlementResult])
+}
+
+model SyncRun {
+  id           Int        @id @default(autoincrement())
+  jobName      String
+  status       SyncStatus @default(RUNNING)
+  startedAt    DateTime   @default(now())
+  finishedAt   DateTime?
+  processed    Int        @default(0)
+  inserted     Int        @default(0)
+  updated      Int        @default(0)
+  errorMessage String?    @db.Text
+  metadata     Json?
+
+  @@index([jobName, startedAt])
+  @@index([status])
+}
+
+model ApiUsage {
+  id              Int      @id @default(autoincrement())
+  endpoint        String
+  requestDate     DateTime @default(now())
+  responseStatus  Int
+  dailyLimit      Int?
+  dailyRemaining  Int?
+  minuteLimit     Int?
+  minuteRemaining Int?
+  durationMs      Int?
+  errorMessage    String?  @db.Text
+
+  @@index([requestDate])
+  @@index([endpoint, requestDate])
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model BacktestRun {
+  id                   Int            @id @default(autoincrement())
+  name                 String
+  leagueId             Int?
+  dateFrom             DateTime
+  dateTo               DateTime
+  fixtureLimit         Int
+  stakeUnits           Float          @default(1)
+  modelVersion         String
+  rules                Json
+  status               BacktestStatus @default(RUNNING)
+  startedAt            DateTime       @default(now())
+  finishedAt           DateTime?
+  totalFixtures        Int            @default(0)
+  eligibleFixtures     Int            @default(0)
+  totalBets            Int            @default(0)
+  wins                 Int            @default(0)
+  losses               Int            @default(0)
+  pushes               Int            @default(0)
+  voids                Int            @default(0)
+  hitRate              Float?
+  profitUnits          Float          @default(0)
+  roi                  Float?
+  yieldRate            Float?
+  averageOdds          Float?
+  averageExpectedValue Float?
+  maximumDrawdown      Float?
+  brierScore           Float?
+  errorMessage         String?        @db.Text
+  league               League?        @relation(fields: [leagueId], references: [id])
+  bets                 BacktestBet[]
+
+  @@index([startedAt])
+  @@index([status])
+  @@index([leagueId, dateFrom, dateTo])
+}
+
+model BacktestBet {
+  id                    Int              @id @default(autoincrement())
+  runId                 Int
+  fixtureId             Int
+  bookmakerId           Int
+  oddsSnapshotId        Int
+  predictedAt           DateTime
+  kickoffAt             DateTime
+  marketCode            String
+  marketName            String
+  marketGroup           String
+  selectionCode         String
+  selectionName         String
+  lineValue             Float?
+  decimalOdds           Float
+  modelProbability      Float
+  fairMarketProbability Float
+  edge                  Float
+  expectedValue         Float
+  confidenceScore       Float
+  dataQualityScore      Float
+  recommendationScore   Float
+  rankNumber            Int
+  settlementResult      SettlementResult
+  stakeUnits            Float
+  profitUnits           Float
+  homeGoals             Int
+  awayGoals             Int
+  reasons               Json
+  createdAt             DateTime         @default(now())
+  run                   BacktestRun      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  fixture               Fixture          @relation(fields: [fixtureId], references: [id])
+  bookmaker             Bookmaker        @relation(fields: [bookmakerId], references: [id])
+  oddsSnapshot          OddsSnapshot     @relation(fields: [oddsSnapshotId], references: [id])
+
+  @@index([runId, kickoffAt])
+  @@index([marketCode, settlementResult])
+  @@index([fixtureId])
+}
+
+model FixtureTeamMetric {
+  id                  Int      @id @default(autoincrement())
+  fixtureId           Int
+  teamId              Int
+  expectedGoals       Float?
+  expectedGoalsSource String?
+  shots               Int?
+  shotsOnGoal         Int?
+  possession          Float?
+  corners             Int?
+  fouls               Int?
+  yellowCards         Int?
+  redCards            Int?
+  capturedAt          DateTime @default(now())
+  rawPayload          Json?
+
+  @@unique([fixtureId, teamId])
+  @@index([teamId, fixtureId])
+  @@index([capturedAt])
+}
+
+model FixtureTeamMetricSnapshot {
+  id                  Int      @id @default(autoincrement())
+  fixtureId           Int
+  teamId              Int
+  expectedGoals       Float?
+  expectedGoalsSource String?
+  shots               Int?
+  shotsOnGoal         Int?
+  possession          Float?
+  corners             Int?
+  fouls               Int?
+  yellowCards         Int?
+  redCards            Int?
+  rawPayload          Json?
+  payloadHash         String   @db.VarChar(64)
+  capturedAt          DateTime
+  createdAt           DateTime @default(now())
+
+  @@unique([fixtureId, teamId, payloadHash])
+  @@index([fixtureId, teamId, capturedAt])
+  @@index([teamId, capturedAt])
+}
+
+model HistoricalDataAuditRun {
+  id                           Int       @id @default(autoincrement())
+  auditVersion                 String    @db.VarChar(160)
+  policyVersion                String    @db.VarChar(160)
+  status                       String    @db.VarChar(24)
+  dateFrom                     DateTime
+  dateTo                       DateTime
+  replayFixtures               Int
+  replayPredictions            Int
+  oddsSnapshots                Int
+  fixturesWithAnyOdds          Int
+  fixturesWithT90Odds          Int
+  rawMetricSnapshots           Int
+  fundamentalSnapshots         Int
+  featureSnapshots             Int
+  featureRowsWithLineage       Int
+  featureRowsWithMarketLineage Int
+  pitViolations                Int       @default(0)
+  recommendationStatus         String    @db.VarChar(64)
+  summary                      Json
+  recommendation               Json
+  artifactDirectory            String    @db.VarChar(512)
+  payloadHash                  String    @unique @db.VarChar(64)
+  startedAt                    DateTime  @default(now())
+  finishedAt                   DateTime?
+  errorMessage                 String?   @db.Text
+
+  @@index([status, startedAt], map: "HistoricalDataAuditRun_status_started_idx")
+  @@index([recommendationStatus, startedAt], map: "HistoricalDataAuditRun_recommendation_started_idx")
+}
+
+model HistoricalDataAuditFinding {
+  id          Int      @id @default(autoincrement())
+  runId       Int
+  category    String   @db.VarChar(48)
+  severity    String   @db.VarChar(16)
+  code        String   @db.VarChar(96)
+  message     String   @db.Text
+  evidence    Json
+  payloadHash String   @db.VarChar(64)
+  createdAt   DateTime @default(now())
+
+  @@unique([runId, code, payloadHash], map: "HistoricalDataAuditFinding_run_code_hash_key")
+  @@index([runId, severity], map: "HistoricalDataAuditFinding_run_severity_idx")
+  @@index([category, severity], map: "HistoricalDataAuditFinding_category_severity_idx")
+}
+
+model ProviderReplayRun {
+  id                     Int       @id @default(autoincrement())
+  providerKey            String    @db.VarChar(96)
+  providerMode           String    @db.VarChar(24)
+  providerVersion        String    @db.VarChar(160)
+  policyVersion          String    @db.VarChar(160)
+  status                 String    @db.VarChar(24)
+  dateFrom               DateTime
+  dateTo                 DateTime
+  fixturesPlanned        Int
+  fixturesProcessed      Int
+  schedulerEvents        Int
+  t90EligibleFixtures    Int
+  predictions            Int
+  settledPredictions     Int
+  missingFeatureRows     Int
+  missingBaselineRows    Int
+  pitViolations          Int       @default(0)
+  freshShadowRowsWritten Int       @default(0)
+  apiCalled              Boolean   @default(false)
+  metrics                Json
+  coverage               Json
+  configuration          Json
+  artifactDirectory      String    @db.VarChar(512)
+  payloadHash            String    @unique @db.VarChar(64)
+  startedAt              DateTime  @default(now())
+  finishedAt             DateTime?
+  errorMessage           String?   @db.Text
+
+  @@index([status, startedAt], map: "ProviderReplayRun_status_started_idx")
+  @@index([providerKey, startedAt], map: "ProviderReplayRun_provider_started_idx")
+}
+
+model ProviderReplayPrediction {
+  id                         Int       @id @default(autoincrement())
+  runId                      Int
+  fixtureId                  Int
+  leagueId                   Int
+  predictionAsOf             DateTime
+  kickoffAt                  DateTime
+  resultAvailableAt          DateTime
+  horizonMinutes             Int
+  marketAvailable            Boolean
+  teamMetricSnapshotCount    Int
+  oddsSnapshotCount          Int
+  latestTeamMetricCapturedAt DateTime?
+  latestOddsCapturedAt       DateTime?
+  sourceFeaturePayloadHash   String    @db.VarChar(64)
+  sourceBaselinePayloadHash  String    @db.VarChar(64)
+  baselineHomeProbability    Float
+  baselineDrawProbability    Float
+  baselineAwayProbability    Float
+  candidateHomeProbability   Float
+  candidateDrawProbability   Float
+  candidateAwayProbability   Float
+  actualClass                String    @db.VarChar(12)
+  baselineBrier              Float
+  candidateBrier             Float
+  baselineLogLoss            Float
+  candidateLogLoss           Float
+  pitSafe                    Boolean
+  evidenceClass              String    @db.VarChar(64)
+  payloadHash                String    @db.VarChar(64)
+  createdAt                  DateTime  @default(now())
+
+  @@unique([runId, fixtureId, payloadHash], map: "ProviderReplayPrediction_run_fixture_hash_key")
+  @@index([fixtureId, predictionAsOf], map: "ProviderReplayPrediction_fixture_asof_idx")
+  @@index([evidenceClass, createdAt], map: "ProviderReplayPrediction_evidence_created_idx")
+}
+
+model ProviderHealthObservation {
+  id           Int      @id @default(autoincrement())
+  providerKey  String   @db.VarChar(96)
+  providerMode String   @db.VarChar(24)
+  status       String   @db.VarChar(24)
+  capabilities Json
+  details      Json
+  payloadHash  String   @db.VarChar(64)
+  observedAt   DateTime @default(now())
+
+  @@index([providerKey, observedAt], map: "ProviderHealth_provider_observed_idx")
+  @@index([status, observedAt], map: "ProviderHealth_status_observed_idx")
+}
+
+model ScientificCandidateRegistry {
+  id                           Int      @id @default(autoincrement())
+  registryKey                  String   @unique @db.VarChar(160)
+  experimentId                 String   @db.VarChar(64)
+  sourceDiagnosticRunId        Int
+  sourceDevelopmentCandidateId Int
+  candidateVersion             String   @unique @db.VarChar(180)
+  baselineVersion              String   @db.VarChar(160)
+  featureContractHash          String   @db.VarChar(64)
+  status                       String   @db.VarChar(40)
+  horizonMinutes               Int
+  marketBranch                 String   @db.VarChar(32)
+  method                       String   @db.VarChar(64)
+  formulaVersion               String   @db.VarChar(96)
+  sources                      Json
+  weights                      Json
+  temperature                  Float
+  maximumProbabilityShift      Float
+  minimumFreshFixtures         Int      @default(150)
+  minimumFreshBets             Int      @default(30)
+  frozenAt                     DateTime @default(now())
+  sourcePayload                Json
+  payloadHash                  String   @unique @db.VarChar(64)
+  createdAt                    DateTime @default(now())
+
+  @@index([status, frozenAt], map: "ScientificCandidateRegistry_status_frozen_idx")
+  @@index([horizonMinutes, marketBranch], map: "ScientificCandidateRegistry_route_idx")
+}
+
+model ScientificShadowPrediction {
+  id                        Int      @id @default(autoincrement())
+  registryId                Int
+  fixtureId                 Int
+  leagueId                  Int
+  predictionAsOf            DateTime
+  kickoffAt                 DateTime
+  labelAvailableAt          DateTime
+  horizonMinutes            Int
+  marketAvailable           Boolean  @default(false)
+  sourceFeatureCreatedAt    DateTime
+  sourceBaselineCreatedAt   DateTime
+  baselineHomeProbability   Float
+  baselineDrawProbability   Float
+  baselineAwayProbability   Float
+  dixonHomeProbability      Float
+  dixonDrawProbability      Float
+  dixonAwayProbability      Float
+  candidateHomeProbability  Float
+  candidateDrawProbability  Float
+  candidateAwayProbability  Float
+  sourceFeaturePayloadHash  String   @db.VarChar(64)
+  sourceBaselinePayloadHash String   @db.VarChar(64)
+  freshnessStatus           String   @db.VarChar(40)
+  capturedAt                DateTime @default(now())
+  sourcePayload             Json
+  payloadHash               String   @db.VarChar(64)
+
+  @@unique([registryId, sourceFeaturePayloadHash], map: "ScientificShadowPrediction_registry_feature_key")
+  @@unique([registryId, payloadHash], map: "ScientificShadowPrediction_registry_payload_key")
+  @@index([registryId, kickoffAt], map: "ScientificShadowPrediction_registry_kickoff_idx")
+  @@index([fixtureId, predictionAsOf], map: "ScientificShadowPrediction_fixture_asof_idx")
+  @@index([freshnessStatus, capturedAt], map: "ScientificShadowPrediction_freshness_captured_idx")
+}
+
+model ScientificShadowEvaluationRun {
+  id                  Int       @id @default(autoincrement())
+  registryId          Int
+  candidateVersion    String    @db.VarChar(180)
+  baselineVersion     String    @db.VarChar(160)
+  status              String    @db.VarChar(24)
+  decisionStatus      String    @db.VarChar(48)
+  policyVersion       String    @db.VarChar(96)
+  dateFrom            DateTime?
+  dateTo              DateTime?
+  freshFixtures       Int
+  predictionRows      Int
+  candidateBets       Int
+  leakageViolations   Int       @default(0)
+  freshnessViolations Int       @default(0)
+  predictionMetrics   Json
+  bettingMetrics      Json
+  decision            Json
+  configuration       Json
+  payloadHash         String    @unique @db.VarChar(64)
+  startedAt           DateTime  @default(now())
+  finishedAt          DateTime?
+  errorMessage        String?   @db.Text
+
+  @@index([registryId, startedAt], map: "ScientificShadowEvaluation_registry_started_idx")
+  @@index([decisionStatus, startedAt], map: "ScientificShadowEvaluation_decision_started_idx")
+}
+
+model ScientificShadowBet {
+  id               Int      @id @default(autoincrement())
+  runId            Int
+  registryId       Int
+  fixtureId        Int
+  horizonMinutes   Int
+  source           String   @db.VarChar(24)
+  predictedAt      DateTime
+  kickoffAt        DateTime
+  selectionCode    String   @db.VarChar(16)
+  decimalOdds      Float
+  closingOdds      Float?
+  modelProbability Float
+  fairProbability  Float?
+  edge             Float
+  expectedValue    Float
+  stakeUnits       Float
+  result           String   @db.VarChar(16)
+  profitUnits      Float
+  clv              Float?
+  payloadHash      String   @db.VarChar(64)
+  createdAt        DateTime @default(now())
+
+  @@unique([runId, source, fixtureId, payloadHash], map: "ScientificShadowBet_run_source_fixture_hash_key")
+  @@index([registryId, kickoffAt], map: "ScientificShadowBet_registry_kickoff_idx")
+  @@index([runId, source], map: "ScientificShadowBet_run_source_idx")
+}
+
+model ScientificShadowDecision {
+  id               Int      @id @default(autoincrement())
+  runId            Int      @unique
+  registryId       Int
+  candidateVersion String   @db.VarChar(180)
+  baselineVersion  String   @db.VarChar(160)
+  status           String   @db.VarChar(48)
+  passed           Boolean
+  gates            Json
+  reasons          Json
+  deltas           Json
+  freshFixtures    Int
+  candidateBets    Int
+  payloadHash      String   @unique @db.VarChar(64)
+  createdAt        DateTime @default(now())
+
+  @@index([registryId, createdAt], map: "ScientificShadowDecision_registry_created_idx")
+  @@index([status, createdAt], map: "ScientificShadowDecision_status_created_idx")
+}
+
+model ScientificDiagnosticRun {
+  id                        Int       @id @default(autoincrement())
+  sourceEvaluationRunId     Int
+  diagnosticVersion         String    @db.VarChar(160)
+  developmentPolicyVersion  String    @db.VarChar(160)
+  status                    String    @db.VarChar(24)
+  sourceCandidateVersion    String    @db.VarChar(160)
+  baselineVersion           String    @db.VarChar(160)
+  featureContractHash       String    @db.VarChar(64)
+  artifactDirectory         String    @db.VarChar(512)
+  artifactSha256            Json
+  rows                      Int
+  fixtures                  Int
+  developmentRows           Int
+  evaluationRows            Int
+  leakageViolations         Int       @default(0)
+  developmentCandidateCount Int       @default(0)
+  diagnosticSummary         Json
+  configuration             Json
+  startedAt                 DateTime  @default(now())
+  finishedAt                DateTime?
+  errorMessage              String?   @db.Text
+
+  @@index([status, startedAt], map: "ScientificDiagnostic_status_started_idx")
+  @@index([sourceEvaluationRunId, startedAt], map: "ScientificDiagnostic_source_run_idx")
+  @@index([diagnosticVersion, startedAt], map: "ScientificDiagnostic_version_started_idx")
+}
+
+model ScientificDevelopmentCandidate {
+  id                        Int      @id @default(autoincrement())
+  diagnosticRunId           Int
+  horizonMinutes            Int
+  marketBranch              String   @db.VarChar(32)
+  status                    String   @db.VarChar(48)
+  method                    String   @db.VarChar(64)
+  experimentId              String?  @db.VarChar(64)
+  sources                   Json
+  weights                   Json
+  temperature               Float?
+  maximumProbabilityShift   Float?
+  fitFixtures               Int      @default(0)
+  calibrationFixtures       Int      @default(0)
+  validationFixtures        Int      @default(0)
+  fitMetrics                Json
+  calibrationMetrics        Json
+  validationMetrics         Json
+  baselineValidationMetrics Json
+  gates                     Json
+  deltas                    Json
+  evaluationHoldoutUsed     Boolean  @default(false)
+  payloadHash               String   @db.VarChar(64)
+  createdAt                 DateTime @default(now())
+
+  @@unique([diagnosticRunId, horizonMinutes, marketBranch, payloadHash], map: "ScientificDevelopmentCandidate_run_horizon_branch_hash_key")
+  @@index([status, createdAt], map: "ScientificDevelopmentCandidate_status_created_idx")
+  @@index([diagnosticRunId, horizonMinutes], map: "ScientificDevelopmentCandidate_run_horizon_idx")
+}
+
+model ScientificBaselineSnapshot {
+  id                Int      @id @default(autoincrement())
+  fixtureId         Int
+  leagueId          Int
+  predictionAsOf    DateTime
+  kickoffAt         DateTime
+  horizonMinutes    Int
+  baselineVersion   String   @db.VarChar(160)
+  homeProbability   Float
+  drawProbability   Float
+  awayProbability   Float
+  over25Probability Float
+  bttsProbability   Float
+  dataQualityScore  Float?
+  sourcePayload     Json
+  payloadHash       String   @db.VarChar(64)
+  createdAt         DateTime @default(now())
+
+  @@unique([fixtureId, horizonMinutes, baselineVersion, payloadHash], map: "ScientificBaseline_fixture_horizon_version_hash_key")
+  @@index([baselineVersion, kickoffAt], map: "ScientificBaseline_version_kickoff_idx")
+  @@index([fixtureId, predictionAsOf], map: "ScientificBaseline_fixture_asof_idx")
+}
+
+model ScientificEvaluationRun {
+  id                  Int       @id @default(autoincrement())
+  evaluationVersion   String    @db.VarChar(160)
+  candidateVersion    String    @db.VarChar(160)
+  baselineVersion     String    @db.VarChar(160)
+  status              String    @db.VarChar(24)
+  promotionStatus     String    @db.VarChar(48)
+  featureContractHash String    @db.VarChar(64)
+  policyVersion       String    @db.VarChar(96)
+  dateFrom            DateTime
+  dateTo              DateTime
+  foldCount           Int
+  oofRows             Int
+  evaluationRows      Int
+  leakageViolations   Int       @default(0)
+  artifactDirectory   String    @db.VarChar(512)
+  artifactSha256      Json
+  configuration       Json
+  predictionMetrics   Json
+  bettingMetrics      Json
+  promotionDecision   Json
+  startedAt           DateTime  @default(now())
+  finishedAt          DateTime?
+  errorMessage        String?   @db.Text
+
+  @@index([status, startedAt], map: "ScientificEvaluationRun_status_started_idx")
+  @@index([promotionStatus, startedAt], map: "ScientificEvaluationRun_promotion_started_idx")
+  @@index([candidateVersion, baselineVersion], map: "ScientificEvaluationRun_versions_idx")
+}
+
+model ScientificOofPrediction {
+  id                        Int      @id @default(autoincrement())
+  runId                     Int
+  fixtureId                 Int
+  leagueId                  Int
+  predictionAsOf            DateTime
+  kickoffAt                 DateTime
+  horizonMinutes            Int
+  foldNumber                Int
+  splitRole                 String   @db.VarChar(24)
+  trainedThrough            DateTime
+  labelMatchWinner          Int
+  marketAvailable           Boolean  @default(false)
+  baselineHomeProbability   Float
+  baselineDrawProbability   Float
+  baselineAwayProbability   Float
+  dixonHomeProbability      Float
+  dixonDrawProbability      Float
+  dixonAwayProbability      Float
+  marketHomeProbability     Float?
+  marketDrawProbability     Float?
+  marketAwayProbability     Float?
+  catBoostHomeProbability   Float
+  catBoostDrawProbability   Float
+  catBoostAwayProbability   Float
+  residualHomeProbability   Float?
+  residualDrawProbability   Float?
+  residualAwayProbability   Float?
+  stackedHomeProbability    Float
+  stackedDrawProbability    Float
+  stackedAwayProbability    Float
+  calibratedHomeProbability Float
+  calibratedDrawProbability Float
+  calibratedAwayProbability Float
+  decisionOdds              Json?
+  closingOdds               Json?
+  sourceFeaturePayloadHash  String   @db.VarChar(64)
+  evaluationPayload         Json
+  payloadHash               String   @db.VarChar(64)
+  createdAt                 DateTime @default(now())
+
+  @@unique([runId, fixtureId, horizonMinutes, payloadHash], map: "ScientificOof_run_fixture_horizon_hash_key")
+  @@index([runId, splitRole, kickoffAt], map: "ScientificOof_run_role_kickoff_idx")
+  @@index([fixtureId, horizonMinutes, predictionAsOf], map: "ScientificOof_fixture_horizon_asof_idx")
+  @@index([trainedThrough, predictionAsOf], map: "ScientificOof_leakage_guard_idx")
+}
+
+model ScientificEvaluationBet {
+  id               Int      @id @default(autoincrement())
+  runId            Int
+  fixtureId        Int
+  horizonMinutes   Int
+  source           String   @db.VarChar(24)
+  predictedAt      DateTime
+  kickoffAt        DateTime
+  selectionCode    String   @db.VarChar(16)
+  decimalOdds      Float
+  closingOdds      Float?
+  modelProbability Float
+  fairProbability  Float?
+  edge             Float
+  expectedValue    Float
+  stakeUnits       Float
+  result           String   @db.VarChar(16)
+  profitUnits      Float
+  clv              Float?
+  payloadHash      String   @db.VarChar(64)
+  createdAt        DateTime @default(now())
+
+  @@unique([runId, fixtureId, horizonMinutes, source, payloadHash], map: "ScientificBet_run_fixture_horizon_source_hash_key")
+  @@index([runId, source, kickoffAt], map: "ScientificBet_run_source_kickoff_idx")
+  @@index([fixtureId, predictedAt], map: "ScientificBet_fixture_predicted_idx")
+}
+
+model ScientificPromotionDecision {
+  id               Int      @id @default(autoincrement())
+  runId            Int
+  candidateVersion String   @db.VarChar(160)
+  baselineVersion  String   @db.VarChar(160)
+  status           String   @db.VarChar(48)
+  passed           Boolean  @default(false)
+  gates            Json
+  reasons          Json
+  deltas           Json
+  candidateMetrics Json
+  baselineMetrics  Json
+  payloadHash      String   @db.VarChar(64)
+  createdAt        DateTime @default(now())
+
+  @@unique([runId, payloadHash], map: "ScientificPromotion_run_hash_key")
+  @@index([status, createdAt], map: "ScientificPromotion_status_created_idx")
+}
+
+model MlFeatureSnapshot {
+  id                    Int      @id @default(autoincrement())
+  fixtureId             Int
+  leagueId              Int
+  predictionAsOf        DateTime
+  kickoffAt             DateTime
+  labelAvailableAt      DateTime
+  horizonMinutes        Int
+  labelMatchWinner      Int
+  labelOver25           Int
+  labelBtts             Int
+  fundamentalsAvailable Boolean  @default(true)
+  marketAvailable       Boolean  @default(false)
+  bookmakerCount        Int      @default(0)
+  marketHomeProbability Float?
+  marketDrawProbability Float?
+  marketAwayProbability Float?
+  featureNames          Json
+  featureVector         Json
+  featureContractHash   String   @db.VarChar(64)
+  sourcePayload         Json
+  payloadHash           String   @db.VarChar(64)
+  createdAt             DateTime @default(now())
+
+  @@unique([fixtureId, horizonMinutes, featureContractHash, payloadHash], map: "MlFeature_fixture_horizon_contract_hash_key")
+  @@index([kickoffAt, horizonMinutes], map: "MlFeature_kickoff_horizon_idx")
+  @@index([labelAvailableAt, predictionAsOf], map: "MlFeature_label_available_idx")
+  @@index([fixtureId, predictionAsOf], map: "MlFeature_fixture_asof_idx")
+  @@index([featureContractHash, kickoffAt], map: "MlFeature_contract_kickoff_idx")
+  @@index([marketAvailable, kickoffAt], map: "MlFeature_market_kickoff_idx")
+}
+
+model MlModelArtifact {
+  id                  Int      @id @default(autoincrement())
+  modelKey            String   @db.VarChar(96)
+  version             String   @db.VarChar(160)
+  status              String   @db.VarChar(24)
+  trainedFrom         DateTime
+  trainedThrough      DateTime
+  validationFrom      DateTime
+  validationThrough   DateTime
+  featureContractHash String   @db.VarChar(64)
+  featureNames        Json
+  trainingRows        Int
+  validationRows      Int
+  modelDirectory      String   @db.VarChar(512)
+  modelSha256         Json
+  metrics             Json
+  featureImportance   Json
+  parameters          Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([modelKey, version], map: "MlModelArtifact_model_key_version_key")
+  @@index([modelKey, status, createdAt], map: "MlModelArtifact_key_status_created_idx")
+  @@index([trainedThrough, validationFrom], map: "MlModelArtifact_temporal_idx")
+  @@index([featureContractHash, createdAt], map: "MlModelArtifact_contract_created_idx")
+}
+
+model MlPredictionSnapshot {
+  id                       Int      @id @default(autoincrement())
+  fixtureId                Int
+  leagueId                 Int
+  modelArtifactId          Int
+  predictionAsOf           DateTime
+  horizonMinutes           Int
+  modelVersion             String   @db.VarChar(160)
+  trainedThrough           DateTime
+  role                     String   @db.VarChar(24)
+  marketAvailable          Boolean  @default(false)
+  catBoostHomeProbability  Float
+  catBoostDrawProbability  Float
+  catBoostAwayProbability  Float
+  residualHomeProbability  Float?
+  residualDrawProbability  Float?
+  residualAwayProbability  Float?
+  finalHomeProbability     Float
+  finalDrawProbability     Float
+  finalAwayProbability     Float
+  over25Probability        Float
+  bttsProbability          Float
+  featureContractHash      String   @db.VarChar(64)
+  sourceFeaturePayloadHash String   @db.VarChar(64)
+  modelPayload             Json
+  payloadHash              String   @db.VarChar(64)
+  createdAt                DateTime @default(now())
+
+  @@unique([fixtureId, horizonMinutes, modelVersion, payloadHash], map: "MlPrediction_fixture_horizon_model_hash_key")
+  @@index([fixtureId, horizonMinutes, predictionAsOf], map: "MlPrediction_fixture_horizon_asof_idx")
+  @@index([modelArtifactId, role], map: "MlPrediction_artifact_role_idx")
+  @@index([trainedThrough, predictionAsOf], map: "MlPrediction_leakage_guard_idx")
+  @@index([featureContractHash, createdAt], map: "MlPrediction_contract_created_idx")
+}
+
+model TeamFundamentalSnapshot {
+  id                      Int       @id @default(autoincrement())
+  fixtureId               Int
+  teamId                  Int
+  leagueId                Int
+  predictionAsOf          DateTime
+  horizonMinutes          Int
+  venueRole               String    @db.VarChar(8)
+  sampleSize              Int
+  venueSampleSize         Int
+  matches5                Int
+  matches10               Int
+  matches20               Int
+  pointsPerGame5          Float
+  pointsPerGame10         Float
+  pointsPerGame20         Float
+  goalsFor5               Float
+  goalsFor10              Float
+  goalsFor20              Float
+  goalsAgainst5           Float
+  goalsAgainst10          Float
+  goalsAgainst20          Float
+  expectedGoalsFor10      Float
+  expectedGoalsAgainst10  Float
+  shots10                 Float
+  shotsOnGoal10           Float
+  possession10            Float
+  corners10               Float
+  winRate10               Float
+  drawRate10              Float
+  lossRate10              Float
+  cleanSheetRate10        Float
+  bttsRate10              Float
+  over25Rate10            Float
+  metricCoverage10        Float
+  venuePointsPerGame10    Float
+  venueGoalsFor10         Float
+  venueGoalsAgainst10     Float
+  restDays                Float
+  dataQualityScore        Float
+  latestSourceFixtureId   Int?
+  latestSourceKickoffAt   DateTime?
+  latestSourceAvailableAt DateTime?
+  rawPayload              Json
+  payloadHash             String    @db.VarChar(64)
+  createdAt               DateTime  @default(now())
+
+  @@unique([fixtureId, teamId, horizonMinutes, payloadHash], map: "TeamFundamental_fixture_team_horizon_hash_key")
+  @@index([fixtureId, horizonMinutes, predictionAsOf], map: "TeamFundamental_fixture_horizon_asof_idx")
+  @@index([teamId, predictionAsOf], map: "TeamFundamental_team_asof_idx")
+  @@index([leagueId, predictionAsOf], map: "TeamFundamental_league_asof_idx")
+}
+
+model DixonColesPredictionSnapshot {
+  id                Int      @id @default(autoincrement())
+  fixtureId         Int
+  leagueId          Int
+  predictionAsOf    DateTime
+  horizonMinutes    Int
+  trainedFrom       DateTime
+  trainedThrough    DateTime
+  sampleSize        Int
+  teamCount         Int
+  halfLifeDays      Float
+  rho               Float
+  intercept         Float
+  homeAdvantage     Float
+  homeExpectedGoals Float
+  awayExpectedGoals Float
+  homeProbability   Float
+  drawProbability   Float
+  awayProbability   Float
+  over25Probability Float
+  bttsProbability   Float
+  dataQualityScore  Float
+  modelPayload      Json
+  payloadHash       String   @db.VarChar(64)
+  createdAt         DateTime @default(now())
+
+  @@unique([fixtureId, horizonMinutes, payloadHash], map: "DixonColes_fixture_horizon_hash_key")
+  @@index([fixtureId, horizonMinutes, predictionAsOf], map: "DixonColes_fixture_horizon_asof_idx")
+  @@index([leagueId, trainedThrough], map: "DixonColes_league_trained_through_idx")
+  @@index([predictionAsOf, trainedThrough], map: "DixonColes_asof_trained_through_idx")
+}
+
+model FixtureInjury {
+  id          Int      @id @default(autoincrement())
+  fixtureId   Int
+  teamId      Int
+  apiPlayerId Int
+  playerName  String
+  reason      String?
+  injuryType  String?
+  capturedAt  DateTime @default(now())
+  rawPayload  Json?
+
+  @@unique([fixtureId, teamId, apiPlayerId])
+  @@index([teamId, fixtureId])
+  @@index([capturedAt])
+}
+
+model TeamElo {
+  teamId    Int      @id
+  leagueId  Int
+  rating    Float    @default(1500)
+  matches   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@index([leagueId, rating])
+}
+
+model FixtureScientificCoverage {
+  fixtureId           Int       @id
+  statisticsFetchedAt DateTime?
+  injuriesFetchedAt   DateTime?
+  updatedAt           DateTime  @updatedAt
+
+  @@index([statisticsFetchedAt])
+  @@index([injuriesFetchedAt])
+}
+
+model ApiFootballProviderRun {
+  id                    Int      @id @default(autoincrement())
+  providerVersion       String   @db.VarChar(160)
+  command               String   @db.VarChar(64)
+  status                String   @db.VarChar(24)
+  requestCount          Int      @default(0)
+  insertedFixtures      Int      @default(0)
+  insertedOdds          Int      @default(0)
+  insertedDataSnapshots Int      @default(0)
+  quotaBefore           Json?
+  quotaAfter            Json?
+  metadata              Json
+  payloadHash           String   @unique @db.VarChar(64)
+  startedAt             DateTime @default(now())
+  finishedAt            DateTime?
+  errorMessage          String?  @db.Text
+
+  @@index([command, startedAt], map: "ApiFootballProviderRun_command_started_idx")
+  @@index([status, startedAt], map: "ApiFootballProviderRun_status_started_idx")
+}
+
+model ApiFootballFixtureSnapshot {
+  id                   Int      @id @default(autoincrement())
+  providerFixtureId    Int
+  providerLeagueId     Int
+  season               Int
+  kickoffAt            DateTime
+  statusShort          String   @db.VarChar(24)
+  homeProviderTeamId   Int
+  awayProviderTeamId   Int
+  homeTeamName         String   @db.VarChar(160)
+  awayTeamName         String   @db.VarChar(160)
+  homeGoals            Int?
+  awayGoals            Int?
+  fulltimeHomeGoals    Int?
+  fulltimeAwayGoals    Int?
+  observedAt           DateTime
+  rawPayload           Json
+  payloadHash          String   @unique @db.VarChar(64)
+  createdAt            DateTime @default(now())
+
+  @@index([providerFixtureId, observedAt], map: "ApiFootballFixtureSnapshot_fixture_observed_idx")
+  @@index([providerLeagueId, kickoffAt], map: "ApiFootballFixtureSnapshot_league_kickoff_idx")
+}
+
+model HistoricalExternalOddsSnapshot {
+  id                    Int      @id @default(autoincrement())
+  sourceProvider        String   @db.VarChar(64)
+  sourceSportKey        String   @db.VarChar(160)
+  sourceEventId         String   @db.VarChar(160)
+  sourceSnapshotAt      DateTime
+  sourceUpdatedAt       DateTime?
+  observedAt            DateTime
+  localFixtureId        Int
+  providerFixtureId     Int
+  providerLeagueId      Int
+  season                Int
+  kickoffAt             DateTime
+  bookmakerNamespaceId  Int
+  bookmakerKey          String   @db.VarChar(120)
+  bookmakerName         String   @db.VarChar(160)
+  marketType            String   @db.VarChar(32)
+  selection             String   @db.VarChar(24)
+  lineValue             Float?
+  decimalOdds           Float
+  pitUsable             Boolean  @default(false)
+  rawPayloadHash        String   @db.VarChar(64)
+  payloadHash           String   @unique @db.VarChar(64)
+  createdAt             DateTime @default(now())
+
+  @@index([localFixtureId, marketType, sourceSnapshotAt], map: "HistoricalExternalOdds_local_market_snapshot_idx")
+  @@index([providerFixtureId, marketType, sourceSnapshotAt], map: "HistoricalExternalOdds_provider_market_snapshot_idx")
+  @@index([sourceProvider, sourceSportKey, sourceSnapshotAt], map: "HistoricalExternalOdds_source_sport_snapshot_idx")
+  @@index([bookmakerNamespaceId, marketType, sourceSnapshotAt], map: "HistoricalExternalOdds_bookmaker_market_snapshot_idx")
+  @@index([pitUsable, sourceSnapshotAt], map: "HistoricalExternalOdds_pit_snapshot_idx")
+}
+
+model ApiFootballOddsSnapshot {
+  id                 Int      @id @default(autoincrement())
+  providerFixtureId  Int
+  providerLeagueId   Int
+  season             Int
+  kickoffAt          DateTime
+  sourceUpdatedAt    DateTime?
+  observedAt         DateTime
+  bookmakerId        Int
+  bookmakerName      String   @db.VarChar(160)
+  betId              Int
+  betName            String   @db.VarChar(160)
+  marketType         String   @db.VarChar(32)
+  selection          String   @db.VarChar(24)
+  lineValue          Float?
+  decimalOdds        Float
+  pitUsable          Boolean  @default(false)
+  payloadHash        String   @unique @db.VarChar(64)
+  createdAt          DateTime @default(now())
+
+  @@index([providerFixtureId, marketType, observedAt], map: "ApiFootballOddsSnapshot_fixture_market_observed_idx")
+  @@index([providerFixtureId, bookmakerId, betId, sourceUpdatedAt], map: "ApiFootballOddsSnapshot_fixture_bookmaker_bet_source_idx")
+  @@index([marketType, selection, lineValue], map: "ApiFootballOddsSnapshot_market_selection_line_idx")
+  @@index([pitUsable, observedAt], map: "ApiFootballOddsSnapshot_pit_observed_idx")
+}
+
+model ApiFootballFreshOddsCheckpoint {
+  id                    Int      @id @default(autoincrement())
+  providerFixtureId     Int
+  providerLeagueId      Int
+  season                 Int
+  kickoffAt              DateTime
+  horizonMinutes         Int
+  horizonLabel           String   @db.VarChar(32)
+  dueAt                  DateTime
+  status                 String   @default("PENDING") @db.VarChar(24)
+  attempts               Int      @default(0)
+  attemptedAt            DateTime?
+  completedAt            DateTime?
+  nextRetryAt            DateTime?
+  lockToken              String?  @db.VarChar(64)
+  requestCount           Int      @default(0)
+  normalizedOdds         Int      @default(0)
+  insertedOdds           Int      @default(0)
+  pitUsableOdds          Int      @default(0)
+  quotaRemainingDay      Int?
+  quotaRemainingMinute   Int?
+  errorMessage           String?  @db.Text
+  metadata               Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([providerFixtureId, horizonMinutes], map: "ApiFootballFreshOddsCheckpoint_fixture_horizon_key")
+  @@index([status, dueAt], map: "ApiFootballFreshOddsCheckpoint_status_due_idx")
+  @@index([providerFixtureId, kickoffAt], map: "ApiFootballFreshOddsCheckpoint_fixture_kickoff_idx")
+  @@index([horizonMinutes, status, dueAt], map: "ApiFootballFreshOddsCheckpoint_horizon_status_due_idx")
+}
+
+model ApiFootballDataSnapshot {
+  id                 Int      @id @default(autoincrement())
+  kind               String   @db.VarChar(48)
+  providerFixtureId  Int?
+  providerLeagueId   Int?
+  providerTeamId     Int?
+  sourceAsOf         DateTime?
+  observedAt         DateTime
+  queryPayload       Json
+  rawPayload         Json
+  payloadHash        String   @unique @db.VarChar(64)
+  createdAt          DateTime @default(now())
+
+  @@index([kind, observedAt], map: "ApiFootballDataSnapshot_kind_observed_idx")
+  @@index([providerFixtureId, kind, observedAt], map: "ApiFootballDataSnapshot_fixture_kind_observed_idx")
+  @@index([providerTeamId, kind, observedAt], map: "ApiFootballDataSnapshot_team_kind_observed_idx")
+}
+
+model ScientificPaperBetDecision {
+  id                     Int      @id @default(autoincrement())
+  providerFixtureId      Int
+  localFixtureId         Int?
+  horizonMinutes         Int
+  decisionAsOf           DateTime
+  kickoffAt              DateTime
+  decisionType           String   @db.VarChar(16)
+  selectedMarket         String?  @db.VarChar(32)
+  selectedSelection      String?  @db.VarChar(24)
+  lineValue              Float?
+  decimalOdds            Float?
+  bookmakerId            Int?
+  bookmakerName          String?  @db.VarChar(160)
+  modelProbability       Float?
+  fairMarketProbability  Float?
+  impliedProbability     Float?
+  edge                    Float?
+  expectedValue           Float?
+  modelVersion            String   @db.VarChar(192)
+  policyVersion           String   @db.VarChar(192)
+  reliabilityStatus      String?  @db.VarChar(64)
+  sourceOddsSnapshotId   Int?
+  sourceOddsUpdatedAt    DateTime?
+  sourceOddsObservedAt   DateTime?
+  candidateCount         Int
+  rejectedCandidateCount Int
+  decisionPayload        Json
+  decisionHash           String   @unique @db.VarChar(64)
+  createdAt              DateTime @default(now())
+
+  candidates             ScientificPaperBetCandidate[]
+  settlement             ScientificPaperBetSettlement?
+
+  @@index([providerFixtureId, horizonMinutes, decisionAsOf], map: "ScientificPaperBetDecision_fixture_horizon_asof_idx")
+  @@index([decisionType, decisionAsOf], map: "ScientificPaperBetDecision_type_asof_idx")
+  @@index([selectedMarket, selectedSelection], map: "ScientificPaperBetDecision_market_selection_idx")
+}
+
+model ScientificPaperBetCandidate {
+  id                    Int      @id @default(autoincrement())
+  decisionId            Int
+  providerFixtureId     Int
+  marketType            String   @db.VarChar(32)
+  selection             String   @db.VarChar(24)
+  lineValue             Float?
+  decimalOdds           Float
+  bookmakerId           Int
+  bookmakerName         String   @db.VarChar(160)
+  modelProbability      Float
+  fairMarketProbability Float
+  impliedProbability    Float
+  edge                   Float
+  expectedValue          Float
+  reliabilityStatus     String   @db.VarChar(64)
+  eligible              Boolean
+  rejectionReasons      Json
+  sourceOddsSnapshotId  Int?
+  candidatePayload      Json
+  candidateHash         String   @unique @db.VarChar(64)
+  createdAt             DateTime @default(now())
+
+  decision ScientificPaperBetDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@index([decisionId, eligible], map: "ScientificPaperBetCandidate_decision_eligible_idx")
+  @@index([providerFixtureId, marketType, selection], map: "ScientificPaperBetCandidate_fixture_market_selection_idx")
+}
+
+model ScientificPaperBetSettlement {
+  id                       Int      @id @default(autoincrement())
+  decisionId               Int      @unique
+  providerFixtureId        Int
+  settledAt                DateTime
+  sourceFixtureObservedAt  DateTime
+  statusShort              String   @db.VarChar(24)
+  fulltimeHomeGoals        Int
+  fulltimeAwayGoals        Int
+  result                   String   @db.VarChar(16)
+  stakeUnits               Float
+  profitUnits              Float
+  closingDecimalOdds       Float?
+  closingFairProbability   Float?
+  clv                      Float?
+  settlementPayload        Json
+  settlementHash           String   @unique @db.VarChar(64)
+  createdAt                DateTime @default(now())
+
+  decision ScientificPaperBetDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@index([providerFixtureId, settledAt], map: "ScientificPaperBetSettlement_fixture_settled_idx")
+  @@index([result, settledAt], map: "ScientificPaperBetSettlement_result_settled_idx")
+}
+
+model ScientificBankrollRiskPolicy {
+  id                            Int      @id @default(autoincrement())
+  accountKey                    String   @db.VarChar(64)
+  policyVersion                 String   @db.VarChar(160)
+  stakingMode                   String   @db.VarChar(32)
+  startingBankrollUnits         Float
+  flatStakeUnits                Float
+  kellyFraction                 Float
+  minimumStakeUnits             Float
+  maximumStakeUnits             Float
+  maximumStakeFraction          Float
+  maximumOpenExposureFraction   Float
+  maximumDailyExposureFraction  Float
+  maximumLeagueExposureFraction Float
+  maximumDailyLossFraction      Float
+  drawdownSoftLimit             Float
+  drawdownHardLimit             Float
+  minimumBankrollUnits          Float
+  roundingUnits                 Float
+  configuration                 Json
+  payloadHash                   String   @unique @db.VarChar(64)
+  createdAt                     DateTime @default(now())
+
+  @@index([accountKey, createdAt], map: "ScientificBankrollRiskPolicy_account_created_idx")
+  @@index([policyVersion, createdAt], map: "ScientificBankrollRiskPolicy_version_created_idx")
+}
+
+model ScientificPaperStakeDecision {
+  id                           Int      @id @default(autoincrement())
+  riskPolicyId                 Int
+  riskPolicyHash               String   @db.VarChar(64)
+  paperDecisionId              Int
+  paperDecisionHash            String   @db.VarChar(64)
+  providerFixtureId            Int
+  localFixtureId               Int?
+  leagueId                     Int?
+  horizonMinutes               Int
+  decisionAsOf                 DateTime
+  evaluatedAt                  DateTime
+  kickoffAt                    DateTime
+  paperDecisionType            String   @db.VarChar(16)
+  stakeDecisionType            String   @db.VarChar(16)
+  stakingMode                  String   @db.VarChar(32)
+  selectedMarket               String?  @db.VarChar(32)
+  selectedSelection            String?  @db.VarChar(24)
+  lineValue                    Float?
+  decimalOdds                  Float?
+  modelProbability             Float?
+  fairMarketProbability        Float?
+  edge                         Float?
+  expectedValue                Float?
+  stakeUnits                   Float
+  stakeFraction                Float
+  requestedStakeUnits          Float
+  fullKellyFraction            Float?
+  appliedKellyFraction         Float?
+  drawdownMultiplier           Float
+  riskBand                     String   @db.VarChar(24)
+  bankrollBeforeUnits          Float
+  peakBankrollBeforeUnits      Float
+  openExposureBeforeUnits      Float
+  dailyExposureBeforeUnits     Float
+  leagueExposureBeforeUnits    Float
+  dailyRealizedPnlBeforeUnits  Float
+  drawdownBeforeFraction       Float
+  riskReasons                  Json
+  cappedBy                     Json
+  calculationPayload           Json
+  stakeHash                    String   @unique @db.VarChar(64)
+  createdAt                    DateTime @default(now())
+
+  @@unique([riskPolicyId, paperDecisionId], map: "ScientificPaperStakeDecision_policy_decision_key")
+  @@index([riskPolicyId, evaluatedAt], map: "ScientificPaperStakeDecision_policy_evaluated_idx")
+  @@index([stakeDecisionType, evaluatedAt], map: "ScientificPaperStakeDecision_type_evaluated_idx")
+  @@index([providerFixtureId, horizonMinutes], map: "ScientificPaperStakeDecision_fixture_horizon_idx")
+  @@index([leagueId, evaluatedAt], map: "ScientificPaperStakeDecision_league_evaluated_idx")
+}
+
+model ScientificBankrollStakeSettlement {
+  id                       Int      @id @default(autoincrement())
+  riskPolicyId             Int
+  riskPolicyHash           String   @db.VarChar(64)
+  stakeDecisionId          Int      @unique
+  paperDecisionId          Int
+  paperSettlementId        Int
+  providerFixtureId        Int
+  settledAt                DateTime
+  result                   String   @db.VarChar(16)
+  stakeUnits               Float
+  decimalOdds              Float
+  profitUnits              Float
+  bankrollBeforeUnits      Float
+  bankrollAfterUnits       Float
+  peakBankrollAfterUnits   Float
+  drawdownAfterFraction    Float
+  settlementPayload        Json
+  settlementHash           String   @unique @db.VarChar(64)
+  createdAt                DateTime @default(now())
+
+  @@unique([riskPolicyId, paperSettlementId], map: "ScientificBankrollStakeSettlement_policy_paper_key")
+  @@index([riskPolicyId, settledAt], map: "ScientificBankrollStakeSettlement_policy_settled_idx")
+  @@index([result, settledAt], map: "ScientificBankrollStakeSettlement_result_settled_idx")
+  @@index([providerFixtureId, settledAt], map: "ScientificBankrollStakeSettlement_fixture_settled_idx")
+}

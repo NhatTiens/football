@@ -6,6 +6,7 @@ import {
   type InputJsonValue,
 } from '@football-ai/database';
 import { getApiFootballClient } from './client.js';
+import { saveFixtureContextCoverageSnapshot } from './context-snapshots.js';
 import {
   getLineupHistoryImportDays,
   getLineupSyncHoursAhead,
@@ -240,6 +241,16 @@ export async function syncLineups(
           inserted += summary.inserted;
           updated += summary.updated;
         }
+        await saveFixtureContextCoverageSnapshot({
+          fixtureId: fixture.id,
+          dataType: 'LINEUP',
+          capturedAt,
+          responseCount: result.data.length,
+          metadata: {
+            apiFixtureId: fixture.apiFixtureId,
+            source: 'api-football:fixtures/lineups',
+          },
+        });
       }
 
       return {

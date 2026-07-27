@@ -56,7 +56,18 @@
     "bankroll:risk-plan": "tsx src/bankroll-risk-cli.ts plan",
     "bankroll:risk-settle": "tsx src/bankroll-risk-cli.ts settle",
     "bankroll:risk-coverage": "tsx src/bankroll-risk-cli.ts coverage",
-    "bankroll:risk-cycle": "tsx src/bankroll-risk-cli.ts cycle"
+    "bankroll:risk-cycle": "tsx src/bankroll-risk-cli.ts cycle",
+    "test:three-market-core": "vitest run tests/three-market-core.test.ts",
+    "test:scientific-training-contract": "vitest run tests/scientific-training-contract.test.ts",
+    "test:three-market-evaluation": "vitest run tests/three-market-evaluation.test.ts",
+    "three-market:evaluate": "tsx src/three-market-evaluation-cli.ts",
+    "test:ou-specialist-r3": "vitest run tests/ou-specialist-r3.test.ts",
+    "three-market:walk-forward": "tsx src/three-market-walk-forward-cli.ts",
+    "test:predictive-signal-audit": "vitest run tests/predictive-signal-audit.test.ts",
+    "predictive-signal:audit": "tsx src/predictive-signal-audit-cli.ts",
+    "test:repeated-context": "vitest run tests/repeated-context.test.ts",
+    "context:collect": "tsx src/repeated-context-cli.ts",
+    "context:coverage": "tsx src/context-coverage-audit-cli.ts"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",

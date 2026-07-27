@@ -11,6 +11,10 @@ import {
 } from './scientific-model.js';
 import { saveScientificModelArtifact } from './scientific-model-registry.js';
 import { fixtureTeamMetricSnapshotHash } from './scientific-snapshots.js';
+import {
+  saveFixtureContextCoverageSnapshot,
+  saveFixtureInjurySnapshot,
+} from './context-snapshots.js';
 import { runTrackedSync, trackApiResult, type SyncSummary } from './tracking.js';
 
 interface ApiStatisticEntry {
@@ -123,6 +127,7 @@ function createTrainingState(): TrainingTeamState {
 function teamAverages(
   state: TrainingTeamState,
   limit: number,
+  asOf: Date,
 ): {
   pointsPerGame: number;
   goalsFor: number;
@@ -134,6 +139,9 @@ function teamAverages(
 } {
   const selected = state.matches.slice(-limit);
   const latest = selected[selected.length - 1];
+  const restDays = latest
+    ? clamp((asOf.getTime() - latest.kickoffAt.getTime()) / 86_400_000, 2, 30)
+    : 7;
   return {
     pointsPerGame: average(
       selected.map((row) => row.points),
@@ -159,7 +167,7 @@ function teamAverages(
       selected.map((row) => row.shotsOnGoal),
       4.2,
     ),
-    restDays: latest ? 7 : 7,
+    restDays,
   };
 }
 
@@ -341,16 +349,25 @@ export async function syncScientificStatistics(): Promise<SyncSummary> {
   });
 }
 
-export async function syncScientificInjuries(): Promise<SyncSummary> {
+export interface ScientificInjurySyncOptions {
+  fixtureIds?: number[];
+  now?: Date;
+}
+
+export async function syncScientificInjuries(
+  options: ScientificInjurySyncOptions = {},
+): Promise<SyncSummary> {
   return runTrackedSync('sync-scientific-injuries', async () => {
-    const now = new Date();
+    const now = options.now ?? new Date();
     const maximum = new Date(now.getTime() + getFixtureHoursAhead() * 3_600_000);
     const limit = Math.max(1, Math.floor(numberEnvironment('SCIENTIFIC_INJURY_FIXTURE_LIMIT', 20)));
     const fixtures = await prisma.fixture.findMany({
-      where: {
-        status: { in: [FixtureStatus.UPCOMING, FixtureStatus.LIVE] },
-        kickoffAt: { gte: now, lte: maximum },
-      },
+      where: options.fixtureIds
+        ? { id: { in: options.fixtureIds } }
+        : {
+            status: { in: [FixtureStatus.UPCOMING, FixtureStatus.LIVE] },
+            kickoffAt: { gte: now, lte: maximum },
+          },
       include: { homeTeam: true, awayTeam: true },
       orderBy: { kickoffAt: 'asc' },
       take: limit,
@@ -369,6 +386,14 @@ export async function syncScientificInjuries(): Promise<SyncSummary> {
         await trackApiResult('injuries', result);
         const capturedAt = new Date();
         const activeKeys = new Set<string>();
+        const snapshotRows: Array<{
+          teamId: number;
+          apiPlayerId: number;
+          playerName: string;
+          reason: string | null;
+          injuryType: string | null;
+          rawPayload: unknown;
+        }> = [];
 
         for (const row of result.data) {
           const apiTeamId = Number(row.team?.id);
@@ -384,6 +409,14 @@ export async function syncScientificInjuries(): Promise<SyncSummary> {
             continue;
           }
           activeKeys.add(`${team.id}:${apiPlayerId}`);
+          snapshotRows.push({
+            teamId: team.id,
+            apiPlayerId,
+            playerName,
+            reason: row.reason?.trim() || null,
+            injuryType: row.type?.trim() || null,
+            rawPayload: row,
+          });
           const existing = await prisma.fixtureInjury.findUnique({
             where: {
               fixtureId_teamId_apiPlayerId: {
@@ -437,6 +470,22 @@ export async function syncScientificInjuries(): Promise<SyncSummary> {
         if (obsoleteIds.length > 0) {
           await prisma.fixtureInjury.deleteMany({ where: { id: { in: obsoleteIds } } });
         }
+        await saveFixtureInjurySnapshot({
+          fixtureId: fixture.id,
+          capturedAt,
+          rows: snapshotRows,
+          rawPayload: result.data,
+        });
+        await saveFixtureContextCoverageSnapshot({
+          fixtureId: fixture.id,
+          dataType: 'INJURY',
+          capturedAt,
+          responseCount: snapshotRows.length,
+          metadata: {
+            apiFixtureId: fixture.apiFixtureId,
+            source: 'api-football:injuries',
+          },
+        });
         await prisma.fixtureScientificCoverage.upsert({
           where: { fixtureId: fixture.id },
           update: { injuriesFetchedAt: capturedAt },
@@ -554,9 +603,23 @@ export async function rebuildScientificElo(): Promise<SyncSummary> {
   });
 }
 
-export async function trainScientificModel(): Promise<SyncSummary> {
+export interface ScientificTrainingOptions {
+  limit?: number;
+  through?: Date;
+  leagueId?: number;
+  trainedAt?: Date;
+  purpose?: string;
+  noPromote?: boolean;
+}
+
+export async function trainScientificModel(
+  options: ScientificTrainingOptions = {},
+): Promise<SyncSummary> {
   return runTrackedSync('train-scientific-model', async () => {
-    const limit = Math.max(100, Math.floor(numberEnvironment('SCIENTIFIC_TRAINING_LIMIT', 4000)));
+    const limit = Math.max(
+      100,
+      Math.floor(options.limit ?? numberEnvironment('SCIENTIFIC_TRAINING_LIMIT', 4000)),
+    );
     const minimumSamples = Math.max(
       30,
       Math.floor(numberEnvironment('SCIENTIFIC_MIN_TRAINING_SAMPLES', 80)),
@@ -570,6 +633,8 @@ export async function trainScientificModel(): Promise<SyncSummary> {
         status: FixtureStatus.FINISHED,
         homeGoals: { not: null },
         awayGoals: { not: null },
+        ...(options.leagueId ? { leagueId: options.leagueId } : {}),
+        ...(options.through ? { kickoffAt: { lte: options.through } } : {}),
       },
       select: {
         id: true,
@@ -608,8 +673,8 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       if (fixture.homeGoals == null || fixture.awayGoals == null) continue;
       const homeState = states.get(fixture.homeTeamId) ?? createTrainingState();
       const awayState = states.get(fixture.awayTeamId) ?? createTrainingState();
-      const home = teamAverages(homeState, historyLimit);
-      const away = teamAverages(awayState, historyLimit);
+      const home = teamAverages(homeState, historyLimit, fixture.kickoffAt);
+      const away = teamAverages(awayState, historyLimit, fixture.kickoffAt);
       const homeExpectedGoals = clamp(
         1.45 * (home.expectedGoalsFor / 1.45) * (away.expectedGoalsAgainst / 1.2),
         0.2,
@@ -651,7 +716,9 @@ export async function trainScientificModel(): Promise<SyncSummary> {
               : fixture.homeGoals === fixture.awayGoals
                 ? 1
                 : 2,
+          over15: fixture.homeGoals + fixture.awayGoals > 1.5 ? 1 : 0,
           over25: fixture.homeGoals + fixture.awayGoals > 2.5 ? 1 : 0,
+          over35: fixture.homeGoals + fixture.awayGoals > 3.5 ? 1 : 0,
           btts: fixture.homeGoals > 0 && fixture.awayGoals > 0 ? 1 : 0,
           kickoffAt: fixture.kickoffAt,
         });
@@ -724,6 +791,7 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       l2: numberEnvironment('SCIENTIFIC_TRAINING_L2', 0.01),
       randomSeed: Math.floor(numberEnvironment('SCIENTIFIC_TRAINING_SEED', 20260722)),
       ensembleMembers: Math.max(1, Math.floor(numberEnvironment('SCIENTIFIC_ENSEMBLE_MEMBERS', 3))),
+      trainedAt: options.trainedAt,
     });
     const existing = await prisma.appSetting.findUnique({
       where: { key: SCIENTIFIC_MODEL_KEY },
@@ -737,8 +805,11 @@ export async function trainScientificModel(): Promise<SyncSummary> {
       },
     });
     // PREDICTION_AI_V61_ARTIFACT_REGISTRY
-    const purpose = process.env.SCIENTIFIC_TRAINING_PURPOSE ?? 'production-training';
-    const noPromote = process.env.SCIENTIFIC_TRAINING_NO_PROMOTE?.trim().toLowerCase() === 'true';
+    const purpose =
+      options.purpose ?? process.env.SCIENTIFIC_TRAINING_PURPOSE ?? 'production-training';
+    const noPromote =
+      options.noPromote ??
+      process.env.SCIENTIFIC_TRAINING_NO_PROMOTE?.trim().toLowerCase() === 'true';
     const registryMetadata = await saveScientificModelArtifact({
       artifact,
       purpose,

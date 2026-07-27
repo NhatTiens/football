@@ -1,0 +1,42 @@
+[
+  {
+    "relative": "packages/sync/src/scientific-model.ts",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/scientific-sync.ts",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/scientific-features.ts",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/three-market-core.ts",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/three-market-evaluation-engine.ts",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/three-market-evaluation-cli.ts",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/three-market-walk-forward-cli.ts",
+    "existed": false
+  },
+  {
+    "relative": "packages/sync/tests/ou-specialist-r3.test.ts",
+    "existed": false
+  },
+  {
+    "relative": "packages/sync/package.json",
+    "existed": true
+  },
+  {
+    "relative": "packages/sync/src/index.ts",
+    "existed": true
+  }
+]
