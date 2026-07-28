@@ -53,6 +53,7 @@ import {
   syncPredictions,
   syncScientificInjuries,
   syncScientificStatistics,
+  syncRepeatedFixtureContext,
   trainScientificModel,
 } from '@football-ai/sync';
 
@@ -106,6 +107,7 @@ export type WorkerCommand =
   | 'sync-predictions'
   | 'sync-scientific-stats'
   | 'sync-scientific-injuries'
+  | 'sync-repeated-context'
   | 'rebuild-elo'
   | 'train-scientific'
   | 'generate'
@@ -202,6 +204,8 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
       result = await syncScientificStatistics();
     } else if (command === 'sync-scientific-injuries') {
       result = await syncScientificInjuries();
+    } else if (command === 'sync-repeated-context') {
+      result = await syncRepeatedFixtureContext();
     } else if (command === 'rebuild-elo') result = await rebuildScientificElo();
     else if (command === 'train-scientific') result = await trainScientificModel();
     else if (command === 'generate') result = await generateRecommendations();

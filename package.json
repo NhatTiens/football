@@ -25,7 +25,8 @@
     "format": "prettier --write .",
     "verify": "npm run typecheck && npm test && npm run lint && npm run build",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File ./scripts/windows-clean-install.ps1",
-    "dev:raw": "concurrently -n api,worker,web -c auto \"npm run dev -w @football-ai/api\" \"npm run dev -w @football-ai/worker\" \"npm run dev -w @football-ai/web\""
+    "dev:raw": "concurrently -n api,worker,web,science -c auto \"npm run dev -w @football-ai/api\" \"node scripts/dev-worker-with-science.mjs\" \"npm run dev -w @football-ai/web\" \"npm run dev:autopilot -w @football-ai/sync\"",
+    "dev:autopilot": "node scripts/run-with-env.mjs npm run dev:autopilot -w @football-ai/sync"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",

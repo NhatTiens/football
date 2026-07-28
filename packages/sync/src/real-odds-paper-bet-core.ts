@@ -8,7 +8,8 @@ export const LIVE_PAPER_BET_ENGINE_VERSION = 'v7.0-beta.1B.1-real-odds-multimark
 
 export const LIVE_PAPER_BET_HORIZONS = [90, 30, 5] as const;
 
-export type LivePaperBetHorizon = (typeof LIVE_PAPER_BET_HORIZONS)[number];
+export type DefaultLivePaperBetHorizon = (typeof LIVE_PAPER_BET_HORIZONS)[number];
+export type LivePaperBetHorizon = number;
 
 export type LiveMarketType =
   'MATCH_WINNER' | 'TOTAL_GOALS_1_5' | 'TOTAL_GOALS_2_5' | 'TOTAL_GOALS_3_5' | 'BTTS';
@@ -123,18 +124,57 @@ function modelProbability(
   return value;
 }
 
-export function parseLivePaperBetHorizons(value: string | undefined): LivePaperBetHorizon[] {
+export interface ParseLivePaperBetHorizonsOptions {
+  allowFlexible?: boolean;
+  minimumMinutes?: number;
+  maximumMinutes?: number;
+}
+
+export function parseLivePaperBetHorizons(
+  value: string | undefined,
+  options: ParseLivePaperBetHorizonsOptions = {},
+): LivePaperBetHorizon[] {
   if (value == null || value.trim() === '') {
     return [...LIVE_PAPER_BET_HORIZONS];
   }
 
   const parsed = value.split(',').map((item) => Number(item.trim()));
 
-  if (parsed.some((item) => !LIVE_PAPER_BET_HORIZONS.includes(item as LivePaperBetHorizon))) {
-    throw new Error('PAPER_BET_HORIZONS_MINUTES supports only 90,30,5 in beta.1B.1.');
+  if (!options.allowFlexible) {
+    if (
+      parsed.some(
+        (item) =>
+          !LIVE_PAPER_BET_HORIZONS.includes(
+            item as DefaultLivePaperBetHorizon,
+          ),
+      )
+    ) {
+      throw new Error(
+        'PAPER_BET_HORIZONS_MINUTES supports only 90,30,5 unless flexible research mode is explicitly enabled.',
+      );
+    }
+
+    return [...new Set(parsed)].sort((left, right) => right - left);
   }
 
-  return [...new Set(parsed as LivePaperBetHorizon[])].sort((left, right) => right - left);
+  const minimumMinutes = options.minimumMinutes ?? 1;
+  const maximumMinutes = options.maximumMinutes ?? 1440;
+
+  if (
+    parsed.length === 0 ||
+    parsed.some(
+      (item) =>
+        !Number.isInteger(item) ||
+        item < minimumMinutes ||
+        item > maximumMinutes,
+    )
+  ) {
+    throw new Error(
+      `Flexible PAPER_BET_HORIZONS_MINUTES must contain integers in ${minimumMinutes}..${maximumMinutes}.`,
+    );
+  }
+
+  return [...new Set(parsed)].sort((left, right) => right - left);
 }
 
 export function dueLivePaperBetHorizons(input: {

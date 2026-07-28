@@ -10,18 +10,32 @@ const oddsCron = repeatedOddsEnabled
   : (process.env.ODDS_SYNC_CRON ?? '*/15 * * * *');
 
 const enabled = (process.env.WORKER_SCHEDULER_ENABLED ?? 'true').toLowerCase() === 'true';
+const scienceOwnsProviderSync =
+  (process.env.DEV_SCIENCE_OWNS_PROVIDER_SYNC ?? 'false').toLowerCase() === 'true';
 
 if (!enabled) {
   console.log('[worker] scheduler disabled; process will stay alive for manual inspection.');
 } else {
-  const schedules = [
-    [process.env.FIXTURE_SYNC_CRON ?? '0 */6 * * *', 'sync-fixtures'],
-    [oddsCron, oddsCommand],
-    [process.env.LINEUP_SYNC_CRON ?? '*/10 * * * *', 'sync-lineups'],
-    [process.env.PREDICTION_SYNC_CRON ?? '5 */1 * * *', 'sync-predictions'],
-    [process.env.RECOMMENDATION_CRON ?? '*/15 * * * *', 'generate'],
-    [process.env.SETTLEMENT_CRON ?? '10 */1 * * *', 'settle'],
-  ] as const;
+  const schedules = scienceOwnsProviderSync
+    ? ([
+        [process.env.RECOMMENDATION_CRON ?? '*/15 * * * *', 'generate'],
+        [process.env.SETTLEMENT_CRON ?? '10 */1 * * *', 'settle'],
+      ] as const)
+    : ([
+        [process.env.FIXTURE_SYNC_CRON ?? '0 */6 * * *', 'sync-fixtures'],
+        [oddsCron, oddsCommand],
+        [process.env.LINEUP_SYNC_CRON ?? '*/10 * * * *', 'sync-lineups'],
+        [process.env.PREDICTION_SYNC_CRON ?? '5 */1 * * *', 'sync-predictions'],
+        [process.env.RECOMMENDATION_CRON ?? '*/15 * * * *', 'generate'],
+        [process.env.SETTLEMENT_CRON ?? '10 */1 * * *', 'settle'],
+      ] as const);
+
+  if (scienceOwnsProviderSync) {
+    console.log(
+      '[worker] DEV_SCIENCE_OWNS_PROVIDER_SYNC=true; ' +
+        'provider sync is owned by the dedicated science process.',
+    );
+  }
 
   for (const [expression, command] of schedules) {
     if (!cron.validate(expression))

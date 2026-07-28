@@ -1,0 +1,368 @@
+export interface PersonalLeagueDto {
+  id: number;
+  apiLeagueId: number;
+  name: string;
+  season: number;
+  country?: string | null;
+  logoUrl?: string | null;
+}
+
+export interface PersonalBacktestLeagueCoverageDto extends PersonalLeagueDto {
+  finishedFixtures: number;
+  upcomingFixtures: number;
+}
+
+export type PersonalFixtureState =
+  | 'BEST_BET'
+  | 'NO_BET'
+  | 'PREDICTION_ONLY'
+  | 'WAITING_DATA';
+
+
+export type PersonalMarketCode =
+  | 'HDA'
+  | 'BTTS'
+  | 'OVER_UNDER_1_5'
+  | 'OVER_UNDER_2_5'
+  | 'OVER_UNDER_3_5';
+
+export type PersonalMarketStatus =
+  | 'BEST_BET'
+  | 'ELIGIBLE_VALUE'
+  | 'ANALYSIS_ONLY'
+  | 'ODDS_AVAILABLE_WAITING_DECISION'
+  | 'WAITING_ODDS';
+
+export interface PersonalMarketSelectionDto {
+  code: 'HOME' | 'DRAW' | 'AWAY' | 'YES' | 'NO' | 'OVER' | 'UNDER';
+  modelProbability: number | null;
+  decimalOdds: number | null;
+  bookmakerName: string | null;
+  fairMarketProbability: number | null;
+  edge: number | null;
+  expectedValue: number | null;
+  reliabilityStatus: string | null;
+  eligible: boolean;
+  rejectionReasons: unknown;
+  oddsSource: 'SCIENTIFIC_CANDIDATE' | 'LATEST_SNAPSHOT' | 'NONE';
+  oddsObservedAt: string | null;
+  oddsSourceUpdatedAt: string | null;
+  oddsSourceAgeMinutes: number | null;
+  oddsPitUsable: boolean | null;
+}
+
+export interface PersonalMarketPredictionDto {
+  code: PersonalMarketCode;
+  scientificMarketType:
+    | 'MATCH_WINNER'
+    | 'BTTS'
+    | 'TOTAL_GOALS_1_5'
+    | 'TOTAL_GOALS_2_5'
+    | 'TOTAL_GOALS_3_5';
+  label: string;
+  lineValue: number | null;
+  status: PersonalMarketStatus;
+  selectedAsBestBet: boolean;
+  selections: PersonalMarketSelectionDto[];
+}
+
+export interface PersonalOddsDiagnosticsDto {
+  snapshotRows: number;
+  pitUsableRows: number;
+  marketsWithOdds: number;
+  latestObservedAt: string | null;
+  latestSourceUpdatedAt: string | null;
+  latestSourceAgeMinutes: number | null;
+  latestCheckpoint: {
+    horizonMinutes: number;
+    horizonLabel: string;
+    dueAt: string;
+    status: string;
+    attemptedAt: string | null;
+    completedAt: string | null;
+    normalizedOdds: number;
+    insertedOdds: number;
+    pitUsableOdds: number;
+    errorMessage: string | null;
+  } | null;
+}
+
+export interface PersonalMarketMovementDto {
+  source: 'API_FOOTBALL_PIT_SNAPSHOT';
+  available: boolean;
+  movementAvailable: boolean;
+  bookmakerCount: number;
+  matchedBookmakerCount: number;
+  openingConsensus: {
+    HOME: number;
+    DRAW: number;
+    AWAY: number;
+  } | null;
+  currentConsensus: {
+    HOME: number;
+    DRAW: number;
+    AWAY: number;
+  } | null;
+  movement: {
+    HOME: number;
+    DRAW: number;
+    AWAY: number;
+  };
+  recentMovement: {
+    HOME: number;
+    DRAW: number;
+    AWAY: number;
+  };
+  steamMoveDetected: boolean;
+  steamDirection: 'HOME' | 'DRAW' | 'AWAY' | 'NONE';
+  steamStrength: number;
+  lateMove: boolean;
+  qualityScore: number;
+  observedFrom: string | null;
+  observedTo: string | null;
+  reasons: string[];
+}
+
+export interface PersonalTwoWayMarketMovementDto {
+  source: 'API_FOOTBALL_PIT_SNAPSHOT';
+  code:
+    | 'BTTS'
+    | 'OVER_UNDER_1_5'
+    | 'OVER_UNDER_2_5'
+    | 'OVER_UNDER_3_5';
+  label: string;
+  providerMarketType: 'BTTS' | 'TOTAL_GOALS';
+  lineValue: number | null;
+  available: boolean;
+  movementAvailable: boolean;
+  bookmakerCount: number;
+  matchedBookmakerCount: number;
+  recentMatchedBookmakerCount: number;
+  selections: Array<{
+    code: 'YES' | 'NO' | 'OVER' | 'UNDER';
+    openingProbability: number | null;
+    currentProbability: number | null;
+    movement: number | null;
+    recentMovement: number | null;
+  }>;
+  steamMoveDetected: boolean;
+  steamDirection:
+    | 'YES'
+    | 'NO'
+    | 'OVER'
+    | 'UNDER'
+    | 'NONE';
+  steamStrength: number;
+  bookmakerAgreement: number;
+  lateMove: boolean;
+  qualityScore: number;
+  observedFrom: string | null;
+  observedTo: string | null;
+  reasons: string[];
+}
+
+export interface PersonalUpcomingFixtureDto {
+  fixture: {
+    id: number;
+    apiFixtureId: number;
+    kickoffAt: string;
+    round?: string | null;
+    league: PersonalLeagueDto;
+    homeTeam: {
+      id: number;
+      apiTeamId: number;
+      name: string;
+      logoUrl?: string | null;
+    };
+    awayTeam: {
+      id: number;
+      apiTeamId: number;
+      name: string;
+      logoUrl?: string | null;
+    };
+  };
+  prediction: {
+    source: 'SCIENTIFIC_DECISION' | 'API_FOOTBALL' | 'NONE';
+    homeProbability: number | null;
+    drawProbability: number | null;
+    awayProbability: number | null;
+    predictedSelection: 'HOME' | 'DRAW' | 'AWAY' | null;
+    providerAdvice?: string | null;
+    providerPredictedWinner?: string | null;
+    providerCapturedAt?: string | null;
+  };
+  scientificHda: {
+    available: boolean;
+    source: 'SCIENTIFIC_DECISION' | 'NONE';
+    homeProbability: number | null;
+    drawProbability: number | null;
+    awayProbability: number | null;
+    predictedSelection: 'HOME' | 'DRAW' | 'AWAY' | null;
+    horizonMinutes: number | null;
+    decisionAsOf: string | null;
+    modelVersion: string | null;
+  };
+  providerHda: {
+    available: boolean;
+    source: 'API_FOOTBALL' | 'NONE';
+    homeProbability: number | null;
+    drawProbability: number | null;
+    awayProbability: number | null;
+    predictedSelection: 'HOME' | 'DRAW' | 'AWAY' | null;
+    advice: string | null;
+    predictedWinner: string | null;
+    capturedAt: string | null;
+  };
+  decision: {
+    id: number;
+    decisionType: string;
+    horizonMinutes: number;
+    decisionAsOf: string;
+    selectedMarket?: string | null;
+    selectedSelection?: string | null;
+    lineValue?: number | null;
+    decimalOdds?: number | null;
+    bookmakerName?: string | null;
+    modelProbability?: number | null;
+    fairMarketProbability?: number | null;
+    edge?: number | null;
+    expectedValue?: number | null;
+    reliabilityStatus?: string | null;
+    modelVersion: string;
+    policyVersion: string;
+    candidateCount: number;
+    rejectedCandidateCount: number;
+    candidates: Array<{
+      marketType: string;
+      selection: string;
+      lineValue?: number | null;
+      decimalOdds: number;
+      bookmakerName: string;
+      modelProbability: number;
+      fairMarketProbability: number;
+      edge: number;
+      expectedValue: number;
+      reliabilityStatus: string;
+      eligible: boolean;
+      rejectionReasons: unknown;
+    }>;
+  } | null;
+  stake: {
+    stakeDecisionType: string;
+    stakingMode: string;
+    stakeUnits: number;
+    stakeFraction: number;
+    riskBand: string;
+    riskReasons: unknown;
+    evaluatedAt: string;
+  } | null;
+  nextCheckpoint: {
+    horizonMinutes: number;
+    horizonLabel: string;
+    dueAt: string;
+    status: string;
+  } | null;
+  marketPredictions: PersonalMarketPredictionDto[];
+  oddsDiagnostics: PersonalOddsDiagnosticsDto;
+  marketMovement: PersonalMarketMovementDto | null;
+  multiMarketMovements: PersonalTwoWayMarketMovementDto[];
+  state: PersonalFixtureState;
+}
+
+export interface PersonalUpcomingAnalysisDto {
+  version: string;
+  generatedAt: string;
+  window: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  counts: {
+    fixtures: number;
+    predicted: number;
+    scientificDecisions: number;
+    bestBets: number;
+    noBets: number;
+    predictionOnly: number;
+    waitingData: number;
+    fixturesWithOdds?: number;
+    fixturesWithPitUsableOdds?: number;
+    scientificHdaReady?: number;
+    providerHdaAvailable?: number;
+    fixturesWithMarketMovement?: number;
+    fixturesWithMultiMarketMovement?: number;
+  };
+  leagues: PersonalLeagueDto[];
+  topBestBets: PersonalUpcomingFixtureDto[];
+  fixtures: PersonalUpcomingFixtureDto[];
+  integrity: {
+    personalMode: boolean;
+    readOnlyAnalysis: boolean;
+    predictionIsNotBestBet: boolean;
+    bestBetComesOnlyFromScientificPaperDecision: boolean;
+    syntheticOddsUsed: boolean;
+    realMoneyExecution: boolean;
+    automaticBetPlacement: boolean;
+    automaticPromotion: boolean;
+    providerPredictionNeverLabeledAsScientificModel?: boolean;
+    scientificHdaNeverFallsBackToProvider?: boolean;
+    earlyOddsDoNotCreateBestBet?: boolean;
+    marketMovementUsesPitSnapshotsOnly?: boolean;
+    multiMarketMovementUsesPitSnapshotsOnly?: boolean;
+    multiMarketMovementDoesNotChangeBestBet?: boolean;
+  };
+}
+
+export type CurrentCompetitionGroup =
+  | 'ASEAN'
+  | 'WAFCON'
+  | 'UCL'
+  | 'UEFA_EUROPA'
+  | 'SEA'
+  | 'ASIA'
+  | 'EPL'
+  | 'LALIGA';
+
+export interface PersonalRefreshResponse {
+  version: string;
+  command: 'refresh-current-only';
+  analysis: PersonalUpcomingAnalysisDto;
+  discovery: {
+    source: 'API_FOOTBALL_CURRENT_TRUE';
+    apiRequests: number;
+    quotaRemainingDay: number | null;
+    quotaRemainingMinute: number | null;
+    competitions: Array<{
+      apiLeagueId: number;
+      season: number;
+      name: string;
+      country: string | null;
+      group: CurrentCompetitionGroup;
+      coverage: Record<string, unknown> | null;
+    }>;
+  };
+  safety: {
+    personalMode: true;
+    adminTokenRequired: false;
+    externalApiCalled: true;
+    databaseWritten: true;
+    syntheticOddsUsed: false;
+    automaticBetPlacement: false;
+    realMoneyExecution: false;
+    automaticPromotion: false;
+    currentFixturesOnly?: boolean;
+    demoCompetitionsExcluded?: boolean;
+    pastFixturesExcludedFromPredictions?: boolean;
+  };
+}
+
+export interface PersonalBacktestRunResponse {
+  mode: 'PERSONAL';
+  adminTokenRequired: false;
+  runs: Array<{
+    id: number;
+    name: string;
+    leagueId: number | null;
+    leagueName: string | null;
+  }>;
+}

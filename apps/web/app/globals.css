@@ -3541,3 +3541,382 @@ td {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* R4.3 odds visibility and checkpoint diagnostics */
+.pcr-odds-primary { color: var(--accent); font-size: 17px !important; }
+.pcr-odds-diagnostics { display:flex; flex-wrap:wrap; gap:7px 14px; margin-top:11px; padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:rgba(0,0,0,.14); color:var(--muted); font-size:10px; }
+.pcr-odds-diagnostics b { color:var(--text); }
+.pcr-odds-diagnostics .checkpoint-success b { color:var(--accent); }
+.pcr-odds-diagnostics .checkpoint-empty b, .pcr-odds-diagnostics .checkpoint-retry b { color:#ffd081; }
+.pcr-odds-diagnostics .checkpoint-failed b, .pcr-odds-diagnostics .checkpoint-skipped b { color:var(--danger); }
+
+
+/* R4.5 Scientific HDA / API-Football separation */
+.pcr-hda-split { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr); gap:12px; margin:14px 0; }
+.pcr-hda-panel { border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(0,0,0,.12); }
+.pcr-hda-scientific { border-width:2px; }
+.pcr-hda-provider { opacity:.88; }
+.pcr-hda-panel-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.pcr-hda-panel-head > div { display:grid; gap:3px; }
+.pcr-hda-panel-head span { font-size:10px; letter-spacing:.09em; font-weight:800; }
+.pcr-hda-panel-head b { font-size:13px; }
+.pcr-hda-panel-head em { font-size:9px; font-style:normal; font-weight:800; border:1px solid var(--border); border-radius:999px; padding:4px 7px; }
+.pcr-provider-probability-grid { opacity:.82; }
+.pcr-hda-summary { display:flex; flex-wrap:wrap; align-items:center; gap:7px 12px; margin-top:8px; font-size:11px; }
+.pcr-hda-summary small { opacity:.7; }
+.pcr-scientific-waiting { display:grid; gap:5px; min-height:76px; align-content:center; padding:10px; border:1px dashed var(--border); border-radius:9px; font-size:11px; }
+.pcr-scientific-waiting span { opacity:.72; line-height:1.45; }
+@media (max-width:900px) { .pcr-hda-split { grid-template-columns:1fr; } }
+
+
+/* R4.7 Early Odds Discovery + Market Movement */
+.pcr-market-movement-panel {
+  margin: 12px 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.pcr-market-movement-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.pcr-market-movement-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.pcr-market-movement-head span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.pcr-market-movement-head b {
+  font-size: 12px;
+}
+
+.pcr-market-movement-head em {
+  font-size: 9px;
+  font-style: normal;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 7px;
+}
+
+.pcr-movement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pcr-movement-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pcr-movement-grid span,
+.pcr-movement-grid small {
+  font-size: 10px;
+  opacity: .75;
+}
+
+.pcr-movement-grid b {
+  font-size: 13px;
+}
+
+.pcr-movement-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 9px;
+  font-size: 10px;
+  opacity: .85;
+}
+
+.pcr-movement-empty {
+  padding: 9px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  opacity: .75;
+}
+
+@media (max-width: 700px) {
+  .pcr-movement-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* R4.8 Multi-Market Odds Movement */
+.pcr-two-way-movement {
+  margin-top: 9px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.10);
+}
+
+.pcr-two-way-movement-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.pcr-two-way-movement-head span {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+
+.pcr-two-way-movement-head em {
+  font-size: 8px;
+  font-style: normal;
+  opacity: .72;
+}
+
+.pcr-two-way-movement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pcr-two-way-movement-grid > div {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.pcr-two-way-movement-grid span,
+.pcr-two-way-movement-grid small {
+  font-size: 9px;
+}
+
+.pcr-two-way-movement-grid small {
+  opacity: .72;
+}
+
+.pcr-two-way-movement-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+  margin-top: 6px;
+  font-size: 8px;
+  opacity: .76;
+}
+
+.pcr-two-way-movement-wait {
+  font-size: 9px;
+  line-height: 1.45;
+  opacity: .72;
+}
+
+/* CURRENT_RECOMMENDATION_SIGNAL_R4101 */
+.pcr-kpis .current-signal-kpi {
+  border-color: rgba(87, 201, 255, 0.42);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(14, 31, 39, 0.96),
+      rgba(11, 21, 30, 0.96)
+    );
+}
+
+.pcr-current-signal {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(87, 201, 255, 0.34);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(14, 31, 39, 0.96),
+      rgba(11, 21, 30, 0.96)
+    );
+}
+
+.pcr-current-signal > b {
+  display: block;
+  margin-top: 6px;
+  font-size: 1rem;
+}
+
+.pcr-current-signal > small {
+  display: block;
+  margin-top: 6px;
+  opacity: 0.88;
+}
+
+/* CURRENT_SCIENTIFIC_RECOMMENDATION_R4102 */
+.pcr-kpis .current-signal-kpi {
+  border-color:
+    rgba(87, 201, 255, 0.42);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(14, 31, 39, 0.96),
+      rgba(11, 21, 30, 0.96)
+    );
+}
+
+.pcr-current-signal {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border:
+    1px solid
+    rgba(87, 201, 255, 0.34);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(14, 31, 39, 0.96),
+      rgba(11, 21, 30, 0.96)
+    );
+}
+
+.pcr-current-signal > b {
+  display: block;
+  margin-top: 6px;
+  font-size: 1rem;
+}
+
+.pcr-current-signal > small {
+  display: block;
+  margin-top: 6px;
+  opacity: 0.88;
+}
+
+/* CURRENT_RECOMMENDATION_STATUS_DASHBOARD_R41023 */
+.pcr-recommendation-status-dashboard {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(128, 150, 168, 0.22);
+  border-radius: 16px;
+  background: rgba(12, 18, 23, 0.9);
+}
+
+.pcr-recommendation-status-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(150px, 1fr)
+    );
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pcr-recommendation-status-grid > div {
+  min-height: 94px;
+  padding: 12px;
+  border: 1px solid rgba(128, 150, 168, 0.22);
+  border-radius: 13px;
+  background: rgba(14, 21, 27, 0.88);
+}
+
+.pcr-recommendation-status-grid span,
+.pcr-recommendation-status-grid small {
+  display: block;
+}
+
+.pcr-recommendation-status-grid strong {
+  display: block;
+  margin: 6px 0 4px;
+  font-size: 1.55rem;
+}
+
+.pcr-recommendation-status-grid small {
+  opacity: 0.72;
+}
+
+.pcr-recommendation-status-grid .status-available {
+  border-color: rgba(91, 220, 145, 0.42);
+}
+
+.pcr-recommendation-status-grid .status-no-value {
+  border-color: rgba(246, 190, 78, 0.38);
+}
+
+.pcr-recommendation-status-grid .status-odds {
+  border-color: rgba(87, 201, 255, 0.4);
+}
+
+.pcr-recommendation-status-grid .status-model {
+  border-color: rgba(244, 133, 94, 0.42);
+}
+
+.pcr-recommendation-status-grid .status-market {
+  border-color: rgba(183, 132, 255, 0.38);
+}
+
+.pcr-recommendation-status-grid .status-mapping {
+  border-color: rgba(255, 111, 133, 0.36);
+}
+
+.pcr-current-status {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(128, 150, 168, 0.24);
+  border-radius: 14px;
+  background: rgba(13, 20, 26, 0.92);
+}
+
+.pcr-current-status > b,
+.pcr-current-status > small,
+.pcr-current-status > code {
+  display: block;
+  margin-top: 6px;
+}
+
+.pcr-current-status > code {
+  overflow-wrap: anywhere;
+  opacity: 0.72;
+}
+
+.pcr-current-status.current-status-no-model {
+  border-color: rgba(244, 133, 94, 0.42);
+}
+
+.pcr-current-status.current-status-no-fresh-pit-odds {
+  border-color: rgba(87, 201, 255, 0.4);
+}
+
+.pcr-current-status.current-status-no-value-signal {
+  border-color: rgba(246, 190, 78, 0.38);
+}
+
+.pcr-current-status.current-status-no-complete-market {
+  border-color: rgba(183, 132, 255, 0.38);
+}
+
+/* CURRENT_RECOMMENDATION_BATCH_PRIORITY_R41025 */
+.pcr-current-batch-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(80, 220, 190, 0.25);
+  border-radius: 12px;
+  background: rgba(10, 26, 28, 0.54);
+}
+
+.pcr-current-batch-summary > span {
+  font-size: 0.82rem;
+  opacity: 0.86;
+}

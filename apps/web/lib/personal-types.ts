@@ -30,7 +30,8 @@ export type PersonalMarketStatus =
   | 'BEST_BET'
   | 'ELIGIBLE_VALUE'
   | 'ANALYSIS_ONLY'
-  | 'WAITING_SCIENTIFIC_HORIZON';
+  | 'ODDS_AVAILABLE_WAITING_DECISION'
+  | 'WAITING_ODDS';
 
 export interface PersonalMarketSelectionDto {
   code: 'HOME' | 'DRAW' | 'AWAY' | 'YES' | 'NO' | 'OVER' | 'UNDER';
@@ -43,6 +44,11 @@ export interface PersonalMarketSelectionDto {
   reliabilityStatus: string | null;
   eligible: boolean;
   rejectionReasons: unknown;
+  oddsSource: 'SCIENTIFIC_CANDIDATE' | 'LATEST_SNAPSHOT' | 'NONE';
+  oddsObservedAt: string | null;
+  oddsSourceUpdatedAt: string | null;
+  oddsSourceAgeMinutes: number | null;
+  oddsPitUsable: boolean | null;
 }
 
 export interface PersonalMarketPredictionDto {
@@ -58,6 +64,170 @@ export interface PersonalMarketPredictionDto {
   status: PersonalMarketStatus;
   selectedAsBestBet: boolean;
   selections: PersonalMarketSelectionDto[];
+}
+
+export interface PersonalOddsDiagnosticsDto {
+  snapshotRows: number;
+  pitUsableRows: number;
+  marketsWithOdds: number;
+  latestObservedAt: string | null;
+  latestSourceUpdatedAt: string | null;
+  latestSourceAgeMinutes: number | null;
+  latestCheckpoint: {
+    horizonMinutes: number;
+    horizonLabel: string;
+    dueAt: string;
+    status: string;
+    attemptedAt: string | null;
+    completedAt: string | null;
+    normalizedOdds: number;
+    insertedOdds: number;
+    pitUsableOdds: number;
+    errorMessage: string | null;
+  } | null;
+}
+
+export interface PersonalMarketMovementDto {
+  source: 'API_FOOTBALL_PIT_SNAPSHOT';
+  available: boolean;
+  movementAvailable: boolean;
+  bookmakerCount: number;
+  matchedBookmakerCount: number;
+  openingConsensus: {
+    HOME: number;
+    DRAW: number;
+    AWAY: number;
+  } | null;
+  currentConsensus: {
+    HOME: number;
+    DRAW: number;
+    AWAY: number;
+  } | null;
+  movement: {
+    HOME: number;
+    DRAW: number;
+    AWAY: number;
+  };
+  recentMovement: {
+    HOME: number;
+    DRAW: number;
+    AWAY: number;
+  };
+  steamMoveDetected: boolean;
+  steamDirection: 'HOME' | 'DRAW' | 'AWAY' | 'NONE';
+  steamStrength: number;
+  lateMove: boolean;
+  qualityScore: number;
+  observedFrom: string | null;
+  observedTo: string | null;
+  reasons: string[];
+}
+
+export interface PersonalTwoWayMarketMovementDto {
+  source: 'API_FOOTBALL_PIT_SNAPSHOT';
+  code:
+    | 'BTTS'
+    | 'OVER_UNDER_1_5'
+    | 'OVER_UNDER_2_5'
+    | 'OVER_UNDER_3_5';
+  label: string;
+  providerMarketType: 'BTTS' | 'TOTAL_GOALS';
+  lineValue: number | null;
+  available: boolean;
+  movementAvailable: boolean;
+  bookmakerCount: number;
+  matchedBookmakerCount: number;
+  recentMatchedBookmakerCount: number;
+  selections: Array<{
+    code: 'YES' | 'NO' | 'OVER' | 'UNDER';
+    openingProbability: number | null;
+    currentProbability: number | null;
+    movement: number | null;
+    recentMovement: number | null;
+  }>;
+  steamMoveDetected: boolean;
+  steamDirection:
+    | 'YES'
+    | 'NO'
+    | 'OVER'
+    | 'UNDER'
+    | 'NONE';
+  steamStrength: number;
+  bookmakerAgreement: number;
+  lateMove: boolean;
+  qualityScore: number;
+  observedFrom: string | null;
+  observedTo: string | null;
+  reasons: string[];
+}
+
+export type PersonalCurrentRecommendationStatus =
+  | 'AVAILABLE'
+  | 'NO_FRESH_PIT_ODDS'
+  | 'UNMAPPED_FIXTURE'
+  | 'MAPPING_MISMATCH'
+  | 'NO_MODEL'
+  | 'NO_COMPLETE_MARKET'
+  | 'NO_VALUE_SIGNAL'
+  | 'NOT_EVALUATED';
+
+export interface PersonalCurrentRecommendationDto {
+  source: 'CURRENT_SCIENTIFIC_PIT';
+  version: string;
+  calculatedAt: string;
+  providerFixtureId: number;
+  localFixtureId: number;
+  kickoffAt: string;
+  horizonMinutes: number;
+  marketType:
+    | 'MATCH_WINNER'
+    | 'TOTAL_GOALS_1_5'
+    | 'TOTAL_GOALS_2_5'
+    | 'TOTAL_GOALS_3_5'
+    | 'BTTS';
+  selection:
+    | 'HOME'
+    | 'DRAW'
+    | 'AWAY'
+    | 'OVER'
+    | 'UNDER'
+    | 'YES'
+    | 'NO';
+  lineValue: number | null;
+  decimalOdds: number;
+  bookmakerName: string;
+  modelProbability: number;
+  fairMarketProbability: number;
+  edge: number;
+  expectedValue: number;
+  reliabilityStatus: string;
+  modelSource:
+    | 'DYNAMIC_DIXON_COLES'
+    | 'SCIENTIFIC_BASELINE_FALLBACK';
+  modelFallbackReason:
+    string | null;
+  modelConfidenceTier:
+    | 'HIGH'
+    | 'MEDIUM'
+    | 'LIMITED';
+  modelHistorySampleSize: number;
+  currentSignalEligible: true;
+  officialEligible: boolean;
+  dataQualityScore: number;
+  modelVersion: string;
+  sourceOddsSnapshotId: number | null;
+  sourceOddsEffectiveAt: string | null;
+  sourceOddsUpdatedAt: string | null;
+  sourceOddsFirstObservedAt: string | null;
+  sourceOddsReobservedAt: string | null;
+  sourceOddsFreshnessAt: string | null;
+  oddsFreshnessBasis:
+    | 'SOURCE_EFFECTIVE_AT'
+    | 'REOBSERVED_AT'
+    | null;
+  reobservationRawSnapshotId: number | null;
+  reobservationKind: string | null;
+  note: 'CURRENT_SIGNAL_NOT_OFFICIAL_BEST_BET';
 }
 
 export interface PersonalUpcomingFixtureDto {
@@ -90,6 +260,34 @@ export interface PersonalUpcomingFixtureDto {
     providerPredictedWinner?: string | null;
     providerCapturedAt?: string | null;
   };
+  scientificHda: {
+    available: boolean;
+    source: 'SCIENTIFIC_DECISION' | 'NONE';
+    homeProbability: number | null;
+    drawProbability: number | null;
+    awayProbability: number | null;
+    predictedSelection: 'HOME' | 'DRAW' | 'AWAY' | null;
+    horizonMinutes: number | null;
+    decisionAsOf: string | null;
+    modelVersion: string | null;
+  };
+  providerHda: {
+    available: boolean;
+    source: 'API_FOOTBALL' | 'NONE';
+    homeProbability: number | null;
+    drawProbability: number | null;
+    awayProbability: number | null;
+    predictedSelection: 'HOME' | 'DRAW' | 'AWAY' | null;
+    advice: string | null;
+    predictedWinner: string | null;
+    capturedAt: string | null;
+  };
+  currentRecommendationStatus:
+    PersonalCurrentRecommendationStatus;
+  currentRecommendationError:
+    string | null;
+  currentRecommendation:
+    PersonalCurrentRecommendationDto | null;
   decision: {
     id: number;
     decisionType: string;
@@ -140,7 +338,40 @@ export interface PersonalUpcomingFixtureDto {
     status: string;
   } | null;
   marketPredictions: PersonalMarketPredictionDto[];
+  oddsDiagnostics: PersonalOddsDiagnosticsDto;
+  marketMovement: PersonalMarketMovementDto | null;
+  multiMarketMovements: PersonalTwoWayMarketMovementDto[];
   state: PersonalFixtureState;
+}
+
+export interface PersonalCurrentRecommendationBatchDto {
+  version: string;
+  requestedFixtures: number;
+  selectedFixtures: number;
+  evaluatedFixtures: number;
+  notEvaluatedFixtures: number;
+  maximumFixtures: number;
+  chunkSize: number;
+  chunksPlanned: number;
+  chunksCompleted: number;
+  failedChunks: number;
+  singleFixtureRetries: number;
+  singleFixtureRetrySuccesses: number;
+  recentRawAttemptFixtures: number;
+  pitOddsFixtures: number;
+  checkpointPriorityFixtures: number;
+  kickoffWithin6hFixtures: number;
+  signalQueryError: string | null;
+  errors: Array<{
+    scope: 'SIGNALS' | 'CHUNK' | 'SINGLE';
+    providerFixtureIds: number[];
+    reason: string;
+  }>;
+  strategy:
+    'CHECKPOINT_RAW_ODDS_KICKOFF_CHUNKED_FAULT_ISOLATION';
+  externalApiCalled: false;
+  databaseWritten: false;
+  realMoneyExecution: false;
 }
 
 export interface PersonalUpcomingAnalysisDto {
@@ -156,10 +387,24 @@ export interface PersonalUpcomingAnalysisDto {
     predicted: number;
     scientificDecisions: number;
     bestBets: number;
+    currentRecommendations: number;
     noBets: number;
     predictionOnly: number;
     waitingData: number;
+    fixturesWithOdds?: number;
+    fixturesWithPitUsableOdds?: number;
+    scientificHdaReady?: number;
+    providerHdaAvailable?: number;
+    fixturesWithMarketMovement?: number;
+    fixturesWithMultiMarketMovement?: number;
   };
+  currentRecommendationBatch:
+    PersonalCurrentRecommendationBatchDto;
+  currentRecommendationStatusCounts:
+    Record<
+      PersonalCurrentRecommendationStatus,
+      number
+    >;
   leagues: PersonalLeagueDto[];
   topBestBets: PersonalUpcomingFixtureDto[];
   fixtures: PersonalUpcomingFixtureDto[];
@@ -167,11 +412,22 @@ export interface PersonalUpcomingAnalysisDto {
     personalMode: boolean;
     readOnlyAnalysis: boolean;
     predictionIsNotBestBet: boolean;
+    currentRecommendationIsShadowSignal: boolean;
+    currentRecommendationDoesNotChangeBestBet: boolean;
+    recommendationStatusDashboard: boolean;
+    currentRecommendationBatchPriority: boolean;
+    currentRecommendationChunkFaultIsolation: boolean;
     bestBetComesOnlyFromScientificPaperDecision: boolean;
     syntheticOddsUsed: boolean;
     realMoneyExecution: boolean;
     automaticBetPlacement: boolean;
     automaticPromotion: boolean;
+    providerPredictionNeverLabeledAsScientificModel?: boolean;
+    scientificHdaNeverFallsBackToProvider?: boolean;
+    earlyOddsDoNotCreateBestBet?: boolean;
+    marketMovementUsesPitSnapshotsOnly?: boolean;
+    multiMarketMovementUsesPitSnapshotsOnly?: boolean;
+    multiMarketMovementDoesNotChangeBestBet?: boolean;
   };
 }
 

@@ -437,15 +437,39 @@ async function alreadyDecided(input: {
 export async function runLiveScientificPaperBetDecisions(
   input: {
     now?: Date;
+    providerFixtureIds?: number[];
   } = {},
 ): Promise<LivePaperBetDecisionRunResult> {
   const now = input.now ?? new Date();
-  const horizons = parseLivePaperBetHorizons(process.env.PAPER_BET_HORIZONS_MINUTES);
+  const horizons = parseLivePaperBetHorizons(
+    process.env.PAPER_BET_HORIZONS_MINUTES,
+    {
+      allowFlexible:
+        process.env.PAPER_BET_ALLOW_FLEXIBLE_HORIZONS === '1',
+      minimumMinutes: 1,
+      maximumMinutes: 1440,
+    },
+  );
   const toleranceMinutes = Math.max(0, envNumber('PAPER_BET_DECISION_TOLERANCE_MINUTES', 2));
   const maxOddsAgeMinutes = Math.max(1, envNumber('PAPER_BET_MAX_ODDS_AGE_MINUTES', 360));
   const maximumHorizon = Math.max(...horizons);
+  const providerFixtureIds = [
+    ...new Set(
+      (input.providerFixtureIds ?? []).filter(
+        (value): value is number =>
+          Number.isSafeInteger(value) && value > 0,
+      ),
+    ),
+  ];
   const providerRows = (await prisma.apiFootballFixtureSnapshot.findMany({
     where: {
+      ...(providerFixtureIds.length > 0
+        ? {
+            providerFixtureId: {
+              in: providerFixtureIds,
+            },
+          }
+        : {}),
       kickoffAt: {
         gt: now,
         lte: new Date(now.getTime() + (maximumHorizon + toleranceMinutes + 5) * 60_000),

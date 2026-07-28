@@ -1574,3 +1574,54 @@ model ScientificBankrollStakeSettlement {
   @@index([result, settledAt], map: "ScientificBankrollStakeSettlement_result_settled_idx")
   @@index([providerFixtureId, settledAt], map: "ScientificBankrollStakeSettlement_fixture_settled_idx")
 }
+
+model ScientificCurrentSignalSnapshot {
+  id                              Int      @id @default(autoincrement())
+  providerFixtureId               Int
+  localFixtureId                  Int?
+  checkpointMinutes               Int
+  checkpointLabel                 String   @db.VarChar(24)
+  actualHorizonMinutes            Int
+  snapshotAsOf                    DateTime
+  kickoffAt                       DateTime
+  status                          String   @db.VarChar(32)
+  selectedMarket                  String?  @db.VarChar(32)
+  selectedSelection               String?  @db.VarChar(24)
+  lineValue                       Float?
+  decimalOdds                     Float?
+  bookmakerName                   String?  @db.VarChar(160)
+  modelProbability                Float?
+  fairMarketProbability           Float?
+  impliedProbability              Float?
+  edge                            Float?
+  expectedValue                   Float?
+  reliabilityStatus               String?  @db.VarChar(96)
+  modelSource                     String?  @db.VarChar(64)
+  modelFallbackReason             String?  @db.VarChar(128)
+  modelConfidenceTier             String?  @db.VarChar(16)
+  modelHistorySampleSize          Int?
+  dataQualityScore                Float?
+  modelVersion                    String?  @db.Text
+  sourceOddsSnapshotId            Int?
+  sourceOddsUpdatedAt             DateTime?
+  sourceOddsFirstObservedAt       DateTime?
+  sourceOddsReobservedAt          DateTime?
+  sourceOddsFreshnessAt           DateTime?
+  oddsFreshnessBasis              String?  @db.VarChar(32)
+  reobservationRawSnapshotId      Int?
+  latestLineupCapturedAt          DateTime?
+  latestInjuryCapturedAt          DateTime?
+  candidateCount                  Int      @default(0)
+  currentEligibleCandidateCount   Int      @default(0)
+  officialEligibleCandidateCount  Int      @default(0)
+  analysisPayload                 Json
+  snapshotHash                    String   @unique @db.VarChar(64)
+  createdAt                       DateTime @default(now())
+
+  @@unique([providerFixtureId, checkpointMinutes], map: "ScientificCurrentSignal_fixture_checkpoint_key")
+  @@index([providerFixtureId, snapshotAsOf], map: "ScientificCurrentSignal_fixture_asof_idx")
+  @@index([checkpointMinutes, snapshotAsOf], map: "ScientificCurrentSignal_checkpoint_asof_idx")
+  @@index([status, snapshotAsOf], map: "ScientificCurrentSignal_status_asof_idx")
+  @@index([selectedMarket, selectedSelection], map: "ScientificCurrentSignal_market_selection_idx")
+  @@index([modelSource, snapshotAsOf], map: "ScientificCurrentSignal_model_source_idx")
+}

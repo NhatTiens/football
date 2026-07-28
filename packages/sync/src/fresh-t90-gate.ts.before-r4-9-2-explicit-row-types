@@ -1,0 +1,395 @@
+import { prisma } from '@football-ai/database';
+import {
+  runLiveScientificPaperBetDecisions,
+  getLiveScientificPaperBetCoverage,
+} from './real-odds-paper-bet-engine.js';
+import {
+  planUnallocatedScientificPaperStakes,
+  getScientificBankrollRiskCoverage,
+} from './bankroll-risk-engine.js';
+
+type ProviderRow = {
+  providerFixtureId: number;
+  providerLeagueId: number;
+  kickoffAt: Date;
+  homeProviderTeamId: number;
+  awayProviderTeamId: number;
+  homeTeamName: string;
+  awayTeamName: string;
+  observedAt: Date;
+};
+
+type LocalRow = {
+  id: number;
+  apiFixtureId: number;
+  kickoffAt: Date;
+  league: { apiLeagueId: number };
+  homeTeam: { apiTeamId: number; name: string };
+  awayTeam: { apiTeamId: number; name: string };
+};
+
+type OddsRow = {
+  providerFixtureId: number;
+  bookmakerId: number;
+  marketType: string;
+  selection: string;
+  observedAt: Date;
+  sourceUpdatedAt: Date | null;
+};
+
+function vn(value: Date): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(value);
+}
+
+function latestProviders(rows: ProviderRow[]): ProviderRow[] {
+  const map = new Map<number, ProviderRow>();
+  for (const row of rows) {
+    if (!map.has(row.providerFixtureId)) {
+      map.set(row.providerFixtureId, row);
+    }
+  }
+  return [...map.values()];
+}
+
+function validMapping(
+  provider: ProviderRow,
+  local: LocalRow | undefined,
+): boolean {
+  if (!local) return false;
+  return (
+    local.apiFixtureId === provider.providerFixtureId &&
+    local.league.apiLeagueId === provider.providerLeagueId &&
+    local.homeTeam.apiTeamId === provider.homeProviderTeamId &&
+    local.awayTeam.apiTeamId === provider.awayProviderTeamId &&
+    Math.abs(local.kickoffAt.getTime() - provider.kickoffAt.getTime()) <= 10 * 60_000
+  );
+}
+
+function completeHda(rows: OddsRow[]): number {
+  const byBook = new Map<number, Set<string>>();
+  for (const row of rows) {
+    if (row.marketType !== 'MATCH_WINNER') continue;
+    const set = byBook.get(row.bookmakerId) ?? new Set<string>();
+    set.add(row.selection);
+    byBook.set(row.bookmakerId, set);
+  }
+  return [...byBook.values()].filter(
+    (set: Set<string>): boolean =>
+      set.has('HOME') && set.has('DRAW') && set.has('AWAY'),
+  ).length;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve): void => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function readiness(): Promise<void> {
+  const now = new Date();
+  const tolerance = Number(process.env.PAPER_BET_DECISION_TOLERANCE_MINUTES ?? 2);
+  const providerRaw = (await prisma.apiFootballFixtureSnapshot.findMany({
+    where: {
+      kickoffAt: {
+        gt: now,
+        lte: new Date(now.getTime() + 24 * 60 * 60_000),
+      },
+    },
+    select: {
+      providerFixtureId: true,
+      providerLeagueId: true,
+      kickoffAt: true,
+      homeProviderTeamId: true,
+      awayProviderTeamId: true,
+      homeTeamName: true,
+      awayTeamName: true,
+      observedAt: true,
+    },
+    orderBy: { observedAt: 'desc' },
+    take: 5000,
+  })) as ProviderRow[];
+
+  const providers = latestProviders(providerRaw);
+  const ids = providers.map((row: ProviderRow): number => row.providerFixtureId);
+
+  const [localsRaw, oddsRaw, checkpoints, decisions, registry] = await Promise.all([
+    prisma.fixture.findMany({
+      where: { apiFixtureId: { in: ids } },
+      select: {
+        id: true,
+        apiFixtureId: true,
+        kickoffAt: true,
+        league: { select: { apiLeagueId: true } },
+        homeTeam: { select: { apiTeamId: true, name: true } },
+        awayTeam: { select: { apiTeamId: true, name: true } },
+      },
+    }),
+    prisma.apiFootballOddsSnapshot.findMany({
+      where: {
+        providerFixtureId: { in: ids },
+        pitUsable: true,
+        observedAt: { lte: now },
+        kickoffAt: { gt: now },
+      },
+      select: {
+        providerFixtureId: true,
+        bookmakerId: true,
+        marketType: true,
+        selection: true,
+        observedAt: true,
+        sourceUpdatedAt: true,
+      },
+      take: 50000,
+    }),
+    prisma.apiFootballFreshOddsCheckpoint.findMany({
+      where: { providerFixtureId: { in: ids }, horizonMinutes: 90 },
+      select: {
+        providerFixtureId: true,
+        status: true,
+        dueAt: true,
+        attempts: true,
+        normalizedOdds: true,
+        pitUsableOdds: true,
+        errorMessage: true,
+      },
+    }),
+    prisma.scientificPaperBetDecision.findMany({
+      where: { providerFixtureId: { in: ids }, horizonMinutes: 90 },
+      select: {
+        providerFixtureId: true,
+        decisionType: true,
+        decisionAsOf: true,
+      },
+      orderBy: { decisionAsOf: 'desc' },
+    }),
+    prisma.scientificCandidateRegistry.findFirst({
+      where: {
+        status: 'FROZEN_FOR_SHADOW',
+        horizonMinutes: 90,
+        marketBranch: 'NO_MARKET',
+        frozenAt: { lte: now },
+      },
+      select: { id: true, candidateVersion: true, frozenAt: true },
+      orderBy: { frozenAt: 'desc' },
+    }),
+  ]);
+
+  const locals = localsRaw as LocalRow[];
+  const odds = oddsRaw as OddsRow[];
+  const localMap = new Map<number, LocalRow>(
+    locals.map((row: LocalRow): [number, LocalRow] => [row.apiFixtureId, row]),
+  );
+  const cpMap = new Map<number, (typeof checkpoints)[number]>(
+    checkpoints.map((row): [number, (typeof checkpoints)[number]] => [row.providerFixtureId, row]),
+  );
+  const decisionMap = new Map<number, (typeof decisions)[number]>();
+  for (const row of decisions) {
+    if (!decisionMap.has(row.providerFixtureId)) {
+      decisionMap.set(row.providerFixtureId, row);
+    }
+  }
+
+  const rows = providers
+    .map((provider: ProviderRow) => {
+      const t90 = new Date(provider.kickoffAt.getTime() - 90 * 60_000);
+      const windowStart = new Date(t90.getTime() - tolerance * 60_000);
+      const windowEnd = new Date(t90.getTime() + tolerance * 60_000);
+      const minutesUntilT90 = (t90.getTime() - now.getTime()) / 60_000;
+      const fixtureOdds = odds.filter(
+        (row: OddsRow): boolean => row.providerFixtureId === provider.providerFixtureId,
+      );
+      const latestOdds = fixtureOdds.length
+        ? new Date(Math.max(...fixtureOdds.map(
+            (row: OddsRow): number => (row.sourceUpdatedAt ?? row.observedAt).getTime(),
+          )))
+        : null;
+      const local = localMap.get(provider.providerFixtureId);
+      const decision = decisionMap.get(provider.providerFixtureId) ?? null;
+      const inWindow = now >= windowStart && now <= windowEnd;
+      let action = 'WAIT_T90';
+      if (decision) action = 'ALREADY_DECIDED';
+      else if (!validMapping(provider, local)) action = local ? 'BLOCKED_MAPPING_MISMATCH' : 'BLOCKED_UNMAPPED';
+      else if (inWindow && fixtureOdds.length === 0) action = 'DUE_NOW_NO_PIT_ODDS';
+      else if (inWindow && completeHda(fixtureOdds) === 0) action = 'DUE_NOW_NO_COMPLETE_HDA';
+      else if (inWindow) action = 'DUE_NOW_RUN_T90_CAPTURE';
+      else if (minutesUntilT90 < -tolerance) action = 'T90_WINDOW_PASSED';
+
+      return {
+        providerFixtureId: provider.providerFixtureId,
+        fixture: `${provider.homeTeamName} vs ${provider.awayTeamName}`,
+        kickoffUtc: provider.kickoffAt.toISOString(),
+        kickoffVietnam: vn(provider.kickoffAt),
+        t90Utc: t90.toISOString(),
+        t90Vietnam: vn(t90),
+        t90WindowVietnam: { start: vn(windowStart), end: vn(windowEnd) },
+        minutesUntilT90: Number(minutesUntilT90.toFixed(1)),
+        mappingValid: validMapping(provider, local),
+        frozenT90RegistryAvailable: registry != null,
+        pitUsableOddsRows: fixtureOdds.length,
+        completeHdaBookmakers: completeHda(fixtureOdds),
+        latestEffectiveOddsAt: latestOdds?.toISOString() ?? null,
+        checkpoint: cpMap.get(provider.providerFixtureId) ?? null,
+        existingDecision: decision,
+        action,
+      };
+    })
+    .filter((row): boolean => row.minutesUntilT90 >= -15)
+    .sort((a, b): number => Math.abs(a.minutesUntilT90) - Math.abs(b.minutesUntilT90))
+    .slice(0, 20);
+
+  console.log(JSON.stringify({
+    version: 'v7.0-r4.9-fresh-t90-decision-evidence',
+    nowUtc: now.toISOString(),
+    nowVietnam: vn(now),
+    horizonMinutes: 90,
+    toleranceMinutes: tolerance,
+    frozenT90Registry: registry,
+    fixtures: rows,
+    externalApiCalled: false,
+    databaseWritten: false,
+    realMoneyExecution: false,
+  }, null, 2));
+}
+
+async function watch(): Promise<void> {
+  process.env.PAPER_BET_HORIZONS_MINUTES = '90';
+  const pollSeconds = Number(process.env.T90_CAPTURE_POLL_SECONDS ?? 20);
+  const maxMinutes = Number(process.env.T90_CAPTURE_MAX_MINUTES ?? 360);
+  const deadline = Date.now() + maxMinutes * 60_000;
+  let sawDue = false;
+
+  console.log(JSON.stringify({
+    event: 't90-watch-start',
+    horizonMinutes: 90,
+    pollSeconds,
+    maxMinutes,
+    decisionDbWriteWhenDue: true,
+    riskDbWriteAfterDecision: true,
+    externalApiCalled: false,
+    realMoneyExecution: false,
+  }, null, 2));
+
+  while (Date.now() <= deadline) {
+    const decision = await runLiveScientificPaperBetDecisions();
+    console.log(JSON.stringify({ event: 't90-poll', ...decision }, null, 2));
+    if (decision.dueEvents > 0) sawDue = true;
+
+    if (decision.decisionsRecorded > 0 || decision.existingDecisions > 0) {
+      const risk = await planUnallocatedScientificPaperStakes();
+      const [paperCoverage, riskCoverage] = await Promise.all([
+        getLiveScientificPaperBetCoverage(),
+        getScientificBankrollRiskCoverage(),
+      ]);
+      console.log(JSON.stringify({
+        event: 't90-evidence-captured',
+        decision,
+        risk,
+        paperCoverage,
+        riskCoverage,
+        realMoneyExecution: false,
+      }, null, 2));
+      return;
+    }
+
+    if (sawDue && decision.dueEvents === 0) {
+      console.error(JSON.stringify({
+        event: 't90-window-passed-without-decision',
+        errors: decision.errors,
+      }, null, 2));
+      process.exitCode = 3;
+      return;
+    }
+    await sleep(pollSeconds * 1000);
+  }
+
+  console.error(JSON.stringify({
+    event: 't90-watch-timeout',
+    maxMinutes,
+  }, null, 2));
+  process.exitCode = 2;
+}
+
+async function evidence(): Promise<void> {
+  const decision = await prisma.scientificPaperBetDecision.findFirst({
+    where: { horizonMinutes: 90 },
+    orderBy: { decisionAsOf: 'desc' },
+  });
+
+  if (!decision) {
+    console.log(JSON.stringify({
+      latestT90Decision: null,
+      status: 'NO_T90_DECISION_YET',
+      externalApiCalled: false,
+      databaseWritten: false,
+    }, null, 2));
+    return;
+  }
+
+  const [candidates, risk, checkpoint] = await Promise.all([
+    prisma.scientificPaperBetCandidate.findMany({
+      where: { decisionId: decision.id },
+      orderBy: [{ eligible: 'desc' }, { expectedValue: 'desc' }, { edge: 'desc' }],
+    }),
+    prisma.scientificPaperStakeDecision.findMany({
+      where: { paperDecisionId: decision.id },
+      orderBy: { evaluatedAt: 'desc' },
+    }),
+    prisma.apiFootballFreshOddsCheckpoint.findUnique({
+      where: {
+        providerFixtureId_horizonMinutes: {
+          providerFixtureId: decision.providerFixtureId,
+          horizonMinutes: 90,
+        },
+      },
+    }),
+  ]);
+
+  console.log(JSON.stringify({
+    version: 'v7.0-r4.9-fresh-t90-decision-evidence',
+    latestT90Decision: decision,
+    candidates,
+    candidateSummary: {
+      total: candidates.length,
+      eligible: candidates.filter((row): boolean => row.eligible).length,
+      rejected: candidates.filter((row): boolean => !row.eligible).length,
+    },
+    riskDecisions: risk,
+    t90FreshOddsCheckpoint: checkpoint,
+    evidenceGate: {
+      t90Decision: true,
+      decisionType: decision.decisionType,
+      riskEvaluated: risk.length > 0,
+      stakeOrNoStake: risk[0]?.stakeDecisionType ?? null,
+      readyForSettlementStage: risk.length > 0,
+    },
+    externalApiCalled: false,
+    databaseWritten: false,
+    realMoneyExecution: false,
+  }, null, 2));
+}
+
+async function main(): Promise<void> {
+  const command = (process.argv[2] ?? 'readiness').toLowerCase();
+  if (command === 'readiness') return readiness();
+  if (command === 'watch') return watch();
+  if (command === 'evidence') return evidence();
+  throw new Error(`Unknown command: ${command}. Use readiness, watch, evidence.`);
+}
+
+main()
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

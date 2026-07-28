@@ -1,6 +1,16 @@
 import { prisma } from '@football-ai/database';
 
 import {
+  type CurrentScientificRecommendationAnalysis,
+} from './current-scientific-recommendation-engine.js';
+
+import {
+  emptyCurrentRecommendationBatchDiagnostics,
+  getPrioritizedCurrentRecommendationBatch,
+  type CurrentRecommendationBatchDiagnostics,
+} from './current-recommendation-batch-engine.js';
+
+import {
   discoverCurrentPriorityCompetitions,
   isDemoCompetitionName,
   type CurrentCompetition,
@@ -15,14 +25,25 @@ import {
 } from './fresh-odds-collector-engine.js';
 import { syncFixtures } from './fixtures.js';
 import { syncPredictions } from './predictions.js';
+import { getPersonalMarketMovementSummaries } from './personal-market-movement.js';
+import {
+  getPersonalTwoWayMarketMovements,
+  type PersonalTwoWayMarketMovementSummary,
+} from './personal-two-way-market-movement.js';
 import { runLiveScientificPaperBetDecisions } from './real-odds-paper-bet-engine.js';
+import { syncRepeatedFixtureContext } from './repeated-context.js';
 
-export const PERSONAL_CONSOLE_VERSION = 'v7.0-personal-console-rebuild-r3-current-only';
+export const PERSONAL_CONSOLE_VERSION = 'v7.0-personal-console-r4.7-early-odds-market-movement';
 
 const DAY_MS = 86_400_000;
+const DISPLAY_ODDS_MAX_AGE_MINUTES = 360;
 
 type PredictionSource = 'SCIENTIFIC_DECISION' | 'API_FOOTBALL' | 'NONE';
 type PersonalFixtureState = 'BEST_BET' | 'NO_BET' | 'PREDICTION_ONLY' | 'WAITING_DATA';
+
+type PersonalCurrentRecommendationStatus =
+  | CurrentScientificRecommendationAnalysis['status']
+  | 'NOT_EVALUATED';
 
 interface PersonalUpcomingOptions {
   now?: Date;
@@ -117,7 +138,26 @@ interface FreshCheckpointRow {
   horizonLabel: string;
   dueAt: Date;
   status: string;
+  attemptedAt: Date | null;
   completedAt: Date | null;
+  normalizedOdds: number;
+  insertedOdds: number;
+  pitUsableOdds: number;
+  errorMessage: string | null;
+}
+
+interface OddsSnapshotRow {
+  id: number;
+  providerFixtureId: number;
+  observedAt: Date;
+  sourceUpdatedAt: Date | null;
+  bookmakerId: number;
+  bookmakerName: string;
+  marketType: string;
+  selection: string;
+  lineValue: number | null;
+  decimalOdds: number;
+  pitUsable: boolean;
 }
 
 interface StakeRow {
@@ -163,7 +203,8 @@ type ConsoleMarketStatus =
   | 'BEST_BET'
   | 'ELIGIBLE_VALUE'
   | 'ANALYSIS_ONLY'
-  | 'WAITING_SCIENTIFIC_HORIZON';
+  | 'ODDS_AVAILABLE_WAITING_DECISION'
+  | 'WAITING_ODDS';
 
 type ConsoleMarketScientificType =
   | 'MATCH_WINNER'
@@ -200,6 +241,11 @@ interface ConsoleMarketSelection {
   reliabilityStatus: string | null;
   eligible: boolean;
   rejectionReasons: unknown;
+  oddsSource: 'SCIENTIFIC_CANDIDATE' | 'LATEST_SNAPSHOT' | 'NONE';
+  oddsObservedAt: string | null;
+  oddsSourceUpdatedAt: string | null;
+  oddsSourceAgeMinutes: number | null;
+  oddsPitUsable: boolean | null;
 }
 
 interface ConsoleMarketPrediction {
@@ -248,6 +294,28 @@ interface FixtureAnalysisRow {
     providerAdvice: string | null;
     providerPredictedWinner: string | null;
     providerCapturedAt: string | null;
+  };
+  scientificHda: {
+    available: boolean;
+    source: 'SCIENTIFIC_DECISION' | 'NONE';
+    homeProbability: number | null;
+    drawProbability: number | null;
+    awayProbability: number | null;
+    predictedSelection: 'HOME' | 'DRAW' | 'AWAY' | null;
+    horizonMinutes: number | null;
+    decisionAsOf: string | null;
+    modelVersion: string | null;
+  };
+  providerHda: {
+    available: boolean;
+    source: 'API_FOOTBALL' | 'NONE';
+    homeProbability: number | null;
+    drawProbability: number | null;
+    awayProbability: number | null;
+    predictedSelection: 'HOME' | 'DRAW' | 'AWAY' | null;
+    advice: string | null;
+    predictedWinner: string | null;
+    capturedAt: string | null;
   };
   decision: {
     id: number;
@@ -299,6 +367,65 @@ interface FixtureAnalysisRow {
     status: string;
   } | null;
   marketPredictions: ConsoleMarketPrediction[];
+  oddsDiagnostics: {
+    snapshotRows: number;
+    pitUsableRows: number;
+    marketsWithOdds: number;
+    latestObservedAt: string | null;
+    latestSourceUpdatedAt: string | null;
+    latestSourceAgeMinutes: number | null;
+    latestCheckpoint: {
+      horizonMinutes: number;
+      horizonLabel: string;
+      dueAt: string;
+      status: string;
+      attemptedAt: string | null;
+      completedAt: string | null;
+      normalizedOdds: number;
+      insertedOdds: number;
+      pitUsableOdds: number;
+      errorMessage: string | null;
+    } | null;
+  };
+  marketMovement: {
+    source: 'API_FOOTBALL_PIT_SNAPSHOT';
+    available: boolean;
+    movementAvailable: boolean;
+    bookmakerCount: number;
+    matchedBookmakerCount: number;
+    openingConsensus: {
+      HOME: number;
+      DRAW: number;
+      AWAY: number;
+    } | null;
+    currentConsensus: {
+      HOME: number;
+      DRAW: number;
+      AWAY: number;
+    } | null;
+    movement: {
+      HOME: number;
+      DRAW: number;
+      AWAY: number;
+    };
+    recentMovement: {
+      HOME: number;
+      DRAW: number;
+      AWAY: number;
+    };
+    steamMoveDetected: boolean;
+    steamDirection: 'HOME' | 'DRAW' | 'AWAY' | 'NONE';
+    steamStrength: number;
+    lateMove: boolean;
+    qualityScore: number;
+    observedFrom: string | null;
+    observedTo: string | null;
+    reasons: string[];
+  } | null;
+  multiMarketMovements: PersonalTwoWayMarketMovementSummary[];
+  currentRecommendationStatus: PersonalCurrentRecommendationStatus;
+  currentRecommendationError: string | null;
+  currentRecommendation: CurrentScientificRecommendationAnalysis['recommendation'];
   state: PersonalFixtureState;
 }
 
@@ -321,6 +448,49 @@ function uniquePositiveIntegers(value: unknown): number[] {
 
 function finiteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+
+function sourceAgeMinutes(input: { observedAt: Date; sourceUpdatedAt: Date | null }): number | null {
+  if (input.sourceUpdatedAt == null) return null;
+  return Math.max(0, (input.observedAt.getTime() - input.sourceUpdatedAt.getTime()) / 60_000);
+}
+
+function oddsKey(input: { providerFixtureId: number; marketType: string; selection: string; lineValue: number | null }): string {
+  return [input.providerFixtureId, input.marketType, input.selection, input.lineValue == null ? 'NULL' : input.lineValue.toFixed(3)].join('|');
+}
+
+function providerSnapshotMarketType(
+  definition: ConsoleMarketDefinition,
+): 'MATCH_WINNER' | 'BTTS' | 'TOTAL_GOALS' {
+  if (
+    definition.scientificMarketType === 'TOTAL_GOALS_1_5' ||
+    definition.scientificMarketType === 'TOTAL_GOALS_2_5' ||
+    definition.scientificMarketType === 'TOTAL_GOALS_3_5'
+  ) {
+    // API-Football normalizes every full-match Goals Over/Under line
+    // under one provider market and distinguishes 1.5 / 2.5 / 3.5
+    // through lineValue.
+    return 'TOTAL_GOALS';
+  }
+
+  return definition.scientificMarketType;
+}
+
+function latestOddsBySelection(rows: OddsSnapshotRow[]): Map<string, OddsSnapshotRow> {
+  const latest = new Map<string, OddsSnapshotRow>();
+  for (const row of rows) {
+    const key = oddsKey(row);
+    const current = latest.get(key);
+    if (current == null || row.observedAt.getTime() > current.observedAt.getTime() || (row.observedAt.getTime() === current.observedAt.getTime() && row.decimalOdds > current.decimalOdds)) {
+      latest.set(key, row);
+    }
+  }
+  return latest;
+}
+
+function latestCheckpointForFixture(checkpoints: FreshCheckpointRow[], providerFixtureId: number): FreshCheckpointRow | null {
+  return checkpoints.filter((row: FreshCheckpointRow): boolean => row.providerFixtureId === providerFixtureId).slice().sort((left: FreshCheckpointRow, right: FreshCheckpointRow): number => right.dueAt.getTime() - left.dueAt.getTime())[0] ?? null;
 }
 
 function predictedSelection(input: {
@@ -420,72 +590,43 @@ const CONSOLE_MARKETS: ConsoleMarketDefinition[] = [
   },
 ];
 
-function buildConsoleMarketPredictions(
-  decision: DecisionRow | null,
-  candidates: CandidateRow[],
-): ConsoleMarketPrediction[] {
-  return CONSOLE_MARKETS.map(
-    (definition: ConsoleMarketDefinition): ConsoleMarketPrediction => {
-      const marketCandidates = candidates.filter(
-        (candidate: CandidateRow): boolean =>
-          candidate.marketType === definition.scientificMarketType,
-      );
-
-      const selectedAsBestBet =
-        decision?.decisionType === 'BEST_BET' &&
-        decision.selectedMarket === definition.scientificMarketType;
-
-      const hasEligibleValue = marketCandidates.some(
-        (candidate: CandidateRow): boolean => candidate.eligible,
-      );
-
-      const status: ConsoleMarketStatus = selectedAsBestBet
-        ? 'BEST_BET'
-        : hasEligibleValue
-          ? 'ELIGIBLE_VALUE'
-          : marketCandidates.length > 0
-            ? 'ANALYSIS_ONLY'
-            : 'WAITING_SCIENTIFIC_HORIZON';
-
-      const selections = definition.selections.map(
-        (selection: ConsoleMarketSelectionCode): ConsoleMarketSelection => {
-          const candidate = marketCandidates
-            .filter(
-              (row: CandidateRow): boolean => row.selection === selection,
-            )
-            .slice()
-            .sort(
-              (left: CandidateRow, right: CandidateRow): number =>
-                right.expectedValue - left.expectedValue ||
-                right.decimalOdds - left.decimalOdds,
-            )[0];
-
-          return {
-            code: selection,
-            modelProbability: candidate?.modelProbability ?? null,
-            decimalOdds: candidate?.decimalOdds ?? null,
-            bookmakerName: candidate?.bookmakerName ?? null,
-            fairMarketProbability: candidate?.fairMarketProbability ?? null,
-            edge: candidate?.edge ?? null,
-            expectedValue: candidate?.expectedValue ?? null,
-            reliabilityStatus: candidate?.reliabilityStatus ?? null,
-            eligible: candidate?.eligible ?? false,
-            rejectionReasons: candidate?.rejectionReasons ?? [],
-          };
-        },
-      );
-
+function buildConsoleMarketPredictions(input: {
+  decision: DecisionRow | null;
+  candidates: CandidateRow[];
+  providerFixtureId: number;
+  latestOdds: Map<string, OddsSnapshotRow>;
+}): ConsoleMarketPrediction[] {
+  return CONSOLE_MARKETS.map((definition: ConsoleMarketDefinition): ConsoleMarketPrediction => {
+    const marketCandidates = input.candidates.filter((candidate: CandidateRow): boolean => candidate.marketType === definition.scientificMarketType);
+    const selectedAsBestBet = input.decision?.decisionType === 'BEST_BET' && input.decision.selectedMarket === definition.scientificMarketType;
+    const hasEligibleValue = marketCandidates.some((candidate: CandidateRow): boolean => candidate.eligible);
+    const marketHasSnapshotOdds = definition.selections.some((selection: ConsoleMarketSelectionCode): boolean => input.latestOdds.has(oddsKey({ providerFixtureId: input.providerFixtureId, marketType: providerSnapshotMarketType(definition), selection, lineValue: definition.lineValue })));
+    const status: ConsoleMarketStatus = selectedAsBestBet ? 'BEST_BET' : hasEligibleValue ? 'ELIGIBLE_VALUE' : marketCandidates.length > 0 ? 'ANALYSIS_ONLY' : marketHasSnapshotOdds ? 'ODDS_AVAILABLE_WAITING_DECISION' : 'WAITING_ODDS';
+    const selections = definition.selections.map((selection: ConsoleMarketSelectionCode): ConsoleMarketSelection => {
+      const candidate = marketCandidates.filter((row: CandidateRow): boolean => row.selection === selection).slice().sort((left: CandidateRow, right: CandidateRow): number => right.expectedValue - left.expectedValue || right.decimalOdds - left.decimalOdds)[0];
+      const snapshot = input.latestOdds.get(oddsKey({ providerFixtureId: input.providerFixtureId, marketType: providerSnapshotMarketType(definition), selection, lineValue: definition.lineValue })) ?? null;
+      const observedAt = snapshot?.observedAt ?? null;
+      const sourceUpdatedAt = snapshot?.sourceUpdatedAt ?? null;
       return {
-        code: definition.code,
-        scientificMarketType: definition.scientificMarketType,
-        label: definition.label,
-        lineValue: definition.lineValue,
-        status,
-        selectedAsBestBet,
-        selections,
+        code: selection,
+        modelProbability: candidate?.modelProbability ?? null,
+        decimalOdds: candidate?.decimalOdds ?? snapshot?.decimalOdds ?? null,
+        bookmakerName: candidate?.bookmakerName ?? snapshot?.bookmakerName ?? null,
+        fairMarketProbability: candidate?.fairMarketProbability ?? null,
+        edge: candidate?.edge ?? null,
+        expectedValue: candidate?.expectedValue ?? null,
+        reliabilityStatus: candidate?.reliabilityStatus ?? (snapshot != null ? 'WAITING_SCIENTIFIC_DECISION' : null),
+        eligible: candidate?.eligible ?? false,
+        rejectionReasons: candidate?.rejectionReasons ?? [],
+        oddsSource: candidate != null ? 'SCIENTIFIC_CANDIDATE' : snapshot != null ? 'LATEST_SNAPSHOT' : 'NONE',
+        oddsObservedAt: observedAt?.toISOString() ?? null,
+        oddsSourceUpdatedAt: sourceUpdatedAt?.toISOString() ?? null,
+        oddsSourceAgeMinutes: observedAt == null ? null : sourceAgeMinutes({ observedAt, sourceUpdatedAt }),
+        oddsPitUsable: snapshot?.pitUsable ?? null,
       };
-    },
-  );
+    });
+    return { code: definition.code, scientificMarketType: definition.scientificMarketType, label: definition.label, lineValue: definition.lineValue, status, selectedAsBestBet, selections };
+  });
 }
 
 export async function getPersonalUpcomingAnalysis(
@@ -527,36 +668,99 @@ export async function getPersonalUpcomingAnalysis(
     (fixture: FixtureRow): number => fixture.apiFixtureId,
   );
 
+  let currentRecommendationByFixture =
+    new Map<
+      number,
+      CurrentScientificRecommendationAnalysis
+    >();
+
+  let currentRecommendationBatchDiagnostics:
+    CurrentRecommendationBatchDiagnostics =
+      emptyCurrentRecommendationBatchDiagnostics(
+        providerFixtureIds.length,
+      );
+
+  try {
+    const currentRecommendationBatch =
+      await getPrioritizedCurrentRecommendationBatch({
+        fixtures:
+          fixtures.map(
+            (
+              fixture: FixtureRow,
+            ) => ({
+              providerFixtureId:
+                fixture.apiFixtureId,
+              kickoffAt:
+                fixture.kickoffAt,
+            }),
+          ),
+        now,
+      });
+
+    currentRecommendationByFixture =
+      currentRecommendationBatch
+        .analyses;
+
+    currentRecommendationBatchDiagnostics =
+      currentRecommendationBatch
+        .diagnostics;
+  } catch (error) {
+    const reason =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    currentRecommendationBatchDiagnostics =
+      emptyCurrentRecommendationBatchDiagnostics(
+        providerFixtureIds.length,
+        reason,
+      );
+
+    console.error(
+      JSON.stringify({
+        event:
+          'personal-current-recommendation-batch-error',
+        reason,
+      }),
+    );
+  }
+
   let decisionRows: DecisionRow[] = [];
   let checkpointRows: FreshCheckpointRow[] = [];
+  let oddsRows: OddsSnapshotRow[] = [];
 
   if (providerFixtureIds.length > 0) {
-    const [rawDecisions, rawCheckpoints] = await Promise.all([
+    const minimumOddsObservedAt = new Date(now.getTime() - DISPLAY_ODDS_MAX_AGE_MINUTES * 60_000);
+    const [rawDecisions, rawCheckpoints, rawOddsRows] = await Promise.all([
       prisma.scientificPaperBetDecision.findMany({
-        where: {
-          providerFixtureId: { in: providerFixtureIds },
-          kickoffAt: { gt: now },
-        },
+        where: { providerFixtureId: { in: providerFixtureIds }, kickoffAt: { gt: now } },
         include: { candidates: true },
         orderBy: [{ decisionAsOf: 'desc' }, { id: 'desc' }],
       }),
       prisma.apiFootballFreshOddsCheckpoint.findMany({
         where: { providerFixtureId: { in: providerFixtureIds } },
         select: {
-          providerFixtureId: true,
-          horizonMinutes: true,
-          horizonLabel: true,
-          dueAt: true,
-          status: true,
-          completedAt: true,
+          providerFixtureId: true, horizonMinutes: true, horizonLabel: true, dueAt: true, status: true,
+          attemptedAt: true, completedAt: true, normalizedOdds: true, insertedOdds: true, pitUsableOdds: true, errorMessage: true,
         },
         orderBy: [{ dueAt: 'asc' }, { id: 'asc' }],
       }),
+      prisma.apiFootballOddsSnapshot.findMany({
+        where: { providerFixtureId: { in: providerFixtureIds }, observedAt: { gte: minimumOddsObservedAt, lte: now } },
+        select: {
+          id: true, providerFixtureId: true, observedAt: true, sourceUpdatedAt: true, bookmakerId: true,
+          bookmakerName: true, marketType: true, selection: true, lineValue: true, decimalOdds: true, pitUsable: true,
+        },
+        orderBy: [{ observedAt: 'desc' }, { decimalOdds: 'desc' }, { id: 'desc' }],
+        take: 20000,
+      }),
     ]);
-
     decisionRows = rawDecisions as DecisionRow[];
     checkpointRows = rawCheckpoints as FreshCheckpointRow[];
+    oddsRows = rawOddsRows as OddsSnapshotRow[];
   }
+
+  const latestOdds = latestOddsBySelection(oddsRows);
 
   const latestDecisionByFixture = new Map<number, DecisionRow>();
   for (const decision of decisionRows) {
@@ -584,9 +788,32 @@ export async function getPersonalUpcomingAnalysis(
     }
   }
 
+  const marketMovementByFixture =
+    await getPersonalMarketMovementSummaries({
+      fixtures: fixtures.map((fixture: FixtureRow) => ({
+        localFixtureId: fixture.id,
+        providerFixtureId: fixture.apiFixtureId,
+        kickoffAt: fixture.kickoffAt,
+      })),
+      predictionAsOf: now,
+    });
+
+  const multiMarketMovementByFixture =
+    await getPersonalTwoWayMarketMovements({
+      fixtures: fixtures.map((fixture: FixtureRow) => ({
+        providerFixtureId: fixture.apiFixtureId,
+        kickoffAt: fixture.kickoffAt,
+      })),
+      predictionAsOf: now,
+    });
+
   const rows: FixtureAnalysisRow[] = fixtures.map(
     (fixture: FixtureRow): FixtureAnalysisRow => {
       const decision = latestDecisionByFixture.get(fixture.apiFixtureId) ?? null;
+      const currentScientific =
+        currentRecommendationByFixture.get(
+          fixture.apiFixtureId,
+        ) ?? null;
       const candidates: CandidateRow[] = decision?.candidates ?? [];
       const providerPrediction = fixture.externalPrediction;
 
@@ -600,6 +827,23 @@ export async function getPersonalUpcomingAnalysis(
         scientificProbabilities.draw != null &&
         scientificProbabilities.away != null;
 
+      const scientificSelectedPrediction = scientificProbabilityComplete
+        ? predictedSelection(scientificProbabilities)
+        : null;
+
+      const providerProbabilities = {
+        home: finiteNumber(providerPrediction?.homeProbability),
+        draw: finiteNumber(providerPrediction?.drawProbability),
+        away: finiteNumber(providerPrediction?.awayProbability),
+      };
+      const providerProbabilityComplete =
+        providerProbabilities.home != null &&
+        providerProbabilities.draw != null &&
+        providerProbabilities.away != null;
+      const providerSelectedPrediction = providerProbabilityComplete
+        ? predictedSelection(providerProbabilities)
+        : null;
+
       const predictionSource: PredictionSource = scientificProbabilityComplete
         ? 'SCIENTIFIC_DECISION'
         : providerPrediction
@@ -608,16 +852,38 @@ export async function getPersonalUpcomingAnalysis(
 
       const probabilities = scientificProbabilityComplete
         ? scientificProbabilities
-        : {
-            home: finiteNumber(providerPrediction?.homeProbability),
-            draw: finiteNumber(providerPrediction?.drawProbability),
-            away: finiteNumber(providerPrediction?.awayProbability),
-          };
+        : providerProbabilities;
 
       const selectedPrediction = predictedSelection(probabilities);
       const stake = decision ? latestStakeByDecision.get(decision.id) ?? null : null;
       const checkpoint = nextCheckpoint(checkpointRows, fixture.apiFixtureId);
-      const marketPredictions = buildConsoleMarketPredictions(decision, candidates);
+      const marketPredictions = buildConsoleMarketPredictions({
+        decision,
+        candidates,
+        providerFixtureId: fixture.apiFixtureId,
+        latestOdds,
+      });
+      const marketMovement =
+        marketMovementByFixture.get(fixture.apiFixtureId) ?? null;
+      const multiMarketMovements =
+        multiMarketMovementByFixture.get(fixture.apiFixtureId) ?? [];
+      const fixtureOddsRows = oddsRows.filter((row: OddsSnapshotRow): boolean => row.providerFixtureId === fixture.apiFixtureId);
+      const latestObservedRow = fixtureOddsRows.slice().sort((left: OddsSnapshotRow, right: OddsSnapshotRow): number => right.observedAt.getTime() - left.observedAt.getTime())[0] ?? null;
+      const latestCheckpoint = latestCheckpointForFixture(checkpointRows, fixture.apiFixtureId);
+      const oddsDiagnostics = {
+        snapshotRows: fixtureOddsRows.length,
+        pitUsableRows: fixtureOddsRows.filter((row: OddsSnapshotRow): boolean => row.pitUsable).length,
+        marketsWithOdds: new Set(fixtureOddsRows.map((row: OddsSnapshotRow): string => row.marketType)).size,
+        latestObservedAt: latestObservedRow?.observedAt.toISOString() ?? null,
+        latestSourceUpdatedAt: latestObservedRow?.sourceUpdatedAt?.toISOString() ?? null,
+        latestSourceAgeMinutes: latestObservedRow == null ? null : sourceAgeMinutes({ observedAt: latestObservedRow.observedAt, sourceUpdatedAt: latestObservedRow.sourceUpdatedAt }),
+        latestCheckpoint: latestCheckpoint ? {
+          horizonMinutes: latestCheckpoint.horizonMinutes, horizonLabel: latestCheckpoint.horizonLabel, dueAt: latestCheckpoint.dueAt.toISOString(), status: latestCheckpoint.status,
+          attemptedAt: latestCheckpoint.attemptedAt?.toISOString() ?? null, completedAt: latestCheckpoint.completedAt?.toISOString() ?? null,
+          normalizedOdds: latestCheckpoint.normalizedOdds, insertedOdds: latestCheckpoint.insertedOdds, pitUsableOdds: latestCheckpoint.pitUsableOdds,
+          errorMessage: latestCheckpoint.errorMessage,
+        } : null,
+      };
 
       const state: PersonalFixtureState =
         decision?.decisionType === 'BEST_BET'
@@ -664,6 +930,28 @@ export async function getPersonalUpcomingAnalysis(
           providerAdvice: providerPrediction?.advice ?? null,
           providerPredictedWinner: providerPrediction?.predictedWinner ?? null,
           providerCapturedAt: providerPrediction?.capturedAt?.toISOString() ?? null,
+        },
+        scientificHda: {
+          available: scientificProbabilityComplete,
+          source: scientificProbabilityComplete ? 'SCIENTIFIC_DECISION' : 'NONE',
+          homeProbability: scientificProbabilityComplete ? scientificProbabilities.home : null,
+          drawProbability: scientificProbabilityComplete ? scientificProbabilities.draw : null,
+          awayProbability: scientificProbabilityComplete ? scientificProbabilities.away : null,
+          predictedSelection: scientificSelectedPrediction,
+          horizonMinutes: scientificProbabilityComplete ? decision?.horizonMinutes ?? null : null,
+          decisionAsOf: scientificProbabilityComplete ? decision?.decisionAsOf.toISOString() ?? null : null,
+          modelVersion: scientificProbabilityComplete ? decision?.modelVersion ?? null : null,
+        },
+        providerHda: {
+          available: providerProbabilityComplete,
+          source: providerProbabilityComplete ? 'API_FOOTBALL' : 'NONE',
+          homeProbability: providerProbabilities.home,
+          drawProbability: providerProbabilities.draw,
+          awayProbability: providerProbabilities.away,
+          predictedSelection: providerSelectedPrediction,
+          advice: providerPrediction?.advice ?? null,
+          predictedWinner: providerPrediction?.predictedWinner ?? null,
+          capturedAt: providerPrediction?.capturedAt?.toISOString() ?? null,
         },
         decision: decision
           ? {
@@ -728,6 +1016,18 @@ export async function getPersonalUpcomingAnalysis(
             }
           : null,
         marketPredictions,
+        marketMovement,
+        multiMarketMovements,
+        oddsDiagnostics,
+        currentRecommendationStatus:
+          currentScientific?.status ??
+          'NOT_EVALUATED',
+        currentRecommendationError:
+          currentScientific?.error ??
+          null,
+        currentRecommendation:
+          currentScientific?.recommendation ??
+          null,
         state,
       };
     },
@@ -774,6 +1074,11 @@ export async function getPersonalUpcomingAnalysis(
         (row: FixtureAnalysisRow): boolean => row.decision != null,
       ).length,
       bestBets: bestBets.length,
+      currentRecommendations:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendation != null,
+        ).length,
       noBets: rows.filter((row: FixtureAnalysisRow): boolean => row.state === 'NO_BET').length,
       predictionOnly: rows.filter(
         (row: FixtureAnalysisRow): boolean => row.state === 'PREDICTION_ONLY',
@@ -781,6 +1086,73 @@ export async function getPersonalUpcomingAnalysis(
       waitingData: rows.filter(
         (row: FixtureAnalysisRow): boolean => row.state === 'WAITING_DATA',
       ).length,
+      fixturesWithOdds: rows.filter((row: FixtureAnalysisRow): boolean => row.oddsDiagnostics.snapshotRows > 0).length,
+      fixturesWithPitUsableOdds: rows.filter((row: FixtureAnalysisRow): boolean => row.oddsDiagnostics.pitUsableRows > 0).length,
+      scientificHdaReady: rows.filter((row: FixtureAnalysisRow): boolean => row.scientificHda.available).length,
+      providerHdaAvailable: rows.filter((row: FixtureAnalysisRow): boolean => row.providerHda.available).length,
+      fixturesWithMarketMovement: rows.filter(
+        (row: FixtureAnalysisRow): boolean =>
+          row.marketMovement?.movementAvailable === true,
+      ).length,
+      fixturesWithMultiMarketMovement: rows.filter(
+        (row: FixtureAnalysisRow): boolean =>
+          row.multiMarketMovements.some(
+            (movement: PersonalTwoWayMarketMovementSummary): boolean =>
+              movement.movementAvailable,
+          ),
+      ).length,
+    },
+    currentRecommendationBatch:
+      currentRecommendationBatchDiagnostics,
+    currentRecommendationStatusCounts: {
+      AVAILABLE:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendationStatus ===
+            'AVAILABLE',
+        ).length,
+      NO_FRESH_PIT_ODDS:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendationStatus ===
+            'NO_FRESH_PIT_ODDS',
+        ).length,
+      NO_MODEL:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendationStatus ===
+            'NO_MODEL',
+        ).length,
+      NO_COMPLETE_MARKET:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendationStatus ===
+            'NO_COMPLETE_MARKET',
+        ).length,
+      NO_VALUE_SIGNAL:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendationStatus ===
+            'NO_VALUE_SIGNAL',
+        ).length,
+      UNMAPPED_FIXTURE:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendationStatus ===
+            'UNMAPPED_FIXTURE',
+        ).length,
+      MAPPING_MISMATCH:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendationStatus ===
+            'MAPPING_MISMATCH',
+        ).length,
+      NOT_EVALUATED:
+        rows.filter(
+          (row: FixtureAnalysisRow): boolean =>
+            row.currentRecommendationStatus ===
+            'NOT_EVALUATED',
+        ).length,
     },
     leagues,
     topBestBets: bestBets.slice(0, 8),
@@ -789,11 +1161,22 @@ export async function getPersonalUpcomingAnalysis(
       personalMode: true,
       readOnlyAnalysis: true,
       predictionIsNotBestBet: true,
+      currentRecommendationIsShadowSignal: true,
+      currentRecommendationDoesNotChangeBestBet: true,
+      recommendationStatusDashboard: true,
+      currentRecommendationBatchPriority: true,
+      currentRecommendationChunkFaultIsolation: true,
       bestBetComesOnlyFromScientificPaperDecision: true,
       syntheticOddsUsed: false,
       realMoneyExecution: false,
       automaticBetPlacement: false,
       automaticPromotion: false,
+      providerPredictionNeverLabeledAsScientificModel: true,
+      scientificHdaNeverFallsBackToProvider: true,
+      earlyOddsDoNotCreateBestBet: true,
+      marketMovementUsesPitSnapshotsOnly: true,
+      multiMarketMovementUsesPitSnapshotsOnly: true,
+      multiMarketMovementDoesNotChangeBestBet: true,
     },
   };
 }
@@ -869,6 +1252,10 @@ export async function refreshPersonalUpcomingAnalysis(
     ),
   });
 
+  const contextSync = await syncRepeatedFixtureContext({
+    now,
+  });
+
   const providerLeagueIds = discovery.competitions
     .map((competition: CurrentCompetition): number => competition.apiLeagueId)
     .join(',');
@@ -925,6 +1312,7 @@ export async function refreshPersonalUpcomingAnalysis(
     },
     fixtureSync,
     predictionSync,
+    contextSync,
     freshDiscovery,
     freshPlan,
     freshCollect,

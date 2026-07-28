@@ -638,7 +638,7 @@ export function analyzeMatchWinnerOddsMovement(input: {
   };
 }
 
-export async function getMatchWinnerOddsMovement(input: {
+async function getLegacyMatchWinnerOddsMovement(input: {
   fixtureId: number;
   kickoffAt: Date;
   predictionAsOf: Date;
@@ -685,3 +685,146 @@ export async function getMatchWinnerOddsMovement(input: {
     })),
   });
 }
+
+interface ApiFootballMovementSource {
+  analysis: MatchWinnerOddsMovementAnalysis;
+  latestAt: Date;
+}
+
+async function getApiFootballMatchWinnerOddsMovementSource(input: {
+  fixtureId: number;
+  kickoffAt: Date;
+  predictionAsOf: Date;
+}): Promise<ApiFootballMovementSource | null> {
+  const fixture = await prisma.fixture.findUnique({
+    where: { id: input.fixtureId },
+    select: { apiFixtureId: true },
+  });
+
+  if (
+    fixture?.apiFixtureId == null ||
+    fixture.apiFixtureId <= 0
+  ) {
+    return null;
+  }
+
+  const rows = await prisma.apiFootballOddsSnapshot.findMany({
+    where: {
+      providerFixtureId: fixture.apiFixtureId,
+      marketType: 'MATCH_WINNER',
+      selection: { in: ['HOME', 'DRAW', 'AWAY'] },
+      pitUsable: true,
+      observedAt: { lte: input.predictionAsOf },
+      OR: [
+        { sourceUpdatedAt: null },
+        { sourceUpdatedAt: { lte: input.predictionAsOf } },
+      ],
+    },
+    select: {
+      id: true,
+      bookmakerId: true,
+      bookmakerName: true,
+      selection: true,
+      decimalOdds: true,
+      observedAt: true,
+      sourceUpdatedAt: true,
+    },
+    orderBy: [
+      { observedAt: 'asc' },
+      { id: 'asc' },
+    ],
+  });
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const movementRows: OddsMovementRow[] = rows.map(
+    (row: {
+      id: number;
+      bookmakerId: number;
+      bookmakerName: string;
+      selection: string;
+      decimalOdds: number;
+      observedAt: Date;
+      sourceUpdatedAt: Date | null;
+    }): OddsMovementRow => ({
+      id: -row.id,
+      bookmakerId: row.bookmakerId,
+      bookmakerName: row.bookmakerName,
+      selectionCode: row.selection,
+      decimalOdds: row.decimalOdds,
+      capturedAt: row.sourceUpdatedAt ?? row.observedAt,
+    }),
+  );
+
+  const latestAt = new Date(
+    Math.max(
+      ...movementRows.map(
+        (row: OddsMovementRow): number =>
+          row.capturedAt.getTime(),
+      ),
+    ),
+  );
+
+  return {
+    latestAt,
+    analysis: analyzeMatchWinnerOddsMovement({
+      ...input,
+      rows: movementRows,
+    }),
+  };
+}
+
+export async function getMatchWinnerOddsMovement(input: {
+  fixtureId: number;
+  kickoffAt: Date;
+  predictionAsOf: Date;
+}): Promise<MatchWinnerOddsMovementAnalysis> {
+  const [legacy, apiFootball] = await Promise.all([
+    getLegacyMatchWinnerOddsMovement(input),
+    getApiFootballMatchWinnerOddsMovementSource(input),
+  ]);
+
+  if (apiFootball == null) {
+    return {
+      ...legacy,
+      reasons: [
+        'Nguồn market movement: PROVIDER_NEUTRAL_ODDS_SNAPSHOT.',
+        ...legacy.reasons,
+      ],
+    };
+  }
+
+  const legacyLatestAt =
+    legacy.observedTo?.getTime() ??
+    Number.NEGATIVE_INFINITY;
+
+  const useApiFootball =
+    apiFootball.analysis.available &&
+    (
+      !legacy.available ||
+      apiFootball.latestAt.getTime() >= legacyLatestAt
+    );
+
+  if (useApiFootball) {
+    return {
+      ...apiFootball.analysis,
+      reasons: [
+        'Nguồn market movement: API_FOOTBALL_PIT_SNAPSHOT.',
+        ...apiFootball.analysis.reasons,
+      ],
+    };
+  }
+
+  return {
+    ...legacy,
+    reasons: [
+      apiFootball.analysis.available
+        ? 'Nguồn market movement: PROVIDER_NEUTRAL_ODDS_SNAPSHOT (fresher source retained).'
+        : 'Nguồn market movement: PROVIDER_NEUTRAL_ODDS_SNAPSHOT (API-Football chưa đủ market consensus).',
+      ...legacy.reasons,
+    ],
+  };
+}
+

@@ -1,0 +1,91 @@
+import { prisma } from '@football-ai/database';
+
+async function main(): Promise<void> {
+  const now = new Date();
+  const until = new Date(now.getTime() + 36 * 60 * 60 * 1000);
+
+  const fixtures = await prisma.fixture.findMany({
+    where: {
+      status: 'UPCOMING',
+      kickoffAt: { gt: now, lte: until },
+    },
+    include: {
+      league: true,
+      homeTeam: true,
+      awayTeam: true,
+    },
+    orderBy: { kickoffAt: 'asc' },
+    take: 80,
+  });
+
+  for (const fixture of fixtures) {
+    const [checkpoints, odds] = await Promise.all([
+      prisma.apiFootballFreshOddsCheckpoint.findMany({
+        where: { providerFixtureId: fixture.apiFixtureId },
+        orderBy: { dueAt: 'desc' },
+        take: 5,
+      }),
+      prisma.apiFootballOddsSnapshot.findMany({
+        where: {
+          providerFixtureId: fixture.apiFixtureId,
+          observedAt: {
+            gte: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+            lte: now,
+          },
+        },
+        orderBy: [{ observedAt: 'desc' }, { id: 'desc' }],
+        take: 5000,
+      }),
+    ]);
+
+    const markets = new Map<string, number>();
+
+    for (const row of odds) {
+      markets.set(row.marketType, (markets.get(row.marketType) ?? 0) + 1);
+    }
+
+    const latest = odds[0] ?? null;
+    const latestCheckpoint = checkpoints[0] ?? null;
+
+    console.log(
+      JSON.stringify(
+        {
+          localFixtureId: fixture.id,
+          providerFixtureId: fixture.apiFixtureId,
+          league: `${fixture.league.name} ${fixture.league.season}`,
+          match: `${fixture.homeTeam.name} vs ${fixture.awayTeam.name}`,
+          kickoffAt: fixture.kickoffAt.toISOString(),
+          odds: {
+            rowsLast6h: odds.length,
+            pitUsableRows: odds.filter((row) => row.pitUsable).length,
+            markets: Object.fromEntries(markets),
+            latestObservedAt: latest?.observedAt.toISOString() ?? null,
+            latestSourceUpdatedAt: latest?.sourceUpdatedAt?.toISOString() ?? null,
+          },
+          latestCheckpoint:
+            latestCheckpoint == null
+              ? null
+              : {
+                  horizon: latestCheckpoint.horizonLabel,
+                  dueAt: latestCheckpoint.dueAt.toISOString(),
+                  status: latestCheckpoint.status,
+                  attempts: latestCheckpoint.attempts,
+                  normalizedOdds: latestCheckpoint.normalizedOdds,
+                  insertedOdds: latestCheckpoint.insertedOdds,
+                  pitUsableOdds: latestCheckpoint.pitUsableOdds,
+                  errorMessage: latestCheckpoint.errorMessage,
+                },
+        },
+        null,
+        2,
+      ),
+    );
+  }
+}
+
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+}).finally(async () => {
+  await prisma.$disconnect();
+});
