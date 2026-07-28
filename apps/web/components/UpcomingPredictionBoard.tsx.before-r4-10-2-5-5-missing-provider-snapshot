@@ -247,13 +247,6 @@ function currentRecommendationStatusLabel(
     return 'Chờ odds PIT mới';
   }
 
-  if (
-    status ===
-    'NO_PROVIDER_FIXTURE_SNAPSHOT'
-  ) {
-    return 'Thiếu fixture snapshot';
-  }
-
   if (status === 'NO_MODEL') {
     return 'Thiếu mô hình hiện tại';
   }
@@ -302,13 +295,6 @@ function currentRecommendationStatusDescription(
     return 'Không có phiên bản odds PIT đủ mới hoặc vừa được API tái xác nhận.';
   }
 
-  if (
-    status ===
-    'NO_PROVIDER_FIXTURE_SNAPSHOT'
-  ) {
-    return 'Không có immutable provider fixture snapshot hợp lệ tại thời điểm phân tích; odds PIT, nếu có, chưa đủ lineage để tạo đề xuất khoa học.';
-  }
-
   if (status === 'NO_MODEL') {
     if (
       row.currentRecommendationError ===
@@ -334,7 +320,7 @@ function currentRecommendationStatusDescription(
     status ===
     'NO_VALUE_SIGNAL'
   ) {
-    return 'Model đã chạy; không candidate nào vượt đồng thời conservative edge, conservative EV, độ tin cậy, longshot guard và kiểm tra đồng thuận bookmaker.';
+    return 'Model đã chạy; không candidate nào đạt đồng thời odds, edge và EV tối thiểu.';
   }
 
   if (
@@ -749,12 +735,6 @@ export function UpcomingPredictionBoard({
                 .currentRecommendationBatch
                 .singleFixtureRetries
             }
-            {' · '}classified{' '}
-            {
-              data
-                .currentRecommendationBatch
-                .missingProviderSnapshotClassifications
-            }
           </span>
         </div>
         {/* CURRENT_RECOMMENDATION_BATCH_PRIORITY_R41025 */}
@@ -799,20 +779,6 @@ export function UpcomingPredictionBoard({
             </strong>
             <small>
               PIT / re-observation
-            </small>
-          </div>
-
-          <div className="status-provider-snapshot">
-            <span>Thiếu fixture snapshot</span>
-            <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .NO_PROVIDER_FIXTURE_SNAPSHOT
-              }
-            </strong>
-            <small>
-              thiếu immutable provider lineage
             </small>
           </div>
 
@@ -1366,7 +1332,7 @@ export function UpcomingPredictionBoard({
               {row.currentRecommendation ? (
                 <div className="pcr-current-signal">
                   <span className="eyebrow">
-                    TÍN HIỆU NGHIÊN CỨU ĐÃ ĐIỀU CHỈNH RỦI RO
+                    ĐỀ XUẤT BET HIỆN TẠI
                   </span>
 
                   <b>
@@ -1400,43 +1366,11 @@ export function UpcomingPredictionBoard({
                       row.currentRecommendation
                         .edge,
                     )}{' '}
-                    · Raw EV{' '}
+                    · EV{' '}
                     {pct(
                       row.currentRecommendation
                         .expectedValue,
                     )}
-                  </small>
-
-                  <small>
-                    Adjusted model{' '}
-                    {pct(row.currentRecommendation.adjustedModelProbability)}
-                    {' · '}Conservative probability{' '}
-                    {pct(row.currentRecommendation.conservativeProbability)}
-                    {' · '}Conservative edge{' '}
-                    {pct(row.currentRecommendation.conservativeEdge)}
-                    {' · '}Conservative EV{' '}
-                    {pct(row.currentRecommendation.conservativeExpectedValue)}
-                  </small>
-
-                  <small>
-                    Risk score{' '}
-                    {decimal(row.currentRecommendation.riskAdjustedScore, 3)}
-                    {' · '}model weight{' '}
-                    {pct(row.currentRecommendation.effectiveModelWeight)}
-                    {' · '}probability haircut{' '}
-                    {pct(row.currentRecommendation.probabilityHaircut)}
-                    {' · '}longshot penalty{' '}
-                    {decimal(row.currentRecommendation.longshotPenalty, 3)}
-                  </small>
-
-                  <small>
-                    Quote consensus:{' '}
-                    {row.currentRecommendation.quoteCount}{' '}nguồn · median @
-                    {decimal(row.currentRecommendation.quoteMedianOdds)}
-                    {' · '}agreement{' '}
-                    {pct(row.currentRecommendation.quoteAgreementRatio)}
-                    {' · '}deviation{' '}
-                    {pct(row.currentRecommendation.quoteDeviationRatio)}
                   </small>
 
                   <small>
@@ -1445,7 +1379,7 @@ export function UpcomingPredictionBoard({
                       row.currentRecommendation
                         .horizonMinutes
                     }{' '}
-                    · Risk-adjusted research signal
+                    · Current scientific signal
                     · chưa phải BEST BET chính thức
                   </small>
 

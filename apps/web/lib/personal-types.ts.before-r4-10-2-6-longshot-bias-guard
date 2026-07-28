@@ -201,21 +201,6 @@ export interface PersonalCurrentRecommendationDto {
   fairMarketProbability: number;
   edge: number;
   expectedValue: number;
-  rankingVersion: string;
-  signalTier: 'RISK_ADJUSTED_RESEARCH';
-  effectiveModelWeight: number;
-  adjustedModelProbability: number;
-  probabilityHaircut: number;
-  conservativeProbability: number;
-  conservativeEdge: number;
-  conservativeExpectedValue: number;
-  longshotPenalty: number;
-  riskAdjustedScore: number;
-  quoteCount: number;
-  quoteMedianOdds: number;
-  quoteAgreementRatio: number;
-  quoteDeviationRatio: number;
-  quoteOutlier: false;
   reliabilityStatus: string;
   modelSource:
     | 'DYNAMIC_DIXON_COLES'
@@ -435,7 +420,6 @@ export interface PersonalUpcomingAnalysisDto {
     currentRecommendationBatchPriority: boolean;
     currentRecommendationChunkFaultIsolation: boolean;
     missingProviderSnapshotTerminalClassification: boolean;
-    longshotBiasGuardRiskAdjustedRanking: boolean;
     bestBetComesOnlyFromScientificPaperDecision: boolean;
     syntheticOddsUsed: boolean;
     realMoneyExecution: boolean;

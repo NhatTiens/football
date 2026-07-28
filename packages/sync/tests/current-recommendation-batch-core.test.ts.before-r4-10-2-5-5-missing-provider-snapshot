@@ -6,7 +6,6 @@ import {
 
 import {
   chunkCurrentRecommendationFixtures,
-  findUnclassifiedSelectedFixtureIds,
   prioritizeCurrentRecommendationFixtures,
 } from '../src/current-recommendation-batch-core.js';
 
@@ -206,44 +205,5 @@ describe(
         );
       },
     );
-    it(
-      'finds selected fixtures omitted by the scientific analysis map',
-      () => {
-        expect(
-          findUnclassifiedSelectedFixtureIds(
-            [
-              101,
-              102,
-              103,
-            ],
-            [
-              101,
-              103,
-            ],
-          ),
-        ).toEqual([
-          102,
-        ]);
-      },
-    );
-
-    it(
-      'returns no silent omissions when all selected fixtures have terminal analyses',
-      () => {
-        expect(
-          findUnclassifiedSelectedFixtureIds(
-            [
-              201,
-              202,
-            ],
-            new Set<number>([
-              201,
-              202,
-            ]),
-          ),
-        ).toEqual([]);
-      },
-    );
-
   },
 );

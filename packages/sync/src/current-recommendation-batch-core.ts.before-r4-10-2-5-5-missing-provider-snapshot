@@ -244,23 +244,3 @@ export function chunkCurrentRecommendationFixtures<T>(
 
   return chunks;
 }
-
-export function findUnclassifiedSelectedFixtureIds(
-  selectedFixtureIds: number[],
-  evaluatedFixtureIds: Iterable<number>,
-): number[] {
-  const evaluated =
-    new Set<number>(
-      evaluatedFixtureIds,
-    );
-
-  return selectedFixtureIds.filter(
-    (
-      providerFixtureId: number,
-    ): boolean =>
-      !evaluated.has(
-        providerFixtureId,
-      ),
-  );
-}
-

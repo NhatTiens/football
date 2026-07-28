@@ -227,16 +227,9 @@ function latestRawAttemptByFixture(
 }
 
 // R410253_RAW_SNAPSHOT_SORT_MEMORY_GUARD
-// R410254_PRIMARY_KEY_RAW_SNAPSHOT_LOOKUP
 interface RawAttemptMaximumObservedAt {
   _max: {
     observedAt: Date | null;
-  };
-}
-
-interface RawAttemptMaximumId {
-  _max: {
-    id: number | null;
   };
 }
 
@@ -358,8 +351,8 @@ async function loadLatestRawAttemptsWithoutGlobalSort(
           return null;
         }
 
-        const maximumId =
-          (await prisma.apiFootballDataSnapshot.aggregate({
+        return (
+          (await prisma.apiFootballDataSnapshot.findFirst({
             where: {
               kind: {
                 in: [
@@ -370,32 +363,15 @@ async function loadLatestRawAttemptsWithoutGlobalSort(
               observedAt:
                 maximumObservedAt,
             },
-            _max: {
-              id: true,
-            },
-          })) as RawAttemptMaximumId;
-
-        const latestRawSnapshotId =
-          maximumId._max.id;
-
-        if (
-          latestRawSnapshotId == null
-        ) {
-          return null;
-        }
-
-        return (
-          (await prisma.apiFootballDataSnapshot.findUnique({
-            where: {
-              id:
-                latestRawSnapshotId,
-            },
             select: {
               id: true,
               kind: true,
               providerFixtureId: true,
               observedAt: true,
               rawPayload: true,
+            },
+            orderBy: {
+              id: 'desc',
             },
           })) as RawOddsAttemptRow | null
         );

@@ -85,9 +85,7 @@
     "current-signal:snapshot-evidence": "tsx src/current-signal-snapshot-cli.ts evidence",
     "current-signal:snapshot-coverage": "tsx src/current-signal-snapshot-cli.ts coverage",
     "test:current-recommendation-batch": "vitest run tests/current-recommendation-batch-core.test.ts",
-    "current-recommendation:batch-diagnostic": "tsx src/current-recommendation-batch-diagnostic.ts",
-    "test:current-recommendation-risk-ranking": "vitest run tests/current-recommendation-risk-ranking.test.ts",
-    "current-recommendation:risk-diagnostic": "tsx src/current-recommendation-risk-diagnostic.ts"
+    "current-recommendation:batch-diagnostic": "tsx src/current-recommendation-batch-diagnostic.ts"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",

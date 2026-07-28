@@ -1,7 +1,6 @@
 import { prisma } from '@football-ai/database';
 
 import {
-  buildNoProviderFixtureSnapshotAnalysis,
   getCurrentScientificRecommendationMap,
   type CurrentScientificRecommendationAnalysis,
 } from './current-scientific-recommendation-engine.js';
@@ -11,7 +10,6 @@ import {
 import {
   CURRENT_RECOMMENDATION_BATCH_VERSION,
   chunkCurrentRecommendationFixtures,
-  findUnclassifiedSelectedFixtureIds,
   prioritizeCurrentRecommendationFixtures,
   type CurrentRecommendationBatchFixture,
   type PrioritizedCurrentRecommendationFixture,
@@ -38,7 +36,6 @@ export interface CurrentRecommendationBatchDiagnostics {
   failedChunks: number;
   singleFixtureRetries: number;
   singleFixtureRetrySuccesses: number;
-  missingProviderSnapshotClassifications: number;
   recentRawAttemptFixtures: number;
   pitOddsFixtures: number;
   checkpointPriorityFixtures: number;
@@ -86,7 +83,6 @@ export function emptyCurrentRecommendationBatchDiagnostics(
     failedChunks: 0,
     singleFixtureRetries: 0,
     singleFixtureRetrySuccesses: 0,
-    missingProviderSnapshotClassifications: 0,
     recentRawAttemptFixtures: 0,
     pitOddsFixtures: 0,
     checkpointPriorityFixtures: 0,
@@ -550,58 +546,6 @@ export async function getPrioritizedCurrentRecommendationBatch(
     }
   }
 
-  const selectedByProviderFixtureId =
-    new Map(
-      selectedFixtures.map(
-        (
-          fixture:
-            PrioritizedCurrentRecommendationFixture,
-        ): [
-          number,
-          PrioritizedCurrentRecommendationFixture,
-        ] => [
-          fixture.providerFixtureId,
-          fixture,
-        ],
-      ),
-    );
-
-  const unclassifiedSelectedFixtureIds =
-    findUnclassifiedSelectedFixtureIds(
-      selectedFixtures.map(
-        (
-          fixture:
-            PrioritizedCurrentRecommendationFixture,
-        ): number =>
-          fixture.providerFixtureId,
-      ),
-      analyses.keys(),
-    );
-
-  for (
-    const providerFixtureId of
-    unclassifiedSelectedFixtureIds
-  ) {
-    const fixture =
-      selectedByProviderFixtureId.get(
-        providerFixtureId,
-      );
-
-    if (fixture == null) {
-      continue;
-    }
-
-    analyses.set(
-      providerFixtureId,
-      buildNoProviderFixtureSnapshotAnalysis({
-        providerFixtureId,
-        kickoffAt:
-          fixture.kickoffAt,
-        now,
-      }),
-    );
-  }
-
   return {
     analyses,
     prioritizedFixtures,
@@ -628,8 +572,6 @@ export async function getPrioritizedCurrentRecommendationBatch(
       failedChunks,
       singleFixtureRetries,
       singleFixtureRetrySuccesses,
-      missingProviderSnapshotClassifications:
-        unclassifiedSelectedFixtureIds.length,
       recentRawAttemptFixtures:
         signals
           .recentRawAttemptFixtureIds

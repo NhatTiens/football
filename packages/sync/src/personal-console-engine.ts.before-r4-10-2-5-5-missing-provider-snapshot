@@ -1117,12 +1117,6 @@ export async function getPersonalUpcomingAnalysis(
             row.currentRecommendationStatus ===
             'NO_FRESH_PIT_ODDS',
         ).length,
-      NO_PROVIDER_FIXTURE_SNAPSHOT:
-        rows.filter(
-          (row: FixtureAnalysisRow): boolean =>
-            row.currentRecommendationStatus ===
-            'NO_PROVIDER_FIXTURE_SNAPSHOT',
-        ).length,
       NO_MODEL:
         rows.filter(
           (row: FixtureAnalysisRow): boolean =>
@@ -1172,8 +1166,6 @@ export async function getPersonalUpcomingAnalysis(
       recommendationStatusDashboard: true,
       currentRecommendationBatchPriority: true,
       currentRecommendationChunkFaultIsolation: true,
-      missingProviderSnapshotTerminalClassification: true,
-      longshotBiasGuardRiskAdjustedRanking: true,
       bestBetComesOnlyFromScientificPaperDecision: true,
       syntheticOddsUsed: false,
       realMoneyExecution: false,

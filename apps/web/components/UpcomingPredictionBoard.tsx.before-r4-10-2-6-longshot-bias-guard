@@ -334,7 +334,7 @@ function currentRecommendationStatusDescription(
     status ===
     'NO_VALUE_SIGNAL'
   ) {
-    return 'Model đã chạy; không candidate nào vượt đồng thời conservative edge, conservative EV, độ tin cậy, longshot guard và kiểm tra đồng thuận bookmaker.';
+    return 'Model đã chạy; không candidate nào đạt đồng thời odds, edge và EV tối thiểu.';
   }
 
   if (
@@ -1366,7 +1366,7 @@ export function UpcomingPredictionBoard({
               {row.currentRecommendation ? (
                 <div className="pcr-current-signal">
                   <span className="eyebrow">
-                    TÍN HIỆU NGHIÊN CỨU ĐÃ ĐIỀU CHỈNH RỦI RO
+                    ĐỀ XUẤT BET HIỆN TẠI
                   </span>
 
                   <b>
@@ -1400,43 +1400,11 @@ export function UpcomingPredictionBoard({
                       row.currentRecommendation
                         .edge,
                     )}{' '}
-                    · Raw EV{' '}
+                    · EV{' '}
                     {pct(
                       row.currentRecommendation
                         .expectedValue,
                     )}
-                  </small>
-
-                  <small>
-                    Adjusted model{' '}
-                    {pct(row.currentRecommendation.adjustedModelProbability)}
-                    {' · '}Conservative probability{' '}
-                    {pct(row.currentRecommendation.conservativeProbability)}
-                    {' · '}Conservative edge{' '}
-                    {pct(row.currentRecommendation.conservativeEdge)}
-                    {' · '}Conservative EV{' '}
-                    {pct(row.currentRecommendation.conservativeExpectedValue)}
-                  </small>
-
-                  <small>
-                    Risk score{' '}
-                    {decimal(row.currentRecommendation.riskAdjustedScore, 3)}
-                    {' · '}model weight{' '}
-                    {pct(row.currentRecommendation.effectiveModelWeight)}
-                    {' · '}probability haircut{' '}
-                    {pct(row.currentRecommendation.probabilityHaircut)}
-                    {' · '}longshot penalty{' '}
-                    {decimal(row.currentRecommendation.longshotPenalty, 3)}
-                  </small>
-
-                  <small>
-                    Quote consensus:{' '}
-                    {row.currentRecommendation.quoteCount}{' '}nguồn · median @
-                    {decimal(row.currentRecommendation.quoteMedianOdds)}
-                    {' · '}agreement{' '}
-                    {pct(row.currentRecommendation.quoteAgreementRatio)}
-                    {' · '}deviation{' '}
-                    {pct(row.currentRecommendation.quoteDeviationRatio)}
                   </small>
 
                   <small>
@@ -1445,7 +1413,7 @@ export function UpcomingPredictionBoard({
                       row.currentRecommendation
                         .horizonMinutes
                     }{' '}
-                    · Risk-adjusted research signal
+                    · Current scientific signal
                     · chưa phải BEST BET chính thức
                   </small>
 

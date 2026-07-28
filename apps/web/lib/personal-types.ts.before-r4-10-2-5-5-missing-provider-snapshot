@@ -164,7 +164,6 @@ export interface PersonalTwoWayMarketMovementDto {
 export type PersonalCurrentRecommendationStatus =
   | 'AVAILABLE'
   | 'NO_FRESH_PIT_ODDS'
-  | 'NO_PROVIDER_FIXTURE_SNAPSHOT'
   | 'UNMAPPED_FIXTURE'
   | 'MAPPING_MISMATCH'
   | 'NO_MODEL'
@@ -201,21 +200,6 @@ export interface PersonalCurrentRecommendationDto {
   fairMarketProbability: number;
   edge: number;
   expectedValue: number;
-  rankingVersion: string;
-  signalTier: 'RISK_ADJUSTED_RESEARCH';
-  effectiveModelWeight: number;
-  adjustedModelProbability: number;
-  probabilityHaircut: number;
-  conservativeProbability: number;
-  conservativeEdge: number;
-  conservativeExpectedValue: number;
-  longshotPenalty: number;
-  riskAdjustedScore: number;
-  quoteCount: number;
-  quoteMedianOdds: number;
-  quoteAgreementRatio: number;
-  quoteDeviationRatio: number;
-  quoteOutlier: false;
   reliabilityStatus: string;
   modelSource:
     | 'DYNAMIC_DIXON_COLES'
@@ -373,7 +357,6 @@ export interface PersonalCurrentRecommendationBatchDto {
   failedChunks: number;
   singleFixtureRetries: number;
   singleFixtureRetrySuccesses: number;
-  missingProviderSnapshotClassifications: number;
   recentRawAttemptFixtures: number;
   pitOddsFixtures: number;
   checkpointPriorityFixtures: number;
@@ -434,8 +417,6 @@ export interface PersonalUpcomingAnalysisDto {
     recommendationStatusDashboard: boolean;
     currentRecommendationBatchPriority: boolean;
     currentRecommendationChunkFaultIsolation: boolean;
-    missingProviderSnapshotTerminalClassification: boolean;
-    longshotBiasGuardRiskAdjustedRanking: boolean;
     bestBetComesOnlyFromScientificPaperDecision: boolean;
     syntheticOddsUsed: boolean;
     realMoneyExecution: boolean;

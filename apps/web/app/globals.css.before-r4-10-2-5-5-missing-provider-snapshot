@@ -3920,12 +3920,3 @@ td {
   font-size: 0.82rem;
   opacity: 0.86;
 }
-
-/* R410255_MISSING_PROVIDER_SNAPSHOT_TERMINAL_CLASSIFICATION */
-.pcr-recommendation-status-grid .status-provider-snapshot {
-  border-color: rgba(255, 157, 84, 0.42);
-}
-
-.pcr-current-status.current-status-no-provider-fixture-snapshot {
-  border-color: rgba(255, 157, 84, 0.42);
-}

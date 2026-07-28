@@ -29,15 +29,9 @@ import {
   type OddsFreshnessSummary,
   type ReobservationOddsRow,
 } from './fresh-odds-reobservation-bridge.js';
-import {
-  assessRiskAdjustedCurrentCandidate,
-  buildCurrentQuoteConsensusMap,
-  compareRiskAdjustedCurrentCandidates,
-  resolveCurrentQuoteConsensus,
-} from './current-recommendation-risk-ranking.js';
 
 export const CURRENT_SCIENTIFIC_RECOMMENDATION_VERSION =
-  'v7.0-r4.10.2.6-current-scientific-recommendation-v4';
+  'v7.0-r4.10.2.4-current-scientific-recommendation-v3';
 
 export type CurrentRecommendationModelSource =
   | 'DYNAMIC_DIXON_COLES'
@@ -98,25 +92,6 @@ export interface CurrentScientificCandidate {
   fairMarketProbability: number;
   edge: number;
   expectedValue: number;
-  rawSignalEligibleBeforeRiskGuard: boolean;
-  rawSignalRejectionReasons: string[];
-  rankingVersion: string;
-  signalTier:
-    | 'RISK_ADJUSTED_RESEARCH'
-    | 'LOW_CONFIDENCE_DIAGNOSTIC';
-  effectiveModelWeight: number;
-  adjustedModelProbability: number;
-  probabilityHaircut: number;
-  conservativeProbability: number;
-  conservativeEdge: number;
-  conservativeExpectedValue: number;
-  longshotPenalty: number;
-  riskAdjustedScore: number;
-  quoteCount: number;
-  quoteMedianOdds: number;
-  quoteAgreementRatio: number;
-  quoteDeviationRatio: number;
-  quoteOutlier: boolean;
   reliabilityStatus: string;
   modelSource: CurrentRecommendationModelSource;
   modelFallbackReason: string | null;
@@ -158,21 +133,6 @@ export interface CurrentScientificRecommendation {
   fairMarketProbability: number;
   edge: number;
   expectedValue: number;
-  rankingVersion: string;
-  signalTier: 'RISK_ADJUSTED_RESEARCH';
-  effectiveModelWeight: number;
-  adjustedModelProbability: number;
-  probabilityHaircut: number;
-  conservativeProbability: number;
-  conservativeEdge: number;
-  conservativeExpectedValue: number;
-  longshotPenalty: number;
-  riskAdjustedScore: number;
-  quoteCount: number;
-  quoteMedianOdds: number;
-  quoteAgreementRatio: number;
-  quoteDeviationRatio: number;
-  quoteOutlier: false;
   reliabilityStatus: string;
   modelSource: CurrentRecommendationModelSource;
   modelFallbackReason: string | null;
@@ -207,7 +167,6 @@ export interface CurrentScientificRecommendationAnalysis {
   status:
     | 'AVAILABLE'
     | 'NO_FRESH_PIT_ODDS'
-    | 'NO_PROVIDER_FIXTURE_SNAPSHOT'
     | 'UNMAPPED_FIXTURE'
     | 'MAPPING_MISMATCH'
     | 'NO_MODEL'
@@ -750,9 +709,27 @@ function compareCurrentCandidates(
   left: CurrentScientificCandidate,
   right: CurrentScientificCandidate,
 ): number {
-  return compareRiskAdjustedCurrentCandidates(
-    left,
-    right,
+  return (
+    Number(
+      right.currentSignalEligible,
+    ) -
+      Number(
+        left.currentSignalEligible,
+      ) ||
+    right.expectedValue -
+      left.expectedValue ||
+    right.edge -
+      left.edge ||
+    right.modelProbability -
+      left.modelProbability ||
+    left.decimalOdds -
+      right.decimalOdds ||
+    left.marketType.localeCompare(
+      right.marketType,
+    ) ||
+    left.selection.localeCompare(
+      right.selection,
+    )
   );
 }
 
@@ -804,37 +781,6 @@ function emptyAnalysis(input: {
     databaseWritten: false,
     realMoneyExecution: false,
   };
-}
-
-// R410255_MISSING_PROVIDER_SNAPSHOT_TERMINAL_CLASSIFICATION
-export function buildNoProviderFixtureSnapshotAnalysis(
-  input: {
-    providerFixtureId: number;
-    kickoffAt: Date;
-    now: Date;
-    localFixtureId?: number | null;
-  },
-): CurrentScientificRecommendationAnalysis {
-  return emptyAnalysis({
-    providerFixtureId:
-      input.providerFixtureId,
-    localFixtureId:
-      input.localFixtureId ??
-      null,
-    kickoffAt:
-      input.kickoffAt,
-    horizonMinutes:
-      currentHorizonMinutes(
-        input.kickoffAt,
-        input.now,
-      ),
-    now:
-      input.now,
-    status:
-      'NO_PROVIDER_FIXTURE_SNAPSHOT',
-    error:
-      'NO_PROVIDER_FIXTURE_SNAPSHOT_AT_CURRENT_AS_OF',
-  });
 }
 
 export async function getCurrentScientificRecommendationMap(
@@ -1291,24 +1237,6 @@ export async function getCurrentScientificRecommendationMap(
         continue;
       }
 
-      const quoteConsensusBySelection =
-        buildCurrentQuoteConsensusMap(
-          fixtureOdds.map(
-            (
-              row: LiveOddsRow,
-            ) => ({
-              marketType:
-                row.marketType,
-              selection:
-                row.selection,
-              lineValue:
-                row.lineValue,
-              decimalOdds:
-                row.decimalOdds,
-            }),
-          ),
-        );
-
       const candidates =
         candidateSet.candidates
           .map(
@@ -1345,7 +1273,7 @@ export async function getCurrentScientificRecommendationMap(
                       'CURRENT_BASELINE_FALLBACK_NOT_OFFICIAL',
                     ];
 
-              const rawCurrentSignal =
+              const currentSignal =
                 currentSignalAssessment({
                   decimalOdds:
                     scientific
@@ -1355,52 +1283,6 @@ export async function getCurrentScientificRecommendationMap(
                   expectedValue:
                     scientific
                       .expectedValue,
-                });
-
-              const quote = {
-                marketType:
-                  candidate.marketType,
-                selection:
-                  candidate.selection,
-                lineValue:
-                  candidate.lineValue,
-                decimalOdds:
-                  candidate.decimalOdds,
-              };
-
-              const riskAssessment =
-                assessRiskAdjustedCurrentCandidate({
-                  ...quote,
-                  modelProbability:
-                    candidate.modelProbability,
-                  fairMarketProbability:
-                    candidate.fairMarketProbability,
-                  rawEdge:
-                    scientific.edge,
-                  rawExpectedValue:
-                    scientific.expectedValue,
-                  reliabilityStatus:
-                    candidate.reliabilityStatus,
-                  modelSource:
-                    model.modelSource,
-                  confidenceTier:
-                    model.modelConfidenceTier,
-                  historySampleSize:
-                    model.historySampleSize,
-                  dataQualityScore:
-                    model.dataQualityScore,
-                  minimumOdds:
-                    SCIENTIFIC_BEST_BET_POLICY.minimumOdds,
-                  minimumEdge:
-                    SCIENTIFIC_BEST_BET_POLICY.minimumEdge,
-                  minimumExpectedValue:
-                    SCIENTIFIC_BEST_BET_POLICY.minimumExpectedValue,
-                  quoteConsensus:
-                    resolveCurrentQuoteConsensus({
-                      groupedOdds:
-                        quoteConsensusBySelection,
-                      quote,
-                    }),
                 });
 
               const freshnessEvidence:
@@ -1440,40 +1322,6 @@ export async function getCurrentScientificRecommendationMap(
                 expectedValue:
                   scientific
                     .expectedValue,
-                rawSignalEligibleBeforeRiskGuard:
-                  rawCurrentSignal.eligible,
-                rawSignalRejectionReasons:
-                  rawCurrentSignal.reasons,
-                rankingVersion:
-                  riskAssessment.rankingVersion,
-                signalTier:
-                  riskAssessment.signalTier,
-                effectiveModelWeight:
-                  riskAssessment.effectiveModelWeight,
-                adjustedModelProbability:
-                  riskAssessment.adjustedModelProbability,
-                probabilityHaircut:
-                  riskAssessment.probabilityHaircut,
-                conservativeProbability:
-                  riskAssessment.conservativeProbability,
-                conservativeEdge:
-                  riskAssessment.conservativeEdge,
-                conservativeExpectedValue:
-                  riskAssessment.conservativeExpectedValue,
-                longshotPenalty:
-                  riskAssessment.longshotPenalty,
-                riskAdjustedScore:
-                  riskAssessment.riskAdjustedScore,
-                quoteCount:
-                  riskAssessment.quoteCount,
-                quoteMedianOdds:
-                  riskAssessment.quoteMedianOdds,
-                quoteAgreementRatio:
-                  riskAssessment.quoteAgreementRatio,
-                quoteDeviationRatio:
-                  riskAssessment.quoteDeviationRatio,
-                quoteOutlier:
-                  riskAssessment.quoteOutlier,
                 reliabilityStatus:
                   candidate
                     .reliabilityStatus,
@@ -1488,9 +1336,11 @@ export async function getCurrentScientificRecommendationMap(
                 modelDataQualityScore:
                   model.dataQualityScore,
                 currentSignalEligible:
-                  riskAssessment.eligible,
+                  currentSignal
+                    .eligible,
                 currentSignalRejectionReasons:
-                  riskAssessment.rejectionReasons,
+                  currentSignal
+                    .reasons,
                 officialEligible,
                 officialRejectionReasons,
                 sourceOddsSnapshotId:
@@ -1594,36 +1444,6 @@ export async function getCurrentScientificRecommendationMap(
               expectedValue:
                 selected
                   .expectedValue,
-              rankingVersion:
-                selected.rankingVersion,
-              signalTier:
-                'RISK_ADJUSTED_RESEARCH' as const,
-              effectiveModelWeight:
-                selected.effectiveModelWeight,
-              adjustedModelProbability:
-                selected.adjustedModelProbability,
-              probabilityHaircut:
-                selected.probabilityHaircut,
-              conservativeProbability:
-                selected.conservativeProbability,
-              conservativeEdge:
-                selected.conservativeEdge,
-              conservativeExpectedValue:
-                selected.conservativeExpectedValue,
-              longshotPenalty:
-                selected.longshotPenalty,
-              riskAdjustedScore:
-                selected.riskAdjustedScore,
-              quoteCount:
-                selected.quoteCount,
-              quoteMedianOdds:
-                selected.quoteMedianOdds,
-              quoteAgreementRatio:
-                selected.quoteAgreementRatio,
-              quoteDeviationRatio:
-                selected.quoteDeviationRatio,
-              quoteOutlier:
-                false as const,
               reliabilityStatus:
                 selected
                   .reliabilityStatus,
