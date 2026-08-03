@@ -1,0 +1,1548 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+
+import { classifyPersonalLeague, type PersonalLeagueGroup } from '../lib/league-profile';
+import type {
+  CurrentCompetitionGroup,
+  PersonalFixtureState,
+  PersonalMarketCode,
+  PersonalMarketPredictionDto,
+  PersonalMarketSelectionDto,
+  PersonalRefreshResponse,
+  PersonalUpcomingAnalysisDto,
+  PersonalUpcomingFixtureDto,
+} from '../lib/personal-types';
+
+const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
+
+function signedPoints(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  const points = value * 100;
+  return `${points >= 0 ? '+' : ''}${points.toFixed(1)}đ%`;
+}
+
+function movementSelectionLabel(
+  row: PersonalUpcomingFixtureDto,
+  selection: 'HOME' | 'DRAW' | 'AWAY' | 'NONE',
+): string {
+  if (selection === 'HOME') return row.fixture.homeTeam.name;
+  if (selection === 'AWAY') return row.fixture.awayTeam.name;
+  if (selection === 'DRAW') return 'Hòa';
+  return 'Không có';
+}
+
+function twoWayMovementSelectionLabel(
+  selection: 'YES' | 'NO' | 'OVER' | 'UNDER',
+  lineValue: number | null,
+): string {
+  if (selection === 'YES') return 'Có';
+  if (selection === 'NO') return 'Không';
+  if (selection === 'OVER') {
+    return `Over ${lineValue ?? ''}`.trim();
+  }
+  return `Under ${lineValue ?? ''}`.trim();
+}
+
+function pct(value: number | null | undefined, digits = 1): string {
+  return value == null || !Number.isFinite(value) ? '—' : `${(value * 100).toFixed(digits)}%`;
+}
+
+function decimal(value: number | null | undefined, digits = 2): string {
+  return value == null || !Number.isFinite(value) ? '—' : value.toFixed(digits);
+}
+
+function localTime(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    hour12: false,
+  }).format(new Date(value));
+}
+
+function hdaSelectionName(
+  row: PersonalUpcomingFixtureDto,
+  selection: 'HOME' | 'DRAW' | 'AWAY' | null,
+): string {
+  if (selection === 'HOME') return row.fixture.homeTeam.name;
+  if (selection === 'AWAY') return row.fixture.awayTeam.name;
+  if (selection === 'DRAW') return 'Hòa';
+  return 'Chưa đủ dữ liệu';
+}
+
+function scientificPredictedName(row: PersonalUpcomingFixtureDto): string {
+  return hdaSelectionName(row, row.scientificHda.predictedSelection);
+}
+
+function providerPredictedName(row: PersonalUpcomingFixtureDto): string {
+  return hdaSelectionName(row, row.providerHda.predictedSelection);
+}
+
+function decisionSelectionName(row: PersonalUpcomingFixtureDto): string {
+  const selection = row.decision?.selectedSelection;
+  if (selection === 'HOME') return row.fixture.homeTeam.name;
+  if (selection === 'AWAY') return row.fixture.awayTeam.name;
+  if (selection === 'DRAW') return 'Hòa';
+  return selection ?? '—';
+}
+
+function stateLabel(state: PersonalFixtureState): string {
+  if (state === 'BEST_BET') return 'BEST BET';
+  if (state === 'NO_BET') return 'NO BET';
+  if (state === 'PREDICTION_ONLY') return 'CHỜ KÈO';
+  return 'CHỜ DỮ LIỆU';
+}
+
+function probabilityWidth(value: number | null): string {
+  const safe = value == null ? 0 : Math.max(0, Math.min(1, value));
+  return `${safe * 100}%`;
+}
+
+
+function marketStatusLabel(status: PersonalMarketPredictionDto['status']): string {
+  if (status === 'BEST_BET') return 'BEST BET';
+  if (status === 'ELIGIBLE_VALUE') return 'CÓ VALUE';
+  if (status === 'ANALYSIS_ONLY') return 'ANALYSIS ONLY';
+  if (status === 'ODDS_AVAILABLE_WAITING_DECISION') return 'ODDS CÓ SẴN · CHỜ DECISION';
+  return 'CHỜ ODDS';
+}
+
+function marketSelectionLabel(
+  row: PersonalUpcomingFixtureDto,
+  market: PersonalMarketPredictionDto,
+  selection: PersonalMarketSelectionDto,
+): string {
+  if (selection.code === 'HOME') return row.fixture.homeTeam.name;
+  if (selection.code === 'AWAY') return row.fixture.awayTeam.name;
+  if (selection.code === 'DRAW') return 'Hòa';
+  if (selection.code === 'YES') return 'Có';
+  if (selection.code === 'NO') return 'Không';
+  if (selection.code === 'OVER') return `Over ${market.lineValue ?? ''}`.trim();
+  return `Under ${market.lineValue ?? ''}`.trim();
+}
+
+function bestMarketSelection(
+  market: PersonalMarketPredictionDto,
+): PersonalMarketSelectionDto | null {
+  return (
+    market.selections
+      .filter(
+        (selection: PersonalMarketSelectionDto): boolean =>
+          selection.modelProbability != null,
+      )
+      .slice()
+      .sort(
+        (left: PersonalMarketSelectionDto, right: PersonalMarketSelectionDto): number =>
+          (right.modelProbability ?? -1) - (left.modelProbability ?? -1),
+      )[0] ?? null
+  );
+}
+
+
+function currentRecommendationSelectionLabel(
+  row: PersonalUpcomingFixtureDto,
+): string {
+  const recommendation =
+    row.currentRecommendation;
+
+  if (recommendation == null) {
+    return '—';
+  }
+
+  if (
+    recommendation.selection ===
+    'HOME'
+  ) {
+    return row.fixture.homeTeam.name;
+  }
+
+  if (
+    recommendation.selection ===
+    'AWAY'
+  ) {
+    return row.fixture.awayTeam.name;
+  }
+
+  if (
+    recommendation.selection ===
+    'DRAW'
+  ) {
+    return 'Hòa';
+  }
+
+  if (
+    recommendation.selection ===
+    'YES'
+  ) {
+    return 'BTTS Có';
+  }
+
+  if (
+    recommendation.selection ===
+    'NO'
+  ) {
+    return 'BTTS Không';
+  }
+
+  if (
+    recommendation.selection ===
+    'OVER'
+  ) {
+    return `Over ${
+      recommendation.lineValue ?? ''
+    }`.trim();
+  }
+
+  return `Under ${
+    recommendation.lineValue ?? ''
+  }`.trim();
+}
+
+function currentRecommendationMarketLabel(
+  row: PersonalUpcomingFixtureDto,
+): string {
+  const recommendation =
+    row.currentRecommendation;
+
+  if (recommendation == null) {
+    return '—';
+  }
+
+  if (
+    recommendation.marketType ===
+    'MATCH_WINNER'
+  ) {
+    return 'HDA / 1X2';
+  }
+
+  if (
+    recommendation.marketType ===
+    'BTTS'
+  ) {
+    return 'BTTS';
+  }
+
+  return `O/U ${
+    recommendation.lineValue ?? ''
+  }`.trim();
+}
+
+// CURRENT_SCIENTIFIC_RECOMMENDATION_R4102
+
+
+function currentRecommendationStatusLabel(
+  status:
+    PersonalUpcomingFixtureDto[
+      'currentRecommendationStatus'
+    ],
+): string {
+  if (status === 'AVAILABLE') {
+    return 'Có đề xuất hiện tại';
+  }
+
+  if (
+    status ===
+    'NO_FRESH_PIT_ODDS'
+  ) {
+    return 'Chờ odds PIT mới';
+  }
+
+  if (
+    status ===
+    'NO_PROVIDER_FIXTURE_SNAPSHOT'
+  ) {
+    return 'Thiếu fixture snapshot';
+  }
+
+  if (
+    status ===
+    'NO_PROVIDER_FIXTURE_SNAPSHOT'
+  ) {
+    return (
+      row.currentRecommendationError ===
+      'NO_PROVIDER_FIXTURE_SNAPSHOT_AT_CURRENT_AS_OF'
+        ? 'Fixture local chưa có snapshot metadata tương ứng từ provider tại thời điểm phân tích. Hệ thống không tạo odds hoặc mapping giả.'
+        : 'Thiếu snapshot fixture provider hợp lệ tại thời điểm phân tích.'
+    );
+  }
+
+  if (status === 'NO_MODEL') {
+    return 'Thiếu mô hình hiện tại';
+  }
+
+  if (
+    status ===
+    'NO_COMPLETE_MARKET'
+  ) {
+    return 'Thiếu market hoàn chỉnh';
+  }
+
+  if (
+    status ===
+    'NO_VALUE_SIGNAL'
+  ) {
+    return 'Đã tính, không đủ value';
+  }
+
+  if (
+    status ===
+    'UNMAPPED_FIXTURE'
+  ) {
+    return 'Chưa ghép fixture';
+  }
+
+  if (
+    status ===
+    'MAPPING_MISMATCH'
+  ) {
+    return 'Sai lệch mapping';
+  }
+
+  return 'Chưa được đánh giá';
+}
+
+function currentRecommendationStatusDescription(
+  row: PersonalUpcomingFixtureDto,
+): string {
+  const status =
+    row.currentRecommendationStatus;
+
+  if (
+    status ===
+    'NO_FRESH_PIT_ODDS'
+  ) {
+    return 'Không có phiên bản odds PIT đủ mới hoặc vừa được API tái xác nhận.';
+  }
+
+  if (
+    status ===
+    'NO_PROVIDER_FIXTURE_SNAPSHOT'
+  ) {
+    return 'Không có immutable provider fixture snapshot hợp lệ tại thời điểm phân tích; odds PIT, nếu có, chưa đủ lineage để tạo đề xuất khoa học.';
+  }
+
+  if (status === 'NO_MODEL') {
+    if (
+      row.currentRecommendationError ===
+      'NO_DIXON_COLES_MODEL_AT_CURRENT_AS_OF'
+    ) {
+      return 'Chưa có mô hình Dixon–Coles hợp lệ tại thời điểm phân tích hiện tại.';
+    }
+
+    return (
+      row.currentRecommendationError ??
+      'Không xây dựng được mô hình khoa học tại thời điểm hiện tại.'
+    );
+  }
+
+  if (
+    status ===
+    'NO_COMPLETE_MARKET'
+  ) {
+    return 'Odds đang có nhưng chưa đủ các cửa đồng bộ để tính xác suất thị trường no-vig.';
+  }
+
+  if (
+    status ===
+    'NO_VALUE_SIGNAL'
+  ) {
+    return 'Model đã chạy; không candidate nào vượt đồng thời conservative edge, conservative EV, độ tin cậy, longshot guard và kiểm tra đồng thuận bookmaker.';
+  }
+
+  if (
+    status ===
+    'UNMAPPED_FIXTURE'
+  ) {
+    return 'Fixture provider chưa được ghép với fixture local.';
+  }
+
+  if (
+    status ===
+    'MAPPING_MISMATCH'
+  ) {
+    return 'League, đội hoặc kickoff giữa provider và local không khớp an toàn.';
+  }
+
+  if (
+    status ===
+    'NOT_EVALUATED'
+  ) {
+    return 'Fixture chưa nằm trong batch current-analysis hoặc chưa được xử lý ở lần tải này.';
+  }
+
+  return 'Current scientific recommendation đã khả dụng.';
+}
+
+function currentRecommendationStatusClass(
+  status:
+    PersonalUpcomingFixtureDto[
+      'currentRecommendationStatus'
+    ],
+): string {
+  return status
+    .toLowerCase()
+    .replaceAll('_', '-');
+}
+
+// CURRENT_RECOMMENDATION_STATUS_DASHBOARD_R41023
+
+
+const GROUPS: Array<{ value: CurrentCompetitionGroup; label: string; description: string }> = [
+  {
+    value: 'WAFCON',
+    label: 'WAFCON 2026',
+    description: "Women's Africa Cup of Nations · Morocco 2026",
+  },
+  {
+    value: 'UCL',
+    label: 'UEFA Champions League',
+    description: '2026/27 · vòng loại và league phase',
+  },
+  {
+    value: 'UEFA_EUROPA',
+    label: 'Europa + Conference League',
+    description: 'UEFA Europa League & UEFA Conference League 2026/27',
+  },
+  {
+    value: 'ASEAN',
+    label: 'ASEAN Championship 2026',
+    description: 'AFF Cup / ASEAN Championship đội tuyển quốc gia',
+  },
+  {
+    value: 'SEA',
+    label: 'Đông Nam Á quốc nội',
+    description: 'Việt Nam, Thái Lan, Indonesia, Malaysia…',
+  },
+  { value: 'ASIA', label: 'Châu Á', description: 'AFC, Nhật Bản, Hàn Quốc, Saudi…' },
+  { value: 'EPL', label: 'Premier League', description: 'Ngoại hạng Anh · mùa hiện tại' },
+  { value: 'LALIGA', label: 'La Liga', description: 'Tây Ban Nha · mùa hiện tại' },
+];
+
+function isAseanSeniorCompetition(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  if (
+    ['u19', 'u20', 'u21', 'u22', 'u23', 'women', 'club'].some(
+      (variant: string): boolean => normalized.includes(variant),
+    )
+  ) {
+    return false;
+  }
+
+  return (
+    normalized.includes('asean championship') ||
+    normalized.includes('aff championship') ||
+    normalized === 'aff cup'
+  );
+}
+
+
+function isRequestedPriorityCompetition(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+
+  return (
+    isAseanSeniorCompetition(name) ||
+    normalized === 'africa cup of nations - women' ||
+    normalized === "women's africa cup of nations" ||
+    normalized === 'uefa champions league' ||
+    normalized === 'uefa europa league' ||
+    normalized === 'uefa europa conference league' ||
+    normalized === 'uefa conference league'
+  );
+}
+
+export function UpcomingPredictionBoard({
+  initialData,
+}: {
+  initialData: PersonalUpcomingAnalysisDto;
+}) {
+  const [data, setData] = useState<PersonalUpcomingAnalysisDto>(initialData);
+  const [days, setDays] = useState<string>(String(initialData.window.days));
+  const [selectedGroups, setSelectedGroups] = useState<CurrentCompetitionGroup[]>([
+    'WAFCON',
+    'UCL',
+    'UEFA_EUROPA',
+    'ASEAN',
+    'SEA',
+    'ASIA',
+    'EPL',
+    'LALIGA',
+  ]);
+  const [leagueFilter, setLeagueFilter] = useState<number | 'ALL'>('ALL');
+  const [stateFilter, setStateFilter] = useState<PersonalFixtureState | 'ALL'>('ALL');
+  const [groupFilter, setGroupFilter] = useState<PersonalLeagueGroup | 'ALL'>('ALL');
+  const [marketFilter, setMarketFilter] = useState<PersonalMarketCode | 'ALL'>('ALL');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [lastDiscovery, setLastDiscovery] = useState<PersonalRefreshResponse['discovery'] | null>(
+    null,
+  );
+
+  const visibleFixtures = useMemo(
+    () =>
+      data.fixtures.filter((row: PersonalUpcomingFixtureDto): boolean => {
+        if (leagueFilter !== 'ALL' && row.fixture.league.id !== leagueFilter) return false;
+        if (stateFilter !== 'ALL' && row.state !== stateFilter) return false;
+        if (
+          groupFilter !== 'ALL' &&
+          classifyPersonalLeague({
+            name: row.fixture.league.name,
+            country: row.fixture.league.country,
+          }) !== groupFilter
+        ) {
+          return false;
+        }
+        if (
+          marketFilter !== 'ALL' &&
+          !row.marketPredictions.some(
+            (market: PersonalMarketPredictionDto): boolean =>
+              market.code === marketFilter &&
+              market.status !== 'WAITING_ODDS',
+          )
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [data.fixtures, groupFilter, leagueFilter, marketFilter, stateFilter],
+  );
+
+  function toggleGroup(group: CurrentCompetitionGroup): void {
+    setSelectedGroups((current: CurrentCompetitionGroup[]) =>
+      current.includes(group)
+        ? current.filter((value: CurrentCompetitionGroup): boolean => value !== group)
+        : [...current, group],
+    );
+  }
+
+  async function reloadFromDb(): Promise<void> {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const response = await fetch(
+        `${apiUrl}/personal/upcoming-analysis?days=${encodeURIComponent(days)}&limit=300`,
+        { cache: 'no-store' },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setData((await response.json()) as PersonalUpcomingAnalysisDto);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Không tải được dữ liệu hiện tại.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function syncCurrentFixtures(): Promise<void> {
+    if (selectedGroups.length === 0) {
+      setMessage('Hãy chọn ít nhất một nhóm giải.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Hệ thống sẽ hỏi API-Football mùa đang hoạt động, chỉ lấy các trận từ hôm nay trở đi, sau đó chạy prediction/odds/BEST BET. Tiếp tục?',
+    );
+    if (!confirmed) return;
+
+    setLoading(true);
+    setMessage('Đang tìm mùa hiện tại trên API-Football → lấy lịch sắp tới → dự đoán…');
+
+    try {
+      const response = await fetch(`${apiUrl}/personal/upcoming/refresh`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          days: Number(days),
+          groups: selectedGroups,
+        }),
+      });
+
+      const payload = (await response.json()) as PersonalRefreshResponse & {
+        error?: string;
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message ?? payload.error ?? `HTTP ${response.status}`);
+      }
+
+      setData(payload.analysis);
+      setLastDiscovery(payload.discovery);
+      setMessage(
+        `Đã đồng bộ ${payload.discovery.competitions.length} giải/mùa hiện tại · ${payload.analysis.counts.fixtures} trận sắp tới · ${payload.analysis.counts.bestBets} BEST BET.`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Đồng bộ thất bại.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="pcr-page">
+      <section className="pcr-hero">
+        <div>
+          <span className="eyebrow">CURRENT FIXTURES ONLY</span>
+          <h1>Dự đoán các trận sắp tới</h1>
+          <p>
+            Chỉ dùng mùa đang hoạt động từ API-Football và fixture có kickoff sau thời điểm hiện tại.
+            Demo, test và lịch quá khứ không được đưa vào màn hình dự đoán.
+          </p>
+        </div>
+
+        <div className="pcr-actions">
+          <button
+            type="button"
+            className="button primary"
+            disabled={loading || selectedGroups.length === 0}
+            onClick={() => void syncCurrentFixtures()}
+          >
+            {loading ? 'Đang lấy lịch thật…' : 'Lấy lịch thật & phân tích'}
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={loading}
+            onClick={() => void reloadFromDb()}
+          >
+            Làm mới từ DB
+          </button>
+        </div>
+      </section>
+
+      {message ? <div className="pcr-message">{message}</div> : null}
+
+      <section className="pcr-current-groups">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">GIẢI MUỐN THEO DÕI</span>
+            <h2>Mùa hiện tại, không chọn season thủ công</h2>
+          </div>
+          <small>{selectedGroups.length}/{GROUPS.length} nhóm</small>
+        </div>
+        <div className="pcr-current-group-grid">
+          {GROUPS.map((group) => (
+            <label
+              key={group.value}
+              className={selectedGroups.includes(group.value) ? 'selected' : ''}
+            >
+              <input
+                type="checkbox"
+                checked={selectedGroups.includes(group.value)}
+                onChange={() => toggleGroup(group.value)}
+              />
+              <span>
+                <b>{group.label}</b>
+                <small>{group.description}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+        <p className="pcr-current-note">
+          API-Football tự xác định season có <code>current=true</code>. Khoảng fixture: hôm nay →{' '}
+          {days} ngày tới.
+        </p>
+      </section>
+
+      {lastDiscovery ? (
+        <section className="pcr-discovery-strip">
+          <b>Đã xác định mùa hiện tại:</b>
+          {lastDiscovery.competitions.map((competition) => (
+            <span
+              key={`${competition.apiLeagueId}:${competition.season}`}
+              className={
+                isRequestedPriorityCompetition(competition.name)
+                  ? 'pcr-asean-competition-badge'
+                  : undefined
+              }
+            >
+              {isRequestedPriorityCompetition(competition.name) ? '★ ' : ''}
+              {competition.name} {competition.season}
+            </span>
+          ))}
+        </section>
+      ) : null}
+
+      <section className="pcr-kpis">
+        <div><span>Trận sắp tới</span><strong>{data.counts.fixtures}</strong><small>{data.window.days} ngày</small></div>
+        <div><span>Có odds DB</span><strong>{data.counts.fixturesWithOdds ?? 0}</strong><small>{data.counts.fixturesWithPitUsableOdds ?? 0} fixture có PIT-usable odds</small></div>
+        <div className="highlight"><span>BEST BET</span><strong>{data.counts.bestBets}</strong><small>scientific policy</small></div>
+        <div><span>NO BET</span><strong>{data.counts.noBets}</strong><small>không đủ value</small></div>
+        <div><span>Đang chờ</span><strong>{data.counts.predictionOnly + data.counts.waitingData}</strong><small>odds / horizon / dữ liệu</small></div>
+      
+        <div className="current-signal-kpi">
+          <span>Đề xuất hiện tại</span>
+          <strong>{data.counts.currentRecommendations}</strong>
+          <small>scientific now · chưa chốt</small>
+        </div>
+</section>
+
+      <section className="pcr-recommendation-status-dashboard">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">
+              CURRENT RECOMMENDATION PIPELINE
+            </span>
+            <h2>
+              Trạng thái tính đề xuất hiện tại
+            </h2>
+          </div>
+
+          <small>
+            {data.counts.fixtures} fixture
+          </small>
+        </div>
+
+        <div className="pcr-current-batch-summary">
+          <span>
+            Đã đánh giá{' '}
+            <strong>
+              {
+                data
+                  .currentRecommendationBatch
+                  .evaluatedFixtures
+              }
+            </strong>
+            /
+            {
+              data
+                .currentRecommendationBatch
+                .requestedFixtures
+            } fixture
+          </span>
+
+          <span>
+            Fresh raw:{' '}
+            {
+              data
+                .currentRecommendationBatch
+                .recentRawAttemptFixtures
+            }
+            {' · '}PIT odds:{' '}
+            {
+              data
+                .currentRecommendationBatch
+                .pitOddsFixtures
+            }
+            {' · '}Checkpoint priority:{' '}
+            {
+              data
+                .currentRecommendationBatch
+                .checkpointPriorityFixtures
+            }
+          </span>
+
+          <span>
+            Chunk{' '}
+            {
+              data
+                .currentRecommendationBatch
+                .chunksCompleted
+            }
+            /
+            {
+              data
+                .currentRecommendationBatch
+                .chunksPlanned
+            }
+            {' · '}failed{' '}
+            {
+              data
+                .currentRecommendationBatch
+                .failedChunks
+            }
+            {' · '}single retry{' '}
+            {
+              data
+                .currentRecommendationBatch
+                .singleFixtureRetrySuccesses
+            }
+            /
+            {
+              data
+                .currentRecommendationBatch
+                .singleFixtureRetries
+            }
+            {' · '}classified{' '}
+            {
+              data
+                .currentRecommendationBatch
+                .missingProviderSnapshotClassifications
+            }
+          </span>
+        </div>
+        {/* CURRENT_RECOMMENDATION_BATCH_PRIORITY_R41025 */}
+
+        <div className="pcr-recommendation-status-grid">
+          <div className="status-available">
+            <span>Có đề xuất</span>
+            <strong>
+              {
+                data
+                  .currentRecommendationStatusCounts
+                  .AVAILABLE
+              }
+            </strong>
+            <small>
+              vượt current value gate
+            </small>
+          </div>
+
+          <div className="status-no-value">
+            <span>Không đủ value</span>
+            <strong>
+              {
+                data
+                  .currentRecommendationStatusCounts
+                  .NO_VALUE_SIGNAL
+              }
+            </strong>
+            <small>
+              model đã tính xong
+            </small>
+          </div>
+
+          <div className="status-odds">
+            <span>Chờ odds mới</span>
+            <strong>
+              {
+                data
+                  .currentRecommendationStatusCounts
+                  .NO_FRESH_PIT_ODDS
+              }
+            </strong>
+            <small>
+              PIT / re-observation
+            </small>
+          </div>
+
+          <div className="status-provider-snapshot">
+            <span>Thiếu fixture snapshot</span>
+            <strong>
+              {
+                data
+                  .currentRecommendationStatusCounts
+                  .NO_PROVIDER_FIXTURE_SNAPSHOT
+              }
+            </strong>
+            <small>
+              thiếu immutable provider lineage
+            </small>
+          </div>
+
+          <div className="status-model">
+            <span>Thiếu model</span>
+            <strong>
+              {
+                data
+                  .currentRecommendationStatusCounts
+                  .NO_MODEL
+              }
+            </strong>
+            <small>
+              current as-of
+            </small>
+          </div>
+
+          <div className="status-market">
+            <span>Thiếu market</span>
+            <strong>
+              {
+                data
+                  .currentRecommendationStatusCounts
+                  .NO_COMPLETE_MARKET
+              }
+            </strong>
+            <small>
+              chưa đủ no-vig pair
+            </small>
+          </div>
+
+          <div className="status-mapping">
+            <span>Mapping cần kiểm tra</span>
+            <strong>
+              {
+                data
+                  .currentRecommendationStatusCounts
+                  .UNMAPPED_FIXTURE +
+                data
+                  .currentRecommendationStatusCounts
+                  .MAPPING_MISMATCH
+              }
+            </strong>
+            <small>
+              provider ↔ local
+            </small>
+          </div>
+
+          <div className="status-not-evaluated">
+            <span>Chưa đánh giá</span>
+            <strong>
+              {
+                data
+                  .currentRecommendationStatusCounts
+                  .NOT_EVALUATED
+              }
+            </strong>
+            <small>
+              ngoài batch / chưa xử lý
+            </small>
+          </div>
+        </div>
+      </section>
+
+
+      <section className="pcr-control-panel">
+        <div className="pcr-control-row">
+          <label>
+            Khoảng sắp tới
+            <select value={days} onChange={(event) => setDays(event.target.value)}>
+              <option value="7">7 ngày</option>
+              <option value="14">14 ngày</option>
+              <option value="30">30 ngày</option>
+            </select>
+          </label>
+          <label>
+            Giải đang có trận
+            <select
+              value={leagueFilter}
+              onChange={(event) =>
+                setLeagueFilter(event.target.value === 'ALL' ? 'ALL' : Number(event.target.value))
+              }
+            >
+              <option value="ALL">Tất cả giải hiện tại</option>
+              {data.leagues.map((league) => (
+                <option key={league.id} value={league.id}>
+                  {league.country ? `${league.country} · ` : ''}
+                  {league.name} · {league.season}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Trạng thái
+            <select
+              value={stateFilter}
+              onChange={(event) =>
+                setStateFilter(event.target.value as PersonalFixtureState | 'ALL')
+              }
+            >
+              <option value="ALL">Tất cả</option>
+              <option value="BEST_BET">BEST BET</option>
+              <option value="NO_BET">NO BET</option>
+              <option value="PREDICTION_ONLY">Có prediction, chờ odds</option>
+              <option value="WAITING_DATA">Chờ dữ liệu</option>
+            </select>
+          </label>
+          <label>
+            Khu vực
+            <select
+              value={groupFilter}
+              onChange={(event) =>
+                setGroupFilter(event.target.value as PersonalLeagueGroup | 'ALL')
+              }
+            >
+              <option value="ALL">Tất cả</option>
+              <option value="WAFCON">WAFCON 2026</option>
+              <option value="UCL">UEFA Champions League</option>
+              <option value="UEFA_EUROPA">Europa + Conference League</option>
+              <option value="ASEAN">ASEAN Championship 2026</option>
+              <option value="SEA">Đông Nam Á quốc nội</option>
+              <option value="ASIA">Châu Á</option>
+              <option value="EPL">Premier League</option>
+              <option value="LALIGA">La Liga</option>
+            </select>
+          </label>
+          <label>
+            Market
+            <select
+              value={marketFilter}
+              onChange={(event) =>
+                setMarketFilter(event.target.value as PersonalMarketCode | 'ALL')
+              }
+            >
+              <option value="ALL">Tất cả market</option>
+              <option value="HDA">HDA / 1X2</option>
+              <option value="BTTS">BTTS</option>
+              <option value="OVER_UNDER_1_5">Over/Under 1.5</option>
+              <option value="OVER_UNDER_2_5">Over/Under 2.5</option>
+              <option value="OVER_UNDER_3_5">Over/Under 3.5</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className="pcr-best-zone">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">SCIENTIFIC VALUE</span>
+            <h2>BEST BET của các trận sắp tới</h2>
+          </div>
+          <small>{data.topBestBets.length} lựa chọn</small>
+        </div>
+
+        {data.topBestBets.length === 0 ? (
+          <div className="pcr-empty">
+            Chưa có BEST BET ở horizon hiện tại. Prediction vẫn được hiển thị bên dưới; hệ thống
+            không ép tạo kèo khi odds/value chưa đạt.
+          </div>
+        ) : (
+          <div className="pcr-best-grid">
+            {data.topBestBets.map((row, index) => (
+              <article className="pcr-best-card" key={row.fixture.id}>
+                <div className="pcr-best-top">
+                  <span>#{index + 1}</span>
+                  <small>{row.fixture.league.name} · {row.fixture.league.season}</small>
+                </div>
+                <h3>{row.fixture.homeTeam.name} <span>vs</span> {row.fixture.awayTeam.name}</h3>
+                <small>{localTime(row.fixture.kickoffAt)}</small>
+                <div className="pcr-best-pick">{decisionSelectionName(row)}</div>
+                <div className="pcr-value-grid">
+                  <div><span>Odds</span><b>{decimal(row.decision?.decimalOdds)}</b></div>
+                  <div><span>Edge</span><b>{pct(row.decision?.edge)}</b></div>
+                  <div><span>EV</span><b>{pct(row.decision?.expectedValue)}</b></div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="pcr-match-list">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">UPCOMING REAL FIXTURES</span>
+            <h2>Trận sắp diễn ra</h2>
+          </div>
+          <small>{visibleFixtures.length} trận</small>
+        </div>
+
+        {visibleFixtures.length === 0 ? (
+          <div className="pcr-empty">
+            Chưa có fixture thật trong DB cho khoảng này. Bấm “Lấy lịch thật & phân tích” để đồng bộ
+            trực tiếp từ API-Football.
+          </div>
+        ) : (
+          visibleFixtures.map((row) => (
+            <article
+              className={`pcr-match-card ${row.state === 'BEST_BET' ? 'is-best' : ''}`}
+              key={row.fixture.id}
+            >
+              <div className="pcr-match-header">
+                <div>
+                  <span>
+                    {isRequestedPriorityCompetition(row.fixture.league.name) ? '★ ' : ''}
+                    {row.fixture.league.name} · {row.fixture.league.season}
+                  </span>
+                  <b>{localTime(row.fixture.kickoffAt)}</b>
+                </div>
+                <span className={`pcr-state state-${row.state.toLowerCase().replaceAll('_', '-')}`}>
+                  {stateLabel(row.state)}
+                </span>
+              </div>
+
+              <div className="pcr-match-title">
+                <strong>{row.fixture.homeTeam.name}</strong>
+                <span>vs</span>
+                <strong>{row.fixture.awayTeam.name}</strong>
+              </div>
+
+              <div className="pcr-hda-split">
+                <section className="pcr-hda-panel pcr-hda-scientific">
+                  <div className="pcr-hda-panel-head">
+                    <div><span>SCIENTIFIC HDA</span><b>Model của phần mềm</b></div>
+                    <em>{row.scientificHda.available ? `T-${row.scientificHda.horizonMinutes ?? '—'}` : 'CHỜ SCIENTIFIC DECISION'}</em>
+                  </div>
+                  {row.scientificHda.available ? (
+                    <>
+                      <div className="pcr-probability-grid">
+                        <div><div><span>Chủ</span><b>{pct(row.scientificHda.homeProbability)}</b></div><i style={{ width: probabilityWidth(row.scientificHda.homeProbability) }} /></div>
+                        <div><div><span>Hòa</span><b>{pct(row.scientificHda.drawProbability)}</b></div><i style={{ width: probabilityWidth(row.scientificHda.drawProbability) }} /></div>
+                        <div><div><span>Khách</span><b>{pct(row.scientificHda.awayProbability)}</b></div><i style={{ width: probabilityWidth(row.scientificHda.awayProbability) }} /></div>
+                      </div>
+                      <div className="pcr-hda-summary">Scientific dự đoán: <b>{scientificPredictedName(row)}</b>{row.scientificHda.modelVersion ? <small>Model: {row.scientificHda.modelVersion}</small> : null}</div>
+                    </>
+                  ) : (
+                    <div className="pcr-scientific-waiting"><b>Chưa có Scientific HDA.</b><span>API-Football không được dùng thay thế cho xác suất model của phần mềm. Khi scientific decision được tạo, H/D/A sẽ xuất hiện tại đây.</span></div>
+                  )}
+                </section>
+
+                <section className="pcr-hda-panel pcr-hda-provider">
+                  <div className="pcr-hda-panel-head">
+                    <div><span>API-FOOTBALL · THAM KHẢO</span><b>Tín hiệu provider, không phải Scientific Model</b></div>
+                    <em>{row.providerHda.available ? 'REFERENCE' : 'CHƯA CÓ'}</em>
+                  </div>
+                  {row.providerHda.available ? (
+                    <>
+                      <div className="pcr-probability-grid pcr-provider-probability-grid">
+                        <div><div><span>Chủ</span><b>{pct(row.providerHda.homeProbability)}</b></div><i style={{ width: probabilityWidth(row.providerHda.homeProbability) }} /></div>
+                        <div><div><span>Hòa</span><b>{pct(row.providerHda.drawProbability)}</b></div><i style={{ width: probabilityWidth(row.providerHda.drawProbability) }} /></div>
+                        <div><div><span>Khách</span><b>{pct(row.providerHda.awayProbability)}</b></div><i style={{ width: probabilityWidth(row.providerHda.awayProbability) }} /></div>
+                      </div>
+                      <div className="pcr-hda-summary">API-Football nghiêng: <b>{providerPredictedName(row)}</b>{row.providerHda.capturedAt ? <small>Snapshot: {localTime(row.providerHda.capturedAt)}</small> : null}</div>
+                    </>
+                  ) : (
+                    <div className="pcr-scientific-waiting"><b>Chưa có prediction từ API-Football.</b></div>
+                  )}
+                </section>
+              </div>
+
+              {row.marketMovement ? (
+                <section className="pcr-market-movement-panel">
+                  <div className="pcr-market-movement-head">
+                    <div>
+                      <span>MARKET MOVEMENT · HDA / 1X2</span>
+                      <b>Opening → Current · no-vig consensus</b>
+                    </div>
+                    <em>
+                      {row.marketMovement.movementAvailable
+                        ? `${row.marketMovement.matchedBookmakerCount} nhà cái matched`
+                        : `${row.marketMovement.bookmakerCount} nhà cái`}
+                    </em>
+                  </div>
+
+                  {row.marketMovement.available &&
+                  row.marketMovement.currentConsensus ? (
+                    <>
+                      <div className="pcr-movement-grid">
+                        {(['HOME', 'DRAW', 'AWAY'] as const).map(
+                          (selection) => (
+                            <div key={selection}>
+                              <span>
+                                {movementSelectionLabel(row, selection)}
+                              </span>
+                              <b>
+                                {row.marketMovement?.openingConsensus
+                                  ? pct(
+                                      row.marketMovement.openingConsensus[
+                                        selection
+                                      ],
+                                    )
+                                  : '—'}
+                                {' → '}
+                                {pct(
+                                  row.marketMovement?.currentConsensus?.[
+                                    selection
+                                  ],
+                                )}
+                              </b>
+                              <small>
+                                Δ{' '}
+                                {signedPoints(
+                                  row.marketMovement?.movement[selection],
+                                )}
+                                {' · '}60m{' '}
+                                {signedPoints(
+                                  row.marketMovement?.recentMovement[
+                                    selection
+                                  ],
+                                )}
+                              </small>
+                            </div>
+                          ),
+                        )}
+                      </div>
+
+                      <div className="pcr-movement-flags">
+                        <span>
+                          Quality{' '}
+                          <b>{pct(row.marketMovement.qualityScore)}</b>
+                        </span>
+                        <span>
+                          Steam{' '}
+                          <b>
+                            {row.marketMovement.steamMoveDetected
+                              ? movementSelectionLabel(
+                                  row,
+                                  row.marketMovement.steamDirection,
+                                )
+                              : 'Không'}
+                          </b>
+                        </span>
+                        {row.marketMovement.steamMoveDetected ? (
+                          <span>
+                            Strength{' '}
+                            <b>{pct(row.marketMovement.steamStrength)}</b>
+                          </span>
+                        ) : null}
+                        <span>
+                          Late move{' '}
+                          <b>{row.marketMovement.lateMove ? 'Có' : 'Không'}</b>
+                        </span>
+                        {row.marketMovement.observedFrom ? (
+                          <span>
+                            Opening{' '}
+                            <b>
+                              {localTime(row.marketMovement.observedFrom)}
+                            </b>
+                          </span>
+                        ) : null}
+                        {row.marketMovement.observedTo ? (
+                          <span>
+                            Current{' '}
+                            <b>
+                              {localTime(row.marketMovement.observedTo)}
+                            </b>
+                          </span>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="pcr-movement-empty">
+                      Chưa đủ ít nhất 3 nhà cái 1X2 hoàn chỉnh để tạo
+                      movement consensus đáng tin cậy. Early Odds vẫn tiếp tục
+                      thu theo cadence 3 giờ.
+                    </div>
+                  )}
+                </section>
+              ) : null}
+
+              <div className="pcr-market-tabs">
+                {row.marketPredictions
+                  .filter(
+                    (market: PersonalMarketPredictionDto): boolean =>
+                      marketFilter === 'ALL' || market.code === marketFilter,
+                  )
+                  .map((market: PersonalMarketPredictionDto) => {
+                    const strongest = bestMarketSelection(market);
+                    const marketMovement = row.multiMarketMovements
+                      ?.find(
+                        (movement): boolean =>
+                          movement.code === market.code,
+                      ) ?? null;
+
+                    return (
+                      <div
+                        key={market.code}
+                        className={[
+                          'pcr-market-card',
+                          market.status === 'BEST_BET' ? 'best-market' : '',
+                          market.status === 'ANALYSIS_ONLY' ? 'analysis-only' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        <div className="pcr-market-card-head">
+                          <b>{market.label}</b>
+                          <span>{marketStatusLabel(market.status)}</span>
+                        </div>
+
+                        {market.status === 'WAITING_ODDS' ? (
+                          <small>Chưa có odds snapshot trong 6 giờ gần nhất. Xem checkpoint bên dưới.</small>
+                        ) : (
+                          <>
+                            <div className="pcr-market-selections">
+                              {market.selections.map(
+                                (selection: PersonalMarketSelectionDto) => (
+                                  <div key={selection.code}>
+                                    <span>{marketSelectionLabel(row, market, selection)}</span>
+                                    <b className="pcr-odds-primary">Odds {decimal(selection.decimalOdds)}</b>
+                                    <small>Model {pct(selection.modelProbability)} · Edge {pct(selection.edge)} · EV {pct(selection.expectedValue)}</small>
+                                    <small>{selection.bookmakerName ?? 'Bookmaker —'}{selection.oddsObservedAt ? ` · snapshot ${localTime(selection.oddsObservedAt)}` : ''}</small>
+                                    <em>{selection.oddsSource === 'LATEST_SNAPSHOT' ? selection.oddsPitUsable ? 'Odds DB · PIT usable · chờ scientific decision' : 'Odds DB · chưa PIT-usable' : selection.eligible ? 'Scientific candidate · Eligible' : selection.reliabilityStatus ?? 'Scientific candidate'}</em>
+                                  </div>
+                                ),
+                              )}
+                            </div>
+
+                            {marketMovement ? (
+                              <div className="pcr-two-way-movement">
+                                <div className="pcr-two-way-movement-head">
+                                  <span>MULTI-MARKET MOVEMENT</span>
+                                  <em>
+                                    {marketMovement.movementAvailable
+                                      ? `${marketMovement.matchedBookmakerCount} nhà cái matched`
+                                      : `${marketMovement.bookmakerCount} nhà cái current`}
+                                  </em>
+                                </div>
+
+                                {marketMovement.available ? (
+                                  <>
+                                    <div className="pcr-two-way-movement-grid">
+                                      {marketMovement.selections.map(
+                                        (selection) => (
+                                          <div key={selection.code}>
+                                            <span>
+                                              {twoWayMovementSelectionLabel(
+                                                selection.code,
+                                                marketMovement.lineValue,
+                                              )}
+                                            </span>
+                                            <b>
+                                              {selection.openingProbability != null
+                                                ? `${pct(selection.openingProbability)} → `
+                                                : 'Current '}
+                                              {pct(selection.currentProbability)}
+                                            </b>
+                                            <small>
+                                              Δ {signedPoints(selection.movement)}
+                                              {' · '}60m {signedPoints(selection.recentMovement)}
+                                            </small>
+                                          </div>
+                                        ),
+                                      )}
+                                    </div>
+
+                                    <div className="pcr-two-way-movement-flags">
+                                      <span>
+                                        Quality <b>{pct(marketMovement.qualityScore)}</b>
+                                      </span>
+                                      <span>
+                                        Agreement <b>{pct(marketMovement.bookmakerAgreement)}</b>
+                                      </span>
+                                      <span>
+                                        Steam{' '}
+                                        <b>
+                                          {marketMovement.steamMoveDetected
+                                            ? twoWayMovementSelectionLabel(
+                                                marketMovement.steamDirection === 'NONE'
+                                                  ? marketMovement.selections[0]?.code ?? 'YES'
+                                                  : marketMovement.steamDirection,
+                                                marketMovement.lineValue,
+                                              )
+                                            : 'Không'}
+                                        </b>
+                                      </span>
+                                      {marketMovement.steamMoveDetected ? (
+                                        <span>
+                                          Strength <b>{pct(marketMovement.steamStrength)}</b>
+                                        </span>
+                                      ) : null}
+                                      <span>
+                                        Late <b>{marketMovement.lateMove ? 'Có' : 'Không'}</b>
+                                      </span>
+                                    </div>
+
+                                    {!marketMovement.movementAvailable ? (
+                                      <div className="pcr-two-way-movement-wait">
+                                        Current no-vig consensus đã có · chờ thêm provider-version
+                                        để tạo Opening → Current đáng tin cậy.
+                                      </div>
+                                    ) : null}
+                                  </>
+                                ) : (
+                                  <div className="pcr-two-way-movement-wait">
+                                    Chưa đủ market 2 cửa hoàn chỉnh từ ít nhất 3 nhà cái.
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
+
+                            {strongest ? <div className="pcr-market-lean">Model nghiêng: <b>{marketSelectionLabel(row, market, strongest)}</b>{' '}{pct(strongest.modelProbability)}</div> : null}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+
+              <div className="pcr-odds-diagnostics">
+                <span>Odds DB: <b>{row.oddsDiagnostics.snapshotRows}</b> rows · PIT <b>{row.oddsDiagnostics.pitUsableRows}</b> · markets <b>{row.oddsDiagnostics.marketsWithOdds}</b></span>
+                <span>Early Odds: <b>1–14 ngày · refresh 3h</b></span>
+                {row.oddsDiagnostics.latestObservedAt ? <span>Snapshot mới nhất: <b>{localTime(row.oddsDiagnostics.latestObservedAt)}</b></span> : null}
+                {row.oddsDiagnostics.latestCheckpoint ? <span className={`checkpoint-${row.oddsDiagnostics.latestCheckpoint.status.toLowerCase()}`}>Checkpoint: <b>{row.oddsDiagnostics.latestCheckpoint.horizonLabel} · {row.oddsDiagnostics.latestCheckpoint.status}</b> · normalized {row.oddsDiagnostics.latestCheckpoint.normalizedOdds} · PIT {row.oddsDiagnostics.latestCheckpoint.pitUsableOdds}</span> : <span>Checkpoint: <b>chưa có</b></span>}
+              </div>
+
+              {row.currentRecommendation == null ? (
+                <div
+                  className={[
+                    'pcr-current-status',
+                    `current-status-${currentRecommendationStatusClass(
+                      row.currentRecommendationStatus,
+                    )}`,
+                  ].join(' ')}
+                >
+                  <span className="eyebrow">
+                    TRẠNG THÁI ĐỀ XUẤT HIỆN TẠI
+                  </span>
+
+                  <b>
+                    {currentRecommendationStatusLabel(
+                      row.currentRecommendationStatus,
+                    )}
+                  </b>
+
+                  <small>
+                    {currentRecommendationStatusDescription(
+                      row,
+                    )}
+                  </small>
+
+                  {row.currentRecommendationError ? (
+                    <code>
+                      {
+                        row.currentRecommendationError
+                      }
+                    </code>
+                  ) : null}
+                </div>
+              ) : null}
+              {row.currentRecommendation ? (
+                <div className="pcr-current-signal">
+                  <span className="eyebrow">
+                    TÍN HIỆU NGHIÊN CỨU ĐÃ ĐIỀU CHỈNH RỦI RO
+                  </span>
+
+                  <b>
+                    {currentRecommendationSelectionLabel(
+                      row,
+                    )}{' '}
+                    ·{' '}
+                    {currentRecommendationMarketLabel(
+                      row,
+                    )}{' '}
+                    @{' '}
+                    {decimal(
+                      row.currentRecommendation
+                        .decimalOdds,
+                    )}
+                  </b>
+
+                  <small>
+                    Model{' '}
+                    {pct(
+                      row.currentRecommendation
+                        .modelProbability,
+                    )}{' '}
+                    · Market{' '}
+                    {pct(
+                      row.currentRecommendation
+                        .fairMarketProbability,
+                    )}{' '}
+                    · Edge{' '}
+                    {pct(
+                      row.currentRecommendation
+                        .edge,
+                    )}{' '}
+                    · Raw EV{' '}
+                    {pct(
+                      row.currentRecommendation
+                        .expectedValue,
+                    )}
+                  </small>
+
+                  <small>
+                    Adjusted model{' '}
+                    {pct(row.currentRecommendation.adjustedModelProbability)}
+                    {' · '}Conservative probability{' '}
+                    {pct(row.currentRecommendation.conservativeProbability)}
+                    {' · '}Conservative edge{' '}
+                    {pct(row.currentRecommendation.conservativeEdge)}
+                    {' · '}Conservative EV{' '}
+                    {pct(row.currentRecommendation.conservativeExpectedValue)}
+                  </small>
+
+                  <small>
+                    Risk score{' '}
+                    {decimal(row.currentRecommendation.riskAdjustedScore, 3)}
+                    {' · '}model weight{' '}
+                    {pct(row.currentRecommendation.effectiveModelWeight)}
+                    {' · '}probability haircut{' '}
+                    {pct(row.currentRecommendation.probabilityHaircut)}
+                    {' · '}longshot penalty{' '}
+                    {decimal(row.currentRecommendation.longshotPenalty, 3)}
+                  </small>
+
+                  <small>
+                    Quote consensus:{' '}
+                    {row.currentRecommendation.quoteCount}{' '}nguồn · median @
+                    {decimal(row.currentRecommendation.quoteMedianOdds)}
+                    {' · '}agreement{' '}
+                    {pct(row.currentRecommendation.quoteAgreementRatio)}
+                    {' · '}deviation{' '}
+                    {pct(row.currentRecommendation.quoteDeviationRatio)}
+                  </small>
+
+                  <small>
+                    T-
+                    {
+                      row.currentRecommendation
+                        .horizonMinutes
+                    }{' '}
+                    · Risk-adjusted research signal
+                    · chưa phải BEST BET chính thức
+                  </small>
+
+                  <small>
+                    Model source:{' '}
+                    {row.currentRecommendation
+                      .modelSource ===
+                    'DYNAMIC_DIXON_COLES'
+                      ? 'Dynamic Dixon–Coles'
+                      : 'PIT-safe scientific baseline'}
+                    {' · '}
+                    {row.currentRecommendation
+                      .modelConfidenceTier}
+                    {' · history '}
+                    {
+                      row.currentRecommendation
+                        .modelHistorySampleSize
+                    }
+                    {' · quality '}
+                    {pct(
+                      row.currentRecommendation
+                        .dataQualityScore,
+                    )}
+                  </small>
+
+                  {row.currentRecommendation
+                    .modelSource ===
+                  'SCIENTIFIC_BASELINE_FALLBACK' ? (
+                    <small>
+                      Fallback reason:{' '}
+                      {
+                        row.currentRecommendation
+                          .modelFallbackReason
+                      }
+                      {' · research signal only · không được promote thành BEST BET'}
+                    </small>
+                  ) : null}
+
+                  <small>
+                    Odds evidence:{' '}
+                    {row.currentRecommendation
+                      .oddsFreshnessBasis ===
+                    'REOBSERVED_AT'
+                      ? 'API vừa tái xác nhận phiên bản giá'
+                      : 'source update còn mới'}
+                    {row.currentRecommendation
+                      .sourceOddsFreshnessAt
+                      ? ` · ${localTime(
+                          row.currentRecommendation
+                            .sourceOddsFreshnessAt,
+                        )}`
+                      : ''}
+                  </small>
+                  {/* PIT_SAFE_BASELINE_FALLBACK_R41024 */}
+                  {/* FRESH_ODDS_REOBSERVATION_R41022 */}
+                </div>
+              ) : null}
+              <div className="pcr-meta-row">
+                <span>Scientific HDA: <b>{row.scientificHda.available ? scientificPredictedName(row) : 'CHỜ MODEL'}</b></span>
+                <span>API-Football: <b>{row.providerHda.available ? providerPredictedName(row) : '—'}</b></span>
+                {row.nextCheckpoint ? (
+                  <span>Mốc odds kế: <b>{row.nextCheckpoint.horizonLabel}</b> · {localTime(row.nextCheckpoint.dueAt)}</span>
+                ) : null}
+              </div>
+
+              {row.decision ? (
+                <div className="pcr-decision-row">
+                  <div><span>Decision</span><b>{row.decision.decisionType}</b></div>
+                  <div><span>Pick</span><b>{decisionSelectionName(row)}</b></div>
+                  <div><span>Odds</span><b>{decimal(row.decision.decimalOdds)}</b></div>
+                  <div><span>Edge</span><b>{pct(row.decision.edge)}</b></div>
+                  <div><span>EV</span><b>{pct(row.decision.expectedValue)}</b></div>
+                  <div><span>Reliability</span><b>{row.decision.reliabilityStatus ?? '—'}</b></div>
+                </div>
+              ) : null}
+            </article>
+          ))
+        )}
+      </section>
+
+      <div className="pcr-safety-note">
+        Early Odds 1–14 ngày dùng để lưu opening/current · HDA, BTTS và O/U đều có market movement khi đủ snapshot · không tự tạo
+        BEST BET · Scientific HDA và API-Football được tách riêng · HDA/BTTS/Over-Under chỉ thành
+        BEST BET khi scientific/reliability gate cho phép · không auto-bet · không real-money.
+      </div>
+    </div>
+  );
+}

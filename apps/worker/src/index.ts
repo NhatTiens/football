@@ -24,6 +24,7 @@ if (!enabled) {
     : ([
         [process.env.FIXTURE_SYNC_CRON ?? '0 */6 * * *', 'sync-fixtures'],
         [oddsCron, oddsCommand],
+        [process.env.PAPER_BET_OPERATIONS_CRON ?? '* * * * *', 'paper-bet-operations-cycle'],
         [process.env.LINEUP_SYNC_CRON ?? '*/10 * * * *', 'sync-lineups'],
         [process.env.PREDICTION_SYNC_CRON ?? '5 */1 * * *', 'sync-predictions'],
         [process.env.RECOMMENDATION_CRON ?? '*/15 * * * *', 'generate'],

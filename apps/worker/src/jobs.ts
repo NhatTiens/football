@@ -33,6 +33,7 @@ import {
   getApiFootballHealth,
   getScientificPaperBetLedgerCoverage,
   settleOpenScientificPaperBets,
+  runPaperBetOperationsCycle,
   runScientificBestBetReliability,
   runScientificMultiMarketReplay,
   runHistoricalDataAudit,
@@ -90,6 +91,7 @@ export type WorkerCommand =
   | 'scientific-multi-market-port-report'
   | 'scientific-multi-market-replay-report'
   | 'scientific-best-bet-reliability-report'
+  | 'paper-bet-operations-cycle'
   | 'paper-bet-ledger-settle'
   | 'paper-bet-ledger-coverage'
   | 'api-football-coverage'
@@ -193,6 +195,7 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
     else if (command === 'api-football-league-profile-discover')
       result = await discoverApiFootballLeagueProfile();
     else if (command === 'api-football-vn-schedule') result = await getApiFootballVietnamSchedule();
+    else if (command === 'paper-bet-operations-cycle') result = await runPaperBetOperationsCycle();
     else if (command === 'paper-bet-ledger-coverage')
       result = await getScientificPaperBetLedgerCoverage();
     else if (command === 'paper-bet-ledger-settle') result = await settleOpenScientificPaperBets();

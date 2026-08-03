@@ -1,3 +1,4 @@
+// R4.10.2.9_UI_EXPLAINABILITY_STATUS_CONSISTENCY: board renders conservative value and auditable rejection reasons.
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -98,14 +99,83 @@ function probabilityWidth(value: number | null): string {
   return `${safe * 100}%`;
 }
 
-
 function marketStatusLabel(status: PersonalMarketPredictionDto['status']): string {
+  // R4.10.2.9_UI_EXPLAINABILITY_STATUS_CONSISTENCY
   if (status === 'BEST_BET') return 'BEST BET';
   if (status === 'ELIGIBLE_VALUE') return 'CÓ VALUE';
+  if (status === 'EVALUATED_VALUE_AVAILABLE') return 'CÓ VALUE NGHIÊN CỨU';
+  if (status === 'EVALUATED_NO_VALUE') return 'KHÔNG ĐỦ VALUE';
   if (status === 'ANALYSIS_ONLY') return 'ANALYSIS ONLY';
-  if (status === 'ODDS_AVAILABLE_WAITING_DECISION') return 'ODDS CÓ SẴN · CHỜ DECISION';
-  return 'CHỜ ODDS';
+  if (status === 'ODDS_AVAILABLE_WAITING_DECISION') return 'ODDS CÓ SẴN · CHỜ MODEL';
+  if (status === 'WAITING_ODDS') return 'CHỜ ODDS';
+  return 'TRẠNG THÁI KHÁC';
 }
+
+function signedPct(value: number | null | undefined, digits = 1): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(digits)}%`;
+}
+
+function marketStatusClass(status: PersonalMarketPredictionDto['status']): string {
+  return status.toLowerCase().replaceAll('_', '-');
+}
+
+function rejectionReasonList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((reason): reason is string => typeof reason === 'string' && reason.length > 0)
+    : [];
+}
+
+function rejectionReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    CURRENT_ODDS_BELOW_MINIMUM: 'Odds thấp hơn ngưỡng tối thiểu.',
+    CURRENT_RAW_EDGE_BELOW_MINIMUM: 'Raw edge chưa đạt ngưỡng tối thiểu.',
+    CURRENT_RAW_EV_BELOW_MINIMUM: 'Raw EV chưa đạt ngưỡng tối thiểu.',
+    CURRENT_CONSERVATIVE_EDGE_BELOW_MINIMUM:
+      'Conservative edge chưa đạt ngưỡng sau điều chỉnh rủi ro.',
+    CURRENT_CONSERVATIVE_EV_BELOW_MINIMUM: 'Conservative EV chưa đạt ngưỡng sau điều chỉnh rủi ro.',
+    CURRENT_BASELINE_FALLBACK_RESEARCH_ONLY:
+      'Model hiện là baseline fallback, chỉ dùng nghiên cứu.',
+    CURRENT_LIMITED_CONFIDENCE_RESEARCH_ONLY: 'Độ tin cậy LIMITED, chưa đủ điều kiện đề xuất.',
+    CURRENT_MODEL_HISTORY_INSUFFICIENT: 'Lịch sử model chưa đủ mẫu để chứng minh độ tin cậy.',
+    CURRENT_RELIABILITY_NOT_PROVEN: 'Reliability của market/horizon chưa được chứng minh.',
+    CURRENT_LIMITED_CONFIDENCE_LONGSHOT_BLOCKED:
+      'Longshot Guard chặn cửa odds cao khi confidence còn thấp.',
+    CURRENT_LOW_CONFIDENCE_DIAGNOSTIC_ONLY: 'Candidate chỉ thuộc tầng chẩn đoán độ tin cậy thấp.',
+    CURRENT_BOOKMAKER_AGREEMENT_BELOW_MINIMUM: 'Mức đồng thuận giữa các nhà cái chưa đạt ngưỡng.',
+    CURRENT_HIGH_QUOTE_OUTLIER_BLOCKED: 'Quote cao bất thường so với consensus bị chặn.',
+    CURRENT_QUOTE_OUTLIER_BLOCKED: 'Odds bị xác định là outlier so với thị trường.',
+  };
+  return labels[reason] ?? reason.toLowerCase().replaceAll('_', ' ');
+}
+
+function selectionAuditSummary(selection: PersonalMarketSelectionDto): string {
+  if (selection.valueExplainabilityWired) {
+    if (selection.eligible) return 'Candidate nghiên cứu đã vượt current value gate';
+    const confidence = selection.modelConfidenceTier ?? selection.reliabilityStatus ?? '—';
+    const history = selection.modelHistorySampleSize ?? 0;
+    if (selection.signalTier === 'LOW_CONFIDENCE_DIAGNOSTIC') {
+      return `Research only · ${confidence} · history ${history}`;
+    }
+    return `Đã đánh giá · không đủ value · ${confidence}`;
+  }
+  if (selection.oddsSource === 'LATEST_SNAPSHOT') {
+    return selection.oddsPitUsable
+      ? 'Odds DB · PIT usable · chờ model hiện tại'
+      : 'Odds DB · chưa PIT-usable';
+  }
+  return selection.eligible
+    ? 'Scientific candidate · Eligible'
+    : (selection.reliabilityStatus ?? 'Scientific candidate');
+}
+
+function hasResearchModel(row: PersonalUpcomingFixtureDto): boolean {
+  return row.marketPredictions.some((market) =>
+    market.selections.some((selection) => selection.modelProbability != null),
+  );
+}
+
+// R4.10.2.9_UI_EXPLAINABILITY_STATUS_CONSISTENCY: helper functions
 
 function marketSelectionLabel(
   row: PersonalUpcomingFixtureDto,
@@ -127,8 +197,7 @@ function bestMarketSelection(
   return (
     market.selections
       .filter(
-        (selection: PersonalMarketSelectionDto): boolean =>
-          selection.modelProbability != null,
+        (selection: PersonalMarketSelectionDto): boolean => selection.modelProbability != null,
       )
       .slice()
       .sort(
@@ -138,182 +207,164 @@ function bestMarketSelection(
   );
 }
 
-
-function currentRecommendationSelectionLabel(
-  row: PersonalUpcomingFixtureDto,
-): string {
-  const recommendation =
-    row.currentRecommendation;
+function currentRecommendationSelectionLabel(row: PersonalUpcomingFixtureDto): string {
+  const recommendation = row.currentRecommendation;
 
   if (recommendation == null) {
     return '—';
   }
 
-  if (
-    recommendation.selection ===
-    'HOME'
-  ) {
+  if (recommendation.selection === 'HOME') {
     return row.fixture.homeTeam.name;
   }
 
-  if (
-    recommendation.selection ===
-    'AWAY'
-  ) {
+  if (recommendation.selection === 'AWAY') {
     return row.fixture.awayTeam.name;
   }
 
-  if (
-    recommendation.selection ===
-    'DRAW'
-  ) {
+  if (recommendation.selection === 'DRAW') {
     return 'Hòa';
   }
 
-  if (
-    recommendation.selection ===
-    'YES'
-  ) {
+  if (recommendation.selection === 'YES') {
     return 'BTTS Có';
   }
 
-  if (
-    recommendation.selection ===
-    'NO'
-  ) {
+  if (recommendation.selection === 'NO') {
     return 'BTTS Không';
   }
 
-  if (
-    recommendation.selection ===
-    'OVER'
-  ) {
-    return `Over ${
-      recommendation.lineValue ?? ''
-    }`.trim();
+  if (recommendation.selection === 'OVER') {
+    return `Over ${recommendation.lineValue ?? ''}`.trim();
   }
 
-  return `Under ${
-    recommendation.lineValue ?? ''
-  }`.trim();
+  return `Under ${recommendation.lineValue ?? ''}`.trim();
 }
 
-function currentRecommendationMarketLabel(
-  row: PersonalUpcomingFixtureDto,
-): string {
-  const recommendation =
-    row.currentRecommendation;
+function currentRecommendationMarketLabel(row: PersonalUpcomingFixtureDto): string {
+  const recommendation = row.currentRecommendation;
 
   if (recommendation == null) {
     return '—';
   }
 
-  if (
-    recommendation.marketType ===
-    'MATCH_WINNER'
-  ) {
+  if (recommendation.marketType === 'MATCH_WINNER') {
     return 'HDA / 1X2';
   }
 
-  if (
-    recommendation.marketType ===
-    'BTTS'
-  ) {
+  if (recommendation.marketType === 'BTTS') {
     return 'BTTS';
   }
 
-  return `O/U ${
-    recommendation.lineValue ?? ''
-  }`.trim();
+  return `O/U ${recommendation.lineValue ?? ''}`.trim();
+}
+
+function paperShadowSelectionLabel(row: PersonalUpcomingFixtureDto): string {
+  const selected = row.paperShadowRecommendation?.selected;
+
+  if (selected == null) return '—';
+  if (selected.selection === 'HOME') {
+    return row.fixture.homeTeam.name;
+  }
+  if (selected.selection === 'AWAY') {
+    return row.fixture.awayTeam.name;
+  }
+  if (selected.selection === 'DRAW') {
+    return 'Hòa';
+  }
+  if (selected.selection === 'YES') {
+    return 'BTTS Có';
+  }
+  if (selected.selection === 'NO') {
+    return 'BTTS Không';
+  }
+  if (selected.selection === 'OVER') {
+    return `Over ${selected.lineValue ?? ''}`.trim();
+  }
+  return `Under ${selected.lineValue ?? ''}`.trim();
+}
+
+function paperShadowMarketLabel(row: PersonalUpcomingFixtureDto): string {
+  const selected = row.paperShadowRecommendation?.selected;
+
+  if (selected == null) return '—';
+  if (selected.marketType === 'MATCH_WINNER') {
+    return 'HDA / 1X2';
+  }
+  if (selected.marketType === 'BTTS') {
+    return 'BTTS';
+  }
+  return `O/U ${selected.lineValue ?? ''}`.trim();
+}
+
+function paperShadowStatusLabel(
+  status: PersonalUpcomingFixtureDto['paperShadowRecommendation'] extends infer T
+    ? T extends { status: infer S }
+      ? S
+      : never
+    : never,
+): string {
+  if (status === 'RAW_VALUE_SHADOW') return 'RAW VALUE SHADOW';
+  if (status === 'HIERARCHICAL_VALUE_SHADOW') return 'HIERARCHICAL VALUE SHADOW';
+  if (status === 'BOUNDED_VALUE_SHADOW') return 'BOUNDED VALUE SHADOW';
+  return 'DIAGNOSTIC SHADOW';
 }
 
 // CURRENT_SCIENTIFIC_RECOMMENDATION_R4102
 
-
 function currentRecommendationStatusLabel(
-  status:
-    PersonalUpcomingFixtureDto[
-      'currentRecommendationStatus'
-    ],
+  status: PersonalUpcomingFixtureDto['currentRecommendationStatus'],
 ): string {
   if (status === 'AVAILABLE') {
     return 'Có đề xuất hiện tại';
   }
 
-  if (
-    status ===
-    'NO_FRESH_PIT_ODDS'
-  ) {
+  if (status === 'NO_FRESH_PIT_ODDS') {
     return 'Chờ odds PIT mới';
   }
 
-  if (
-    status ===
-    'NO_PROVIDER_FIXTURE_SNAPSHOT'
-  ) {
-    return 'Thiếu fixture snapshot';
+  if (status === 'NO_PROVIDER_FIXTURE_SNAPSHOT') {
+    return 'Thiếu snapshot fixture provider';
   }
 
   if (status === 'NO_MODEL') {
     return 'Thiếu mô hình hiện tại';
   }
 
-  if (
-    status ===
-    'NO_COMPLETE_MARKET'
-  ) {
+  if (status === 'NO_COMPLETE_MARKET') {
     return 'Thiếu market hoàn chỉnh';
   }
 
-  if (
-    status ===
-    'NO_VALUE_SIGNAL'
-  ) {
+  if (status === 'NO_VALUE_SIGNAL') {
     return 'Đã tính, không đủ value';
   }
 
-  if (
-    status ===
-    'UNMAPPED_FIXTURE'
-  ) {
+  if (status === 'UNMAPPED_FIXTURE') {
     return 'Chưa ghép fixture';
   }
 
-  if (
-    status ===
-    'MAPPING_MISMATCH'
-  ) {
+  if (status === 'MAPPING_MISMATCH') {
     return 'Sai lệch mapping';
   }
 
   return 'Chưa được đánh giá';
 }
 
-function currentRecommendationStatusDescription(
-  row: PersonalUpcomingFixtureDto,
-): string {
-  const status =
-    row.currentRecommendationStatus;
+function currentRecommendationStatusDescription(row: PersonalUpcomingFixtureDto): string {
+  const status = row.currentRecommendationStatus;
 
-  if (
-    status ===
-    'NO_FRESH_PIT_ODDS'
-  ) {
+  if (status === 'NO_FRESH_PIT_ODDS') {
     return 'Không có phiên bản odds PIT đủ mới hoặc vừa được API tái xác nhận.';
   }
 
-  if (
-    status ===
-    'NO_PROVIDER_FIXTURE_SNAPSHOT'
-  ) {
-    return 'Không có immutable provider fixture snapshot hợp lệ tại thời điểm phân tích; odds PIT, nếu có, chưa đủ lineage để tạo đề xuất khoa học.';
+  if (status === 'NO_PROVIDER_FIXTURE_SNAPSHOT') {
+    return row.currentRecommendationError === 'NO_PROVIDER_FIXTURE_SNAPSHOT_AT_CURRENT_AS_OF'
+      ? 'Fixture local chưa có snapshot metadata tương ứng từ provider tại thời điểm phân tích. Hệ thống không tạo odds hoặc mapping giả.'
+      : 'Thiếu snapshot fixture provider hợp lệ tại thời điểm phân tích.';
   }
 
   if (status === 'NO_MODEL') {
-    if (
-      row.currentRecommendationError ===
-      'NO_DIXON_COLES_MODEL_AT_CURRENT_AS_OF'
-    ) {
+    if (row.currentRecommendationError === 'NO_DIXON_COLES_MODEL_AT_CURRENT_AS_OF') {
       return 'Chưa có mô hình Dixon–Coles hợp lệ tại thời điểm phân tích hiện tại.';
     }
 
@@ -323,38 +374,23 @@ function currentRecommendationStatusDescription(
     );
   }
 
-  if (
-    status ===
-    'NO_COMPLETE_MARKET'
-  ) {
+  if (status === 'NO_COMPLETE_MARKET') {
     return 'Odds đang có nhưng chưa đủ các cửa đồng bộ để tính xác suất thị trường no-vig.';
   }
 
-  if (
-    status ===
-    'NO_VALUE_SIGNAL'
-  ) {
+  if (status === 'NO_VALUE_SIGNAL') {
     return 'Model đã chạy; không candidate nào vượt đồng thời conservative edge, conservative EV, độ tin cậy, longshot guard và kiểm tra đồng thuận bookmaker.';
   }
 
-  if (
-    status ===
-    'UNMAPPED_FIXTURE'
-  ) {
+  if (status === 'UNMAPPED_FIXTURE') {
     return 'Fixture provider chưa được ghép với fixture local.';
   }
 
-  if (
-    status ===
-    'MAPPING_MISMATCH'
-  ) {
+  if (status === 'MAPPING_MISMATCH') {
     return 'League, đội hoặc kickoff giữa provider và local không khớp an toàn.';
   }
 
-  if (
-    status ===
-    'NOT_EVALUATED'
-  ) {
+  if (status === 'NOT_EVALUATED') {
     return 'Fixture chưa nằm trong batch current-analysis hoặc chưa được xử lý ở lần tải này.';
   }
 
@@ -362,18 +398,12 @@ function currentRecommendationStatusDescription(
 }
 
 function currentRecommendationStatusClass(
-  status:
-    PersonalUpcomingFixtureDto[
-      'currentRecommendationStatus'
-    ],
+  status: PersonalUpcomingFixtureDto['currentRecommendationStatus'],
 ): string {
-  return status
-    .toLowerCase()
-    .replaceAll('_', '-');
+  return status.toLowerCase().replaceAll('_', '-');
 }
 
 // CURRENT_RECOMMENDATION_STATUS_DASHBOARD_R41023
-
 
 const GROUPS: Array<{ value: CurrentCompetitionGroup; label: string; description: string }> = [
   {
@@ -409,8 +439,8 @@ const GROUPS: Array<{ value: CurrentCompetitionGroup; label: string; description
 function isAseanSeniorCompetition(name: string): boolean {
   const normalized = name.trim().toLowerCase();
   if (
-    ['u19', 'u20', 'u21', 'u22', 'u23', 'women', 'club'].some(
-      (variant: string): boolean => normalized.includes(variant),
+    ['u19', 'u20', 'u21', 'u22', 'u23', 'women', 'club'].some((variant: string): boolean =>
+      normalized.includes(variant),
     )
   ) {
     return false;
@@ -422,7 +452,6 @@ function isAseanSeniorCompetition(name: string): boolean {
     normalized === 'aff cup'
   );
 }
-
 
 function isRequestedPriorityCompetition(name: string): boolean {
   const normalized = name.trim().toLowerCase();
@@ -483,8 +512,7 @@ export function UpcomingPredictionBoard({
           marketFilter !== 'ALL' &&
           !row.marketPredictions.some(
             (market: PersonalMarketPredictionDto): boolean =>
-              market.code === marketFilter &&
-              market.status !== 'WAITING_ODDS',
+              market.code === marketFilter && market.status !== 'WAITING_ODDS',
           )
         ) {
           return false;
@@ -571,8 +599,8 @@ export function UpcomingPredictionBoard({
           <span className="eyebrow">CURRENT FIXTURES ONLY</span>
           <h1>Dự đoán các trận sắp tới</h1>
           <p>
-            Chỉ dùng mùa đang hoạt động từ API-Football và fixture có kickoff sau thời điểm hiện tại.
-            Demo, test và lịch quá khứ không được đưa vào màn hình dự đoán.
+            Chỉ dùng mùa đang hoạt động từ API-Football và fixture có kickoff sau thời điểm hiện
+            tại. Demo, test và lịch quá khứ không được đưa vào màn hình dự đoán.
           </p>
         </div>
 
@@ -604,7 +632,9 @@ export function UpcomingPredictionBoard({
             <span className="eyebrow">GIẢI MUỐN THEO DÕI</span>
             <h2>Mùa hiện tại, không chọn season thủ công</h2>
           </div>
-          <small>{selectedGroups.length}/{GROUPS.length} nhóm</small>
+          <small>
+            {selectedGroups.length}/{GROUPS.length} nhóm
+          </small>
         </div>
         <div className="pcr-current-group-grid">
           {GROUPS.map((group) => (
@@ -650,111 +680,74 @@ export function UpcomingPredictionBoard({
       ) : null}
 
       <section className="pcr-kpis">
-        <div><span>Trận sắp tới</span><strong>{data.counts.fixtures}</strong><small>{data.window.days} ngày</small></div>
-        <div><span>Có odds DB</span><strong>{data.counts.fixturesWithOdds ?? 0}</strong><small>{data.counts.fixturesWithPitUsableOdds ?? 0} fixture có PIT-usable odds</small></div>
-        <div className="highlight"><span>BEST BET</span><strong>{data.counts.bestBets}</strong><small>scientific policy</small></div>
-        <div><span>NO BET</span><strong>{data.counts.noBets}</strong><small>không đủ value</small></div>
-        <div><span>Đang chờ</span><strong>{data.counts.predictionOnly + data.counts.waitingData}</strong><small>odds / horizon / dữ liệu</small></div>
-      
+        <div>
+          <span>Trận sắp tới</span>
+          <strong>{data.counts.fixtures}</strong>
+          <small>{data.window.days} ngày</small>
+        </div>
+        <div>
+          <span>Có odds DB</span>
+          <strong>{data.counts.fixturesWithOdds ?? 0}</strong>
+          <small>{data.counts.fixturesWithPitUsableOdds ?? 0} fixture có PIT-usable odds</small>
+        </div>
+        <div className="highlight">
+          <span>BEST BET</span>
+          <strong>{data.counts.bestBets}</strong>
+          <small>scientific policy</small>
+        </div>
+        <div>
+          <span>NO BET</span>
+          <strong>{data.counts.noBets}</strong>
+          <small>không đủ value</small>
+        </div>
+        <div>
+          <span>Đang chờ</span>
+          <strong>{data.counts.predictionOnly + data.counts.waitingData}</strong>
+          <small>odds / horizon / dữ liệu</small>
+        </div>
+
         <div className="current-signal-kpi">
           <span>Đề xuất hiện tại</span>
           <strong>{data.counts.currentRecommendations}</strong>
           <small>scientific now · chưa chốt</small>
         </div>
-</section>
+        <div className="paper-signal-kpi">
+          <span>PAPER BET PROPOSAL</span>
+          <strong>{data.counts.paperRecommendations}</strong>
+          <small>bounded probability | flat 1u | paper only</small>
+        </div>
+      </section>
 
       <section className="pcr-recommendation-status-dashboard">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">
-              CURRENT RECOMMENDATION PIPELINE
-            </span>
-            <h2>
-              Trạng thái tính đề xuất hiện tại
-            </h2>
+            <span className="eyebrow">CURRENT RECOMMENDATION PIPELINE</span>
+            <h2>Trạng thái tính đề xuất hiện tại</h2>
           </div>
 
-          <small>
-            {data.counts.fixtures} fixture
-          </small>
+          <small>{data.counts.fixtures} fixture</small>
         </div>
 
         <div className="pcr-current-batch-summary">
           <span>
-            Đã đánh giá{' '}
-            <strong>
-              {
-                data
-                  .currentRecommendationBatch
-                  .evaluatedFixtures
-              }
-            </strong>
-            /
-            {
-              data
-                .currentRecommendationBatch
-                .requestedFixtures
-            } fixture
+            Đã đánh giá <strong>{data.currentRecommendationBatch.evaluatedFixtures}</strong>/
+            {data.currentRecommendationBatch.requestedFixtures} fixture
           </span>
 
           <span>
-            Fresh raw:{' '}
-            {
-              data
-                .currentRecommendationBatch
-                .recentRawAttemptFixtures
-            }
-            {' · '}PIT odds:{' '}
-            {
-              data
-                .currentRecommendationBatch
-                .pitOddsFixtures
-            }
-            {' · '}Checkpoint priority:{' '}
-            {
-              data
-                .currentRecommendationBatch
-                .checkpointPriorityFixtures
-            }
+            Fresh raw: {data.currentRecommendationBatch.recentRawAttemptFixtures}
+            {' · '}PIT odds: {data.currentRecommendationBatch.pitOddsFixtures}
+            {' · '}Checkpoint priority: {data.currentRecommendationBatch.checkpointPriorityFixtures}
           </span>
 
           <span>
-            Chunk{' '}
-            {
-              data
-                .currentRecommendationBatch
-                .chunksCompleted
-            }
-            /
-            {
-              data
-                .currentRecommendationBatch
-                .chunksPlanned
-            }
-            {' · '}failed{' '}
-            {
-              data
-                .currentRecommendationBatch
-                .failedChunks
-            }
-            {' · '}single retry{' '}
-            {
-              data
-                .currentRecommendationBatch
-                .singleFixtureRetrySuccesses
-            }
-            /
-            {
-              data
-                .currentRecommendationBatch
-                .singleFixtureRetries
-            }
+            Chunk {data.currentRecommendationBatch.chunksCompleted}/
+            {data.currentRecommendationBatch.chunksPlanned}
+            {' · '}failed {data.currentRecommendationBatch.failedChunks}
+            {' · '}single retry {data.currentRecommendationBatch.singleFixtureRetrySuccesses}/
+            {data.currentRecommendationBatch.singleFixtureRetries}
             {' · '}classified{' '}
-            {
-              data
-                .currentRecommendationBatch
-                .missingProviderSnapshotClassifications
-            }
+            {data.currentRecommendationBatch.missingProviderSnapshotClassifications}
           </span>
         </div>
         {/* CURRENT_RECOMMENDATION_BATCH_PRIORITY_R41025 */}
@@ -762,121 +755,56 @@ export function UpcomingPredictionBoard({
         <div className="pcr-recommendation-status-grid">
           <div className="status-available">
             <span>Có đề xuất</span>
-            <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .AVAILABLE
-              }
-            </strong>
-            <small>
-              vượt current value gate
-            </small>
+            <strong>{data.currentRecommendationStatusCounts.AVAILABLE}</strong>
+            <small>vượt current value gate</small>
           </div>
 
           <div className="status-no-value">
             <span>Không đủ value</span>
-            <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .NO_VALUE_SIGNAL
-              }
-            </strong>
-            <small>
-              model đã tính xong
-            </small>
+            <strong>{data.currentRecommendationStatusCounts.NO_VALUE_SIGNAL}</strong>
+            <small>model đã tính xong</small>
           </div>
 
           <div className="status-odds">
             <span>Chờ odds mới</span>
-            <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .NO_FRESH_PIT_ODDS
-              }
-            </strong>
-            <small>
-              PIT / re-observation
-            </small>
+            <strong>{data.currentRecommendationStatusCounts.NO_FRESH_PIT_ODDS}</strong>
+            <small>PIT / re-observation</small>
           </div>
 
           <div className="status-provider-snapshot">
             <span>Thiếu fixture snapshot</span>
-            <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .NO_PROVIDER_FIXTURE_SNAPSHOT
-              }
-            </strong>
-            <small>
-              thiếu immutable provider lineage
-            </small>
+            <strong>{data.currentRecommendationStatusCounts.NO_PROVIDER_FIXTURE_SNAPSHOT}</strong>
+            <small>thiếu immutable provider lineage</small>
           </div>
 
           <div className="status-model">
             <span>Thiếu model</span>
-            <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .NO_MODEL
-              }
-            </strong>
-            <small>
-              current as-of
-            </small>
+            <strong>{data.currentRecommendationStatusCounts.NO_MODEL}</strong>
+            <small>current as-of</small>
           </div>
 
           <div className="status-market">
             <span>Thiếu market</span>
-            <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .NO_COMPLETE_MARKET
-              }
-            </strong>
-            <small>
-              chưa đủ no-vig pair
-            </small>
+            <strong>{data.currentRecommendationStatusCounts.NO_COMPLETE_MARKET}</strong>
+            <small>chưa đủ no-vig pair</small>
           </div>
 
           <div className="status-mapping">
             <span>Mapping cần kiểm tra</span>
             <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .UNMAPPED_FIXTURE +
-                data
-                  .currentRecommendationStatusCounts
-                  .MAPPING_MISMATCH
-              }
+              {data.currentRecommendationStatusCounts.UNMAPPED_FIXTURE +
+                data.currentRecommendationStatusCounts.MAPPING_MISMATCH}
             </strong>
-            <small>
-              provider ↔ local
-            </small>
+            <small>provider ↔ local</small>
           </div>
 
           <div className="status-not-evaluated">
             <span>Chưa đánh giá</span>
-            <strong>
-              {
-                data
-                  .currentRecommendationStatusCounts
-                  .NOT_EVALUATED
-              }
-            </strong>
-            <small>
-              ngoài batch / chưa xử lý
-            </small>
+            <strong>{data.currentRecommendationStatusCounts.NOT_EVALUATED}</strong>
+            <small>ngoài batch / chưa xử lý</small>
           </div>
         </div>
       </section>
-
 
       <section className="pcr-control-panel">
         <div className="pcr-control-row">
@@ -978,15 +906,28 @@ export function UpcomingPredictionBoard({
               <article className="pcr-best-card" key={row.fixture.id}>
                 <div className="pcr-best-top">
                   <span>#{index + 1}</span>
-                  <small>{row.fixture.league.name} · {row.fixture.league.season}</small>
+                  <small>
+                    {row.fixture.league.name} · {row.fixture.league.season}
+                  </small>
                 </div>
-                <h3>{row.fixture.homeTeam.name} <span>vs</span> {row.fixture.awayTeam.name}</h3>
+                <h3>
+                  {row.fixture.homeTeam.name} <span>vs</span> {row.fixture.awayTeam.name}
+                </h3>
                 <small>{localTime(row.fixture.kickoffAt)}</small>
                 <div className="pcr-best-pick">{decisionSelectionName(row)}</div>
                 <div className="pcr-value-grid">
-                  <div><span>Odds</span><b>{decimal(row.decision?.decimalOdds)}</b></div>
-                  <div><span>Edge</span><b>{pct(row.decision?.edge)}</b></div>
-                  <div><span>EV</span><b>{pct(row.decision?.expectedValue)}</b></div>
+                  <div>
+                    <span>Odds</span>
+                    <b>{decimal(row.decision?.decimalOdds)}</b>
+                  </div>
+                  <div>
+                    <span>Edge</span>
+                    <b>{pct(row.decision?.edge)}</b>
+                  </div>
+                  <div>
+                    <span>EV</span>
+                    <b>{pct(row.decision?.expectedValue)}</b>
+                  </div>
                 </div>
               </article>
             ))}
@@ -1036,39 +977,109 @@ export function UpcomingPredictionBoard({
               <div className="pcr-hda-split">
                 <section className="pcr-hda-panel pcr-hda-scientific">
                   <div className="pcr-hda-panel-head">
-                    <div><span>SCIENTIFIC HDA</span><b>Model của phần mềm</b></div>
-                    <em>{row.scientificHda.available ? `T-${row.scientificHda.horizonMinutes ?? '—'}` : 'CHỜ SCIENTIFIC DECISION'}</em>
+                    <div>
+                      <span>OFFICIAL SCIENTIFIC HDA</span>
+                      <b>Quyết định khoa học theo horizon</b>
+                    </div>
+                    <em>
+                      {row.scientificHda.available
+                        ? `T-${row.scientificHda.horizonMinutes ?? '—'}`
+                        : 'CHỜ SCIENTIFIC DECISION'}
+                    </em>
                   </div>
                   {row.scientificHda.available ? (
                     <>
                       <div className="pcr-probability-grid">
-                        <div><div><span>Chủ</span><b>{pct(row.scientificHda.homeProbability)}</b></div><i style={{ width: probabilityWidth(row.scientificHda.homeProbability) }} /></div>
-                        <div><div><span>Hòa</span><b>{pct(row.scientificHda.drawProbability)}</b></div><i style={{ width: probabilityWidth(row.scientificHda.drawProbability) }} /></div>
-                        <div><div><span>Khách</span><b>{pct(row.scientificHda.awayProbability)}</b></div><i style={{ width: probabilityWidth(row.scientificHda.awayProbability) }} /></div>
+                        <div>
+                          <div>
+                            <span>Chủ</span>
+                            <b>{pct(row.scientificHda.homeProbability)}</b>
+                          </div>
+                          <i
+                            style={{ width: probabilityWidth(row.scientificHda.homeProbability) }}
+                          />
+                        </div>
+                        <div>
+                          <div>
+                            <span>Hòa</span>
+                            <b>{pct(row.scientificHda.drawProbability)}</b>
+                          </div>
+                          <i
+                            style={{ width: probabilityWidth(row.scientificHda.drawProbability) }}
+                          />
+                        </div>
+                        <div>
+                          <div>
+                            <span>Khách</span>
+                            <b>{pct(row.scientificHda.awayProbability)}</b>
+                          </div>
+                          <i
+                            style={{ width: probabilityWidth(row.scientificHda.awayProbability) }}
+                          />
+                        </div>
                       </div>
-                      <div className="pcr-hda-summary">Scientific dự đoán: <b>{scientificPredictedName(row)}</b>{row.scientificHda.modelVersion ? <small>Model: {row.scientificHda.modelVersion}</small> : null}</div>
+                      <div className="pcr-hda-summary">
+                        Scientific dự đoán: <b>{scientificPredictedName(row)}</b>
+                        {row.scientificHda.modelVersion ? (
+                          <small>Model: {row.scientificHda.modelVersion}</small>
+                        ) : null}
+                      </div>
                     </>
                   ) : (
-                    <div className="pcr-scientific-waiting"><b>Chưa có Scientific HDA.</b><span>API-Football không được dùng thay thế cho xác suất model của phần mềm. Khi scientific decision được tạo, H/D/A sẽ xuất hiện tại đây.</span></div>
+                    <div className="pcr-scientific-waiting">
+                      <b>Chưa có official Scientific HDA.</b>
+                      <span>
+                        Current research model ở các card thị trường chỉ là tín hiệu nghiên cứu.
+                        API-Football không thay thế quyết định khoa học theo horizon.
+                      </span>
+                    </div>
                   )}
                 </section>
 
                 <section className="pcr-hda-panel pcr-hda-provider">
                   <div className="pcr-hda-panel-head">
-                    <div><span>API-FOOTBALL · THAM KHẢO</span><b>Tín hiệu provider, không phải Scientific Model</b></div>
+                    <div>
+                      <span>API-FOOTBALL · THAM KHẢO</span>
+                      <b>Tín hiệu provider, không phải Scientific Model</b>
+                    </div>
                     <em>{row.providerHda.available ? 'REFERENCE' : 'CHƯA CÓ'}</em>
                   </div>
                   {row.providerHda.available ? (
                     <>
                       <div className="pcr-probability-grid pcr-provider-probability-grid">
-                        <div><div><span>Chủ</span><b>{pct(row.providerHda.homeProbability)}</b></div><i style={{ width: probabilityWidth(row.providerHda.homeProbability) }} /></div>
-                        <div><div><span>Hòa</span><b>{pct(row.providerHda.drawProbability)}</b></div><i style={{ width: probabilityWidth(row.providerHda.drawProbability) }} /></div>
-                        <div><div><span>Khách</span><b>{pct(row.providerHda.awayProbability)}</b></div><i style={{ width: probabilityWidth(row.providerHda.awayProbability) }} /></div>
+                        <div>
+                          <div>
+                            <span>Chủ</span>
+                            <b>{pct(row.providerHda.homeProbability)}</b>
+                          </div>
+                          <i style={{ width: probabilityWidth(row.providerHda.homeProbability) }} />
+                        </div>
+                        <div>
+                          <div>
+                            <span>Hòa</span>
+                            <b>{pct(row.providerHda.drawProbability)}</b>
+                          </div>
+                          <i style={{ width: probabilityWidth(row.providerHda.drawProbability) }} />
+                        </div>
+                        <div>
+                          <div>
+                            <span>Khách</span>
+                            <b>{pct(row.providerHda.awayProbability)}</b>
+                          </div>
+                          <i style={{ width: probabilityWidth(row.providerHda.awayProbability) }} />
+                        </div>
                       </div>
-                      <div className="pcr-hda-summary">API-Football nghiêng: <b>{providerPredictedName(row)}</b>{row.providerHda.capturedAt ? <small>Snapshot: {localTime(row.providerHda.capturedAt)}</small> : null}</div>
+                      <div className="pcr-hda-summary">
+                        API-Football nghiêng: <b>{providerPredictedName(row)}</b>
+                        {row.providerHda.capturedAt ? (
+                          <small>Snapshot: {localTime(row.providerHda.capturedAt)}</small>
+                        ) : null}
+                      </div>
                     </>
                   ) : (
-                    <div className="pcr-scientific-waiting"><b>Chưa có prediction từ API-Football.</b></div>
+                    <div className="pcr-scientific-waiting">
+                      <b>Chưa có prediction từ API-Football.</b>
+                    </div>
                   )}
                 </section>
               </div>
@@ -1087,97 +1098,64 @@ export function UpcomingPredictionBoard({
                     </em>
                   </div>
 
-                  {row.marketMovement.available &&
-                  row.marketMovement.currentConsensus ? (
+                  {row.marketMovement.available && row.marketMovement.currentConsensus ? (
                     <>
                       <div className="pcr-movement-grid">
-                        {(['HOME', 'DRAW', 'AWAY'] as const).map(
-                          (selection) => (
-                            <div key={selection}>
-                              <span>
-                                {movementSelectionLabel(row, selection)}
-                              </span>
-                              <b>
-                                {row.marketMovement?.openingConsensus
-                                  ? pct(
-                                      row.marketMovement.openingConsensus[
-                                        selection
-                                      ],
-                                    )
-                                  : '—'}
-                                {' → '}
-                                {pct(
-                                  row.marketMovement?.currentConsensus?.[
-                                    selection
-                                  ],
-                                )}
-                              </b>
-                              <small>
-                                Δ{' '}
-                                {signedPoints(
-                                  row.marketMovement?.movement[selection],
-                                )}
-                                {' · '}60m{' '}
-                                {signedPoints(
-                                  row.marketMovement?.recentMovement[
-                                    selection
-                                  ],
-                                )}
-                              </small>
-                            </div>
-                          ),
-                        )}
+                        {(['HOME', 'DRAW', 'AWAY'] as const).map((selection) => (
+                          <div key={selection}>
+                            <span>{movementSelectionLabel(row, selection)}</span>
+                            <b>
+                              {row.marketMovement?.openingConsensus
+                                ? pct(row.marketMovement.openingConsensus[selection])
+                                : '—'}
+                              {' → '}
+                              {pct(row.marketMovement?.currentConsensus?.[selection])}
+                            </b>
+                            <small>
+                              Δ {signedPoints(row.marketMovement?.movement[selection])}
+                              {' · '}60m{' '}
+                              {signedPoints(row.marketMovement?.recentMovement[selection])}
+                            </small>
+                          </div>
+                        ))}
                       </div>
 
                       <div className="pcr-movement-flags">
                         <span>
-                          Quality{' '}
-                          <b>{pct(row.marketMovement.qualityScore)}</b>
+                          Quality <b>{pct(row.marketMovement.qualityScore)}</b>
                         </span>
                         <span>
                           Steam{' '}
                           <b>
                             {row.marketMovement.steamMoveDetected
-                              ? movementSelectionLabel(
-                                  row,
-                                  row.marketMovement.steamDirection,
-                                )
+                              ? movementSelectionLabel(row, row.marketMovement.steamDirection)
                               : 'Không'}
                           </b>
                         </span>
                         {row.marketMovement.steamMoveDetected ? (
                           <span>
-                            Strength{' '}
-                            <b>{pct(row.marketMovement.steamStrength)}</b>
+                            Strength <b>{pct(row.marketMovement.steamStrength)}</b>
                           </span>
                         ) : null}
                         <span>
-                          Late move{' '}
-                          <b>{row.marketMovement.lateMove ? 'Có' : 'Không'}</b>
+                          Late move <b>{row.marketMovement.lateMove ? 'Có' : 'Không'}</b>
                         </span>
                         {row.marketMovement.observedFrom ? (
                           <span>
-                            Opening{' '}
-                            <b>
-                              {localTime(row.marketMovement.observedFrom)}
-                            </b>
+                            Opening <b>{localTime(row.marketMovement.observedFrom)}</b>
                           </span>
                         ) : null}
                         {row.marketMovement.observedTo ? (
                           <span>
-                            Current{' '}
-                            <b>
-                              {localTime(row.marketMovement.observedTo)}
-                            </b>
+                            Current <b>{localTime(row.marketMovement.observedTo)}</b>
                           </span>
                         ) : null}
                       </div>
                     </>
                   ) : (
                     <div className="pcr-movement-empty">
-                      Chưa đủ ít nhất 3 nhà cái 1X2 hoàn chỉnh để tạo
-                      movement consensus đáng tin cậy. Early Odds vẫn tiếp tục
-                      thu theo cadence 3 giờ.
+                      Chưa đủ ít nhất 3 nhà cái 1X2 hoàn chỉnh để tạo movement consensus đáng tin
+                      cậy. Early Odds vẫn tiếp tục thu theo cadence 3 giờ.
                     </div>
                   )}
                 </section>
@@ -1191,10 +1169,9 @@ export function UpcomingPredictionBoard({
                   )
                   .map((market: PersonalMarketPredictionDto) => {
                     const strongest = bestMarketSelection(market);
-                    const marketMovement = row.multiMarketMovements
-                      ?.find(
-                        (movement): boolean =>
-                          movement.code === market.code,
+                    const marketMovement =
+                      row.multiMarketMovements?.find(
+                        (movement): boolean => movement.code === market.code,
                       ) ?? null;
 
                     return (
@@ -1202,6 +1179,7 @@ export function UpcomingPredictionBoard({
                         key={market.code}
                         className={[
                           'pcr-market-card',
+                          `market-status-${marketStatusClass(market.status)}`,
                           market.status === 'BEST_BET' ? 'best-market' : '',
                           market.status === 'ANALYSIS_ONLY' ? 'analysis-only' : '',
                         ]
@@ -1214,21 +1192,102 @@ export function UpcomingPredictionBoard({
                         </div>
 
                         {market.status === 'WAITING_ODDS' ? (
-                          <small>Chưa có odds snapshot trong 6 giờ gần nhất. Xem checkpoint bên dưới.</small>
+                          <small>
+                            Chưa có odds snapshot trong 6 giờ gần nhất. Xem checkpoint bên dưới.
+                          </small>
                         ) : (
                           <>
                             <div className="pcr-market-selections">
-                              {market.selections.map(
-                                (selection: PersonalMarketSelectionDto) => (
-                                  <div key={selection.code}>
-                                    <span>{marketSelectionLabel(row, market, selection)}</span>
-                                    <b className="pcr-odds-primary">Odds {decimal(selection.decimalOdds)}</b>
-                                    <small>Model {pct(selection.modelProbability)} · Edge {pct(selection.edge)} · EV {pct(selection.expectedValue)}</small>
-                                    <small>{selection.bookmakerName ?? 'Bookmaker —'}{selection.oddsObservedAt ? ` · snapshot ${localTime(selection.oddsObservedAt)}` : ''}</small>
-                                    <em>{selection.oddsSource === 'LATEST_SNAPSHOT' ? selection.oddsPitUsable ? 'Odds DB · PIT usable · chờ scientific decision' : 'Odds DB · chưa PIT-usable' : selection.eligible ? 'Scientific candidate · Eligible' : selection.reliabilityStatus ?? 'Scientific candidate'}</em>
+                              {market.selections.map((selection: PersonalMarketSelectionDto) => (
+                                <div
+                                  key={selection.code}
+                                  className={
+                                    selection.eligible
+                                      ? 'is-eligible-value'
+                                      : selection.valueExplainabilityWired
+                                        ? 'is-evaluated-no-value'
+                                        : undefined
+                                  }
+                                >
+                                  <span>{marketSelectionLabel(row, market, selection)}</span>
+                                  <b className="pcr-odds-primary">
+                                    Odds {decimal(selection.decimalOdds)}
+                                  </b>
+                                  <div className="pcr-selection-metrics">
+                                    <span>
+                                      Model <b>{pct(selection.modelProbability)}</b>
+                                    </span>
+                                    <span>
+                                      Market no-vig <b>{pct(selection.fairMarketProbability)}</b>
+                                    </span>
+                                    <span>
+                                      Raw edge <b>{signedPct(selection.edge)}</b>
+                                    </span>
+                                    <span>
+                                      Raw EV <b>{signedPct(selection.expectedValue)}</b>
+                                    </span>
+                                    {selection.valueExplainabilityWired ? (
+                                      <>
+                                        <span>
+                                          Conservative edge{' '}
+                                          <b>{signedPct(selection.conservativeEdge)}</b>
+                                        </span>
+                                        <span>
+                                          Conservative EV{' '}
+                                          <b>{signedPct(selection.conservativeExpectedValue)}</b>
+                                        </span>
+                                        <span>
+                                          Risk score{' '}
+                                          <b>{decimal(selection.riskAdjustedScore, 3)}</b>
+                                        </span>
+                                        <span>
+                                          Confidence <b>{selection.modelConfidenceTier ?? '—'}</b>
+                                        </span>
+                                        <span>
+                                          History <b>{selection.modelHistorySampleSize ?? '—'}</b>
+                                        </span>
+                                        <span>
+                                          Tier <b>{selection.signalTier ?? '—'}</b>
+                                        </span>
+                                      </>
+                                    ) : null}
                                   </div>
-                                ),
-                              )}
+                                  <small>
+                                    {selection.bookmakerName ?? 'Bookmaker —'}
+                                    {selection.oddsObservedAt
+                                      ? ` · snapshot ${localTime(selection.oddsObservedAt)}`
+                                      : ''}
+                                  </small>
+                                  <em
+                                    className={
+                                      selection.eligible
+                                        ? 'is-eligible'
+                                        : selection.valueExplainabilityWired
+                                          ? 'is-research-only'
+                                          : undefined
+                                    }
+                                  >
+                                    {selectionAuditSummary(selection)}
+                                  </em>
+                                  {rejectionReasonList(selection.rejectionReasons).length > 0 ? (
+                                    <details className="pcr-selection-audit">
+                                      <summary>
+                                        Vì sao bị loại? (
+                                        {rejectionReasonList(selection.rejectionReasons).length})
+                                      </summary>
+                                      <ul>
+                                        {rejectionReasonList(selection.rejectionReasons).map(
+                                          (reason) => (
+                                            <li key={reason} title={reason}>
+                                              {rejectionReasonLabel(reason)}
+                                            </li>
+                                          ),
+                                        )}
+                                      </ul>
+                                    </details>
+                                  ) : null}
+                                </div>
+                              ))}
                             </div>
 
                             {marketMovement ? (
@@ -1245,28 +1304,26 @@ export function UpcomingPredictionBoard({
                                 {marketMovement.available ? (
                                   <>
                                     <div className="pcr-two-way-movement-grid">
-                                      {marketMovement.selections.map(
-                                        (selection) => (
-                                          <div key={selection.code}>
-                                            <span>
-                                              {twoWayMovementSelectionLabel(
-                                                selection.code,
-                                                marketMovement.lineValue,
-                                              )}
-                                            </span>
-                                            <b>
-                                              {selection.openingProbability != null
-                                                ? `${pct(selection.openingProbability)} → `
-                                                : 'Current '}
-                                              {pct(selection.currentProbability)}
-                                            </b>
-                                            <small>
-                                              Δ {signedPoints(selection.movement)}
-                                              {' · '}60m {signedPoints(selection.recentMovement)}
-                                            </small>
-                                          </div>
-                                        ),
-                                      )}
+                                      {marketMovement.selections.map((selection) => (
+                                        <div key={selection.code}>
+                                          <span>
+                                            {twoWayMovementSelectionLabel(
+                                              selection.code,
+                                              marketMovement.lineValue,
+                                            )}
+                                          </span>
+                                          <b>
+                                            {selection.openingProbability != null
+                                              ? `${pct(selection.openingProbability)} → `
+                                              : 'Current '}
+                                            {pct(selection.currentProbability)}
+                                          </b>
+                                          <small>
+                                            Δ {signedPoints(selection.movement)}
+                                            {' · '}60m {signedPoints(selection.recentMovement)}
+                                          </small>
+                                        </div>
+                                      ))}
                                     </div>
 
                                     <div className="pcr-two-way-movement-flags">
@@ -1282,7 +1339,7 @@ export function UpcomingPredictionBoard({
                                           {marketMovement.steamMoveDetected
                                             ? twoWayMovementSelectionLabel(
                                                 marketMovement.steamDirection === 'NONE'
-                                                  ? marketMovement.selections[0]?.code ?? 'YES'
+                                                  ? (marketMovement.selections[0]?.code ?? 'YES')
                                                   : marketMovement.steamDirection,
                                                 marketMovement.lineValue,
                                               )
@@ -1314,7 +1371,13 @@ export function UpcomingPredictionBoard({
                               </div>
                             ) : null}
 
-                            {strongest ? <div className="pcr-market-lean">Model nghiêng: <b>{marketSelectionLabel(row, market, strongest)}</b>{' '}{pct(strongest.modelProbability)}</div> : null}
+                            {strongest ? (
+                              <div className="pcr-market-lean">
+                                Research model nghiêng:{' '}
+                                <b>{marketSelectionLabel(row, market, strongest)}</b>{' '}
+                                {pct(strongest.modelProbability)}
+                              </div>
+                            ) : null}
                           </>
                         )}
                       </div>
@@ -1323,10 +1386,36 @@ export function UpcomingPredictionBoard({
               </div>
 
               <div className="pcr-odds-diagnostics">
-                <span>Odds DB: <b>{row.oddsDiagnostics.snapshotRows}</b> rows · PIT <b>{row.oddsDiagnostics.pitUsableRows}</b> · markets <b>{row.oddsDiagnostics.marketsWithOdds}</b></span>
-                <span>Early Odds: <b>1–14 ngày · refresh 3h</b></span>
-                {row.oddsDiagnostics.latestObservedAt ? <span>Snapshot mới nhất: <b>{localTime(row.oddsDiagnostics.latestObservedAt)}</b></span> : null}
-                {row.oddsDiagnostics.latestCheckpoint ? <span className={`checkpoint-${row.oddsDiagnostics.latestCheckpoint.status.toLowerCase()}`}>Checkpoint: <b>{row.oddsDiagnostics.latestCheckpoint.horizonLabel} · {row.oddsDiagnostics.latestCheckpoint.status}</b> · normalized {row.oddsDiagnostics.latestCheckpoint.normalizedOdds} · PIT {row.oddsDiagnostics.latestCheckpoint.pitUsableOdds}</span> : <span>Checkpoint: <b>chưa có</b></span>}
+                <span>
+                  Odds DB: <b>{row.oddsDiagnostics.snapshotRows}</b> rows · PIT{' '}
+                  <b>{row.oddsDiagnostics.pitUsableRows}</b> · markets{' '}
+                  <b>{row.oddsDiagnostics.marketsWithOdds}</b>
+                </span>
+                <span>
+                  Early Odds: <b>1–14 ngày · refresh 3h</b>
+                </span>
+                {row.oddsDiagnostics.latestObservedAt ? (
+                  <span>
+                    Snapshot mới nhất: <b>{localTime(row.oddsDiagnostics.latestObservedAt)}</b>
+                  </span>
+                ) : null}
+                {row.oddsDiagnostics.latestCheckpoint ? (
+                  <span
+                    className={`checkpoint-${row.oddsDiagnostics.latestCheckpoint.status.toLowerCase()}`}
+                  >
+                    Checkpoint:{' '}
+                    <b>
+                      {row.oddsDiagnostics.latestCheckpoint.horizonLabel} ·{' '}
+                      {row.oddsDiagnostics.latestCheckpoint.status}
+                    </b>{' '}
+                    · normalized {row.oddsDiagnostics.latestCheckpoint.normalizedOdds} · PIT{' '}
+                    {row.oddsDiagnostics.latestCheckpoint.pitUsableOdds}
+                  </span>
+                ) : (
+                  <span>
+                    Checkpoint: <b>chưa có</b>
+                  </span>
+                )}
               </div>
 
               {row.currentRecommendation == null ? (
@@ -1338,165 +1427,145 @@ export function UpcomingPredictionBoard({
                     )}`,
                   ].join(' ')}
                 >
-                  <span className="eyebrow">
-                    TRẠNG THÁI ĐỀ XUẤT HIỆN TẠI
-                  </span>
+                  <span className="eyebrow">TRẠNG THÁI ĐỀ XUẤT HIỆN TẠI</span>
 
-                  <b>
-                    {currentRecommendationStatusLabel(
-                      row.currentRecommendationStatus,
-                    )}
-                  </b>
+                  <b>{currentRecommendationStatusLabel(row.currentRecommendationStatus)}</b>
 
-                  <small>
-                    {currentRecommendationStatusDescription(
-                      row,
-                    )}
-                  </small>
+                  <small>{currentRecommendationStatusDescription(row)}</small>
 
                   {row.currentRecommendationError ? (
-                    <code>
-                      {
-                        row.currentRecommendationError
-                      }
-                    </code>
+                    <code>{row.currentRecommendationError}</code>
                   ) : null}
+                </div>
+              ) : null}
+              {row.currentRecommendation == null && row.paperShadowRecommendation?.selected ? (
+                <div
+                  className={[
+                    'pcr-paper-shadow-signal',
+                    row.paperShadowRecommendation.selected.paperTrackEligible
+                      ? 'is-trackable'
+                      : 'is-diagnostic',
+                  ].join(' ')}
+                >
+                  <span className="eyebrow">
+                    {row.paperShadowRecommendation.selected.paperTrackEligible
+                      ? 'PAPER BET PROPOSAL | FLAT 1U | NOT BEST BET'
+                      : 'PAPER DIAGNOSTIC | NOT A BET PROPOSAL'}
+                  </span>
+                  <b>
+                    {paperShadowSelectionLabel(row)}
+                    {' · '}
+                    {paperShadowMarketLabel(row)}
+                    {' @ '}
+                    {decimal(row.paperShadowRecommendation.selected.decimalOdds)}
+                  </b>
+                  <small>
+                    {paperShadowStatusLabel(row.paperShadowRecommendation.status)}
+                    {' · '}Raw edge {pct(row.paperShadowRecommendation.selected.rawEdge)}
+                    {' · '}Raw EV {pct(row.paperShadowRecommendation.selected.rawExpectedValue)}
+                  </small>
+                  <small>
+                    Hierarchical probability{' '}
+                    {pct(
+                      row.paperShadowRecommendation.selected.hierarchicalConservativeProbability,
+                    )}
+                    {' · '}edge {pct(row.paperShadowRecommendation.selected.hierarchicalEdge)}
+                    {' · '}EV{' '}
+                    {pct(row.paperShadowRecommendation.selected.hierarchicalExpectedValue)}
+                  </small>
+                  <small>
+                    Bounded paper probability{' '}
+                    {pct(row.paperShadowRecommendation.selected.boundedAdjustedProbability)}
+                    {' | '}adjustment{' '}
+                    {pct(row.paperShadowRecommendation.selected.boundedProbabilityAdjustment)}
+                    {' | '}edge {pct(row.paperShadowRecommendation.selected.boundedEdge)}
+                    {' | '}EV {pct(row.paperShadowRecommendation.selected.boundedExpectedValue)}
+                  </small>
+                  <small>
+                    Model {row.paperShadowRecommendation.selected.modelSource ?? 'UNKNOWN'}
+                    {' · '}history {row.paperShadowRecommendation.selected.modelHistorySampleSize}
+                    {' · '}paper flat stake{' '}
+                    {row.paperShadowRecommendation.selected.hypotheticalFlatStakeUnits}u{' · '}real
+                    stake 0u
+                  </small>
+                  <small>
+                    {row.paperShadowRecommendation.selected.reasonCodes.slice(0, 4).join(' · ')}
+                  </small>
                 </div>
               ) : null}
               {row.currentRecommendation ? (
                 <div className="pcr-current-signal">
-                  <span className="eyebrow">
-                    TÍN HIỆU NGHIÊN CỨU ĐÃ ĐIỀU CHỈNH RỦI RO
-                  </span>
+                  <span className="eyebrow">TÍN HIỆU NGHIÊN CỨU ĐÃ ĐIỀU CHỈNH RỦI RO</span>
 
                   <b>
-                    {currentRecommendationSelectionLabel(
-                      row,
-                    )}{' '}
-                    ·{' '}
-                    {currentRecommendationMarketLabel(
-                      row,
-                    )}{' '}
-                    @{' '}
-                    {decimal(
-                      row.currentRecommendation
-                        .decimalOdds,
-                    )}
+                    {currentRecommendationSelectionLabel(row)} ·{' '}
+                    {currentRecommendationMarketLabel(row)} @{' '}
+                    {decimal(row.currentRecommendation.decimalOdds)}
                   </b>
 
                   <small>
-                    Model{' '}
-                    {pct(
-                      row.currentRecommendation
-                        .modelProbability,
-                    )}{' '}
-                    · Market{' '}
-                    {pct(
-                      row.currentRecommendation
-                        .fairMarketProbability,
-                    )}{' '}
-                    · Edge{' '}
-                    {pct(
-                      row.currentRecommendation
-                        .edge,
-                    )}{' '}
-                    · Raw EV{' '}
-                    {pct(
-                      row.currentRecommendation
-                        .expectedValue,
-                    )}
+                    Model {pct(row.currentRecommendation.modelProbability)} · Market{' '}
+                    {pct(row.currentRecommendation.fairMarketProbability)} · Edge{' '}
+                    {pct(row.currentRecommendation.edge)} · Raw EV{' '}
+                    {pct(row.currentRecommendation.expectedValue)}
                   </small>
 
                   <small>
-                    Adjusted model{' '}
-                    {pct(row.currentRecommendation.adjustedModelProbability)}
+                    Adjusted model {pct(row.currentRecommendation.adjustedModelProbability)}
                     {' · '}Conservative probability{' '}
                     {pct(row.currentRecommendation.conservativeProbability)}
-                    {' · '}Conservative edge{' '}
-                    {pct(row.currentRecommendation.conservativeEdge)}
+                    {' · '}Conservative edge {pct(row.currentRecommendation.conservativeEdge)}
                     {' · '}Conservative EV{' '}
                     {pct(row.currentRecommendation.conservativeExpectedValue)}
                   </small>
 
                   <small>
-                    Risk score{' '}
-                    {decimal(row.currentRecommendation.riskAdjustedScore, 3)}
-                    {' · '}model weight{' '}
-                    {pct(row.currentRecommendation.effectiveModelWeight)}
-                    {' · '}probability haircut{' '}
-                    {pct(row.currentRecommendation.probabilityHaircut)}
-                    {' · '}longshot penalty{' '}
-                    {decimal(row.currentRecommendation.longshotPenalty, 3)}
+                    Risk score {decimal(row.currentRecommendation.riskAdjustedScore, 3)}
+                    {' · '}model weight {pct(row.currentRecommendation.effectiveModelWeight)}
+                    {' · '}probability haircut {pct(row.currentRecommendation.probabilityHaircut)}
+                    {' · '}longshot penalty {decimal(row.currentRecommendation.longshotPenalty, 3)}
                   </small>
 
                   <small>
-                    Quote consensus:{' '}
-                    {row.currentRecommendation.quoteCount}{' '}nguồn · median @
+                    Quote consensus: {row.currentRecommendation.quoteCount} nguồn · median @
                     {decimal(row.currentRecommendation.quoteMedianOdds)}
-                    {' · '}agreement{' '}
-                    {pct(row.currentRecommendation.quoteAgreementRatio)}
-                    {' · '}deviation{' '}
-                    {pct(row.currentRecommendation.quoteDeviationRatio)}
+                    {' · '}agreement {pct(row.currentRecommendation.quoteAgreementRatio)}
+                    {' · '}deviation {pct(row.currentRecommendation.quoteDeviationRatio)}
                   </small>
 
                   <small>
                     T-
-                    {
-                      row.currentRecommendation
-                        .horizonMinutes
-                    }{' '}
-                    · Risk-adjusted research signal
-                    · chưa phải BEST BET chính thức
+                    {row.currentRecommendation.horizonMinutes} · Risk-adjusted research signal ·
+                    chưa phải BEST BET chính thức
                   </small>
 
                   <small>
                     Model source:{' '}
-                    {row.currentRecommendation
-                      .modelSource ===
-                    'DYNAMIC_DIXON_COLES'
+                    {row.currentRecommendation.modelSource === 'DYNAMIC_DIXON_COLES'
                       ? 'Dynamic Dixon–Coles'
                       : 'PIT-safe scientific baseline'}
                     {' · '}
-                    {row.currentRecommendation
-                      .modelConfidenceTier}
+                    {row.currentRecommendation.modelConfidenceTier}
                     {' · history '}
-                    {
-                      row.currentRecommendation
-                        .modelHistorySampleSize
-                    }
+                    {row.currentRecommendation.modelHistorySampleSize}
                     {' · quality '}
-                    {pct(
-                      row.currentRecommendation
-                        .dataQualityScore,
-                    )}
+                    {pct(row.currentRecommendation.dataQualityScore)}
                   </small>
 
-                  {row.currentRecommendation
-                    .modelSource ===
-                  'SCIENTIFIC_BASELINE_FALLBACK' ? (
+                  {row.currentRecommendation.modelSource === 'SCIENTIFIC_BASELINE_FALLBACK' ? (
                     <small>
-                      Fallback reason:{' '}
-                      {
-                        row.currentRecommendation
-                          .modelFallbackReason
-                      }
+                      Fallback reason: {row.currentRecommendation.modelFallbackReason}
                       {' · research signal only · không được promote thành BEST BET'}
                     </small>
                   ) : null}
 
                   <small>
                     Odds evidence:{' '}
-                    {row.currentRecommendation
-                      .oddsFreshnessBasis ===
-                    'REOBSERVED_AT'
+                    {row.currentRecommendation.oddsFreshnessBasis === 'REOBSERVED_AT'
                       ? 'API vừa tái xác nhận phiên bản giá'
                       : 'source update còn mới'}
-                    {row.currentRecommendation
-                      .sourceOddsFreshnessAt
-                      ? ` · ${localTime(
-                          row.currentRecommendation
-                            .sourceOddsFreshnessAt,
-                        )}`
+                    {row.currentRecommendation.sourceOddsFreshnessAt
+                      ? ` · ${localTime(row.currentRecommendation.sourceOddsFreshnessAt)}`
                       : ''}
                   </small>
                   {/* PIT_SAFE_BASELINE_FALLBACK_R41024 */}
@@ -1504,21 +1573,53 @@ export function UpcomingPredictionBoard({
                 </div>
               ) : null}
               <div className="pcr-meta-row">
-                <span>Scientific HDA: <b>{row.scientificHda.available ? scientificPredictedName(row) : 'CHỜ MODEL'}</b></span>
-                <span>API-Football: <b>{row.providerHda.available ? providerPredictedName(row) : '—'}</b></span>
+                <span>
+                  Current research model: <b>{hasResearchModel(row) ? 'CÓ' : 'CHỜ MODEL'}</b>
+                </span>
+                <span>
+                  Official Scientific HDA:{' '}
+                  <b>
+                    {row.scientificHda.available ? scientificPredictedName(row) : 'CHỜ DECISION'}
+                  </b>
+                </span>
+                <span>
+                  API-Football:{' '}
+                  <b>{row.providerHda.available ? providerPredictedName(row) : '—'}</b>
+                </span>
                 {row.nextCheckpoint ? (
-                  <span>Mốc odds kế: <b>{row.nextCheckpoint.horizonLabel}</b> · {localTime(row.nextCheckpoint.dueAt)}</span>
+                  <span>
+                    Mốc odds kế: <b>{row.nextCheckpoint.horizonLabel}</b> ·{' '}
+                    {localTime(row.nextCheckpoint.dueAt)}
+                  </span>
                 ) : null}
               </div>
 
               {row.decision ? (
                 <div className="pcr-decision-row">
-                  <div><span>Decision</span><b>{row.decision.decisionType}</b></div>
-                  <div><span>Pick</span><b>{decisionSelectionName(row)}</b></div>
-                  <div><span>Odds</span><b>{decimal(row.decision.decimalOdds)}</b></div>
-                  <div><span>Edge</span><b>{pct(row.decision.edge)}</b></div>
-                  <div><span>EV</span><b>{pct(row.decision.expectedValue)}</b></div>
-                  <div><span>Reliability</span><b>{row.decision.reliabilityStatus ?? '—'}</b></div>
+                  <div>
+                    <span>Decision</span>
+                    <b>{row.decision.decisionType}</b>
+                  </div>
+                  <div>
+                    <span>Pick</span>
+                    <b>{decisionSelectionName(row)}</b>
+                  </div>
+                  <div>
+                    <span>Odds</span>
+                    <b>{decimal(row.decision.decimalOdds)}</b>
+                  </div>
+                  <div>
+                    <span>Edge</span>
+                    <b>{pct(row.decision.edge)}</b>
+                  </div>
+                  <div>
+                    <span>EV</span>
+                    <b>{pct(row.decision.expectedValue)}</b>
+                  </div>
+                  <div>
+                    <span>Reliability</span>
+                    <b>{row.decision.reliabilityStatus ?? '—'}</b>
+                  </div>
                 </div>
               ) : null}
             </article>
@@ -1527,9 +1628,10 @@ export function UpcomingPredictionBoard({
       </section>
 
       <div className="pcr-safety-note">
-        Early Odds 1–14 ngày dùng để lưu opening/current · HDA, BTTS và O/U đều có market movement khi đủ snapshot · không tự tạo
-        BEST BET · Scientific HDA và API-Football được tách riêng · HDA/BTTS/Over-Under chỉ thành
-        BEST BET khi scientific/reliability gate cho phép · không auto-bet · không real-money.
+        Early Odds 1–14 ngày dùng để lưu opening/current · HDA, BTTS và O/U đều có market movement
+        khi đủ snapshot · không tự tạo BEST BET · Scientific HDA và API-Football được tách riêng ·
+        HDA/BTTS/Over-Under chỉ thành BEST BET khi scientific/reliability gate cho phép · không
+        auto-bet · không real-money.
       </div>
     </div>
   );

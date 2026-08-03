@@ -1,0 +1,17 @@
+{
+  "version": "v7.0-r4.10.2.8-recommendation-explainability-v1",
+  "root": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific",
+  "routeFile": "packages/sync/src/personal-console-engine.ts",
+  "routeScore": 3,
+  "engineFile": "packages/sync/src/current-scientific-recommendation-engine.ts",
+  "engineScore": 4,
+  "helperFile": "packages/sync/src/current-recommendation-explainability.ts",
+  "applyMode": true,
+  "reportOnly": false,
+  "externalApiCalled": false,
+  "databaseWritten": false,
+  "migration": false,
+  "officialBestBetChanged": false,
+  "automaticBetPlacement": false,
+  "realMoneyExecution": false
+}

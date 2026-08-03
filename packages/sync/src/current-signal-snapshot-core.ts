@@ -7,6 +7,7 @@ export const DEFAULT_CURRENT_SIGNAL_CHECKPOINTS =
 export type CurrentSignalAnalysisStatus =
   | 'AVAILABLE'
   | 'NO_FRESH_PIT_ODDS'
+  | 'NO_PROVIDER_FIXTURE_SNAPSHOT'
   | 'UNMAPPED_FIXTURE'
   | 'MAPPING_MISMATCH'
   | 'NO_MODEL'

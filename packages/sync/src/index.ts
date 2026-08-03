@@ -97,7 +97,17 @@ export * from './scientific-best-bet-policy-contract.js';
 export * from './scientific-multi-market-replay-contract.js';
 export * from './real-odds-paper-bet-core.js';
 export * from './real-odds-paper-bet-engine.js';
-export { getPersonalUpcomingAnalysis, refreshPersonalUpcomingAnalysis } from './personal-console-engine.js';
+export * from './paper-bet-operations-core.js';
+export * from './paper-bet-operations-engine.js';
+export * from './paper-shadow-recommendation-core.js';
+export * from './paper-hda-context-adjustment-core.js';
+export * from './paper-hda-context-adjustment-engine.js';
+export * from './shadow-settlement-core.js';
+export * from './daily-outcome-report-core.js';
+export {
+  getPersonalUpcomingAnalysis,
+  refreshPersonalUpcomingAnalysis,
+} from './personal-console-engine.js';
 export { discoverCurrentPriorityCompetitions } from './current-competition-discovery.js';
 
 export * from './predictive-signal-audit.js';

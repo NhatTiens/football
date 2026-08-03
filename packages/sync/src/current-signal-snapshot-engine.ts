@@ -1,4 +1,7 @@
+// R4.10.2.10_SHADOW_CANDIDATE_LEDGER_BETA2A: shadow candidate is persisted only inside the existing append-only hashed JSON payload.
 import { createHash } from 'node:crypto';
+
+import { buildShadowCandidateClassification } from './shadow-candidate-core.js';
 
 import { prisma } from '@football-ai/database';
 
@@ -6,6 +9,7 @@ import {
   getCurrentScientificRecommendationMap,
   type CurrentScientificRecommendationAnalysis,
 } from './current-scientific-recommendation-engine.js';
+import { selectCurrentShadowCandidate } from './current-shadow-candidate-core.js';
 import {
   CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
   currentSignalCheckpointLabel,
@@ -73,11 +77,7 @@ export interface CurrentSignalSnapshotCaptureResult {
     CurrentSignalSnapshotPlanRow & {
       insertedSnapshotId: number | null;
       insertedSnapshotHash: string | null;
-      writeStatus:
-        | 'INSERTED'
-        | 'DUPLICATE'
-        | 'WAITING'
-        | 'SKIPPED';
+      writeStatus: 'INSERTED' | 'DUPLICATE' | 'WAITING' | 'SKIPPED';
     }
   >;
   externalApiCalled: false;
@@ -85,180 +85,87 @@ export interface CurrentSignalSnapshotCaptureResult {
   realMoneyExecution: false;
 }
 
-function envInteger(
-  name: string,
-  fallback: number,
-  minimum: number,
-  maximum: number,
-): number {
-  const raw =
-    process.env[name];
+function envInteger(name: string, fallback: number, minimum: number, maximum: number): number {
+  const raw = process.env[name];
 
-  if (
-    raw == null ||
-    raw.trim() === ''
-  ) {
+  if (raw == null || raw.trim() === '') {
     return fallback;
   }
 
-  const value =
-    Number(raw);
+  const value = Number(raw);
 
-  if (
-    !Number.isSafeInteger(value) ||
-    value < minimum ||
-    value > maximum
-  ) {
-    throw new Error(
-      `${name} must be an integer from ${minimum} to ${maximum}.`,
-    );
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}.`);
   }
 
   return value;
 }
 
-function envNumber(
-  name: string,
-  fallback: number,
-  minimum: number,
-  maximum: number,
-): number {
-  const raw =
-    process.env[name];
+function envNumber(name: string, fallback: number, minimum: number, maximum: number): number {
+  const raw = process.env[name];
 
-  if (
-    raw == null ||
-    raw.trim() === ''
-  ) {
+  if (raw == null || raw.trim() === '') {
     return fallback;
   }
 
-  const value =
-    Number(raw);
+  const value = Number(raw);
 
-  if (
-    !Number.isFinite(value) ||
-    value < minimum ||
-    value > maximum
-  ) {
-    throw new Error(
-      `${name} must be a number from ${minimum} to ${maximum}.`,
-    );
+  if (!Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be a number from ${minimum} to ${maximum}.`);
   }
 
   return value;
 }
 
-function latestProviderFixtures(
-  rows: ProviderFixtureRow[],
-): ProviderFixtureRow[] {
-  const latest =
-    new Map<
-      number,
-      ProviderFixtureRow
-    >();
+function latestProviderFixtures(rows: ProviderFixtureRow[]): ProviderFixtureRow[] {
+  const latest = new Map<number, ProviderFixtureRow>();
 
   for (const row of rows) {
-    if (
-      !latest.has(
-        row.providerFixtureId,
-      )
-    ) {
-      latest.set(
-        row.providerFixtureId,
-        row,
-      );
+    if (!latest.has(row.providerFixtureId)) {
+      latest.set(row.providerFixtureId, row);
     }
   }
 
-  return [
-    ...latest.values(),
-  ];
+  return [...latest.values()];
 }
 
-function canonicalize(
-  value: unknown,
-): unknown {
+function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(
-      canonicalize,
-    );
+    return value.map(canonicalize);
   }
 
-  if (
-    value != null &&
-    typeof value === 'object'
-  ) {
+  if (value != null && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(
-        value as Record<
-          string,
-          unknown
-        >,
-      )
-        .sort(
-          (
-            left,
-            right,
-          ): number =>
-            left[0].localeCompare(
-              right[0],
-            ),
-        )
-        .map(
-          ([key, item]) => [
-            key,
-            canonicalize(item),
-          ],
-        ),
+      Object.entries(value as Record<string, unknown>)
+        .sort((left, right): number => left[0].localeCompare(right[0]))
+        .map(([key, item]) => [key, canonicalize(item)]),
     );
   }
 
   return value;
 }
 
-function snapshotHash(
-  value: unknown,
-): string {
-  return createHash(
-    'sha256',
-  )
-    .update(
-      JSON.stringify(
-        canonicalize(value),
-      ),
-    )
-    .digest(
-      'hex',
-    );
+function snapshotHash(value: unknown): string {
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalize(value)))
+    .digest('hex');
 }
 
-function asDate(
-  value: string | null | undefined,
-): Date | null {
-  if (
-    value == null ||
-    value === ''
-  ) {
+function asDate(value: string | null | undefined): Date | null {
+  if (value == null || value === '') {
     return null;
   }
 
-  const date =
-    new Date(value);
+  const date = new Date(value);
 
-  return Number.isFinite(
-    date.getTime(),
-  )
-    ? date
-    : null;
+  return Number.isFinite(date.getTime()) ? date : null;
 }
 
-function isAnalysisStatus(
-  value: string,
-): value is CurrentSignalAnalysisStatus {
+function isAnalysisStatus(value: string): value is CurrentSignalAnalysisStatus {
   return [
     'AVAILABLE',
     'NO_FRESH_PIT_ODDS',
+    'NO_PROVIDER_FIXTURE_SNAPSHOT',
     'UNMAPPED_FIXTURE',
     'MAPPING_MISMATCH',
     'NO_MODEL',
@@ -274,28 +181,19 @@ async function latestContextTimestamps(input: {
   latestLineupCapturedAt: Date | null;
   latestInjuryCapturedAt: Date | null;
 }> {
-  if (
-    input.localFixtureId == null
-  ) {
+  if (input.localFixtureId == null) {
     return {
-      latestLineupCapturedAt:
-        null,
-      latestInjuryCapturedAt:
-        null,
+      latestLineupCapturedAt: null,
+      latestInjuryCapturedAt: null,
     };
   }
 
-  const [
-    lineup,
-    injury,
-  ] = await Promise.all([
+  const [lineup, injury] = await Promise.all([
     prisma.fixtureLineupSnapshot.findFirst({
       where: {
-        fixtureId:
-          input.localFixtureId,
+        fixtureId: input.localFixtureId,
         capturedAt: {
-          lte:
-            input.snapshotAsOf,
+          lte: input.snapshotAsOf,
         },
       },
       select: {
@@ -307,11 +205,9 @@ async function latestContextTimestamps(input: {
     }),
     prisma.fixtureInjurySnapshot.findFirst({
       where: {
-        fixtureId:
-          input.localFixtureId,
+        fixtureId: input.localFixtureId,
         capturedAt: {
-          lte:
-            input.snapshotAsOf,
+          lte: input.snapshotAsOf,
         },
       },
       select: {
@@ -324,12 +220,8 @@ async function latestContextTimestamps(input: {
   ]);
 
   return {
-    latestLineupCapturedAt:
-      lineup?.capturedAt ??
-      null,
-    latestInjuryCapturedAt:
-      injury?.capturedAt ??
-      null,
+    latestLineupCapturedAt: lineup?.capturedAt ?? null,
+    latestInjuryCapturedAt: injury?.capturedAt ?? null,
   };
 }
 
@@ -348,10 +240,7 @@ async function loadDueProviderFixtures(input: {
     }
   >
 > {
-  const maximumCheckpoint =
-    Math.max(
-      ...input.checkpoints,
-    );
+  const maximumCheckpoint = Math.max(...input.checkpoints);
 
   const providerFilter =
     input.providerFixtureIds == null
@@ -359,119 +248,74 @@ async function loadDueProviderFixtures(input: {
       : {
           in: [
             ...new Set(
-              input.providerFixtureIds
-                .filter(
-                  (
-                    value: number,
-                  ): boolean =>
-                    Number.isSafeInteger(
-                      value,
-                    ) &&
-                    value > 0,
-                ),
+              input.providerFixtureIds.filter(
+                (value: number): boolean => Number.isSafeInteger(value) && value > 0,
+              ),
             ),
           ],
         };
 
-  const latestKickoff =
-    new Date(
-      input.now.getTime() +
-        (
-          maximumCheckpoint +
-          input.toleranceMinutes +
-          2
-        ) *
-          60_000,
-    );
+  const latestKickoff = new Date(
+    input.now.getTime() + (maximumCheckpoint + input.toleranceMinutes + 2) * 60_000,
+  );
 
-  const rows =
-    (await prisma.apiFootballFixtureSnapshot.findMany({
-      where: {
-        providerFixtureId:
-          providerFilter,
-        kickoffAt: {
-          gt:
-            input.now,
-          lte:
-            latestKickoff,
-        },
+  const rows = (await prisma.apiFootballFixtureSnapshot.findMany({
+    where: {
+      providerFixtureId: providerFilter,
+      kickoffAt: {
+        gt: input.now,
+        lte: latestKickoff,
       },
-      select: {
-        providerFixtureId: true,
-        kickoffAt: true,
-        observedAt: true,
+    },
+    select: {
+      providerFixtureId: true,
+      kickoffAt: true,
+      observedAt: true,
+    },
+    orderBy: [
+      {
+        observedAt: 'desc',
       },
-      orderBy: [
-        {
-          observedAt: 'desc',
-        },
-        {
-          id: 'desc',
-        },
-      ],
-      take:
-        input.maximumFixtures *
-        12,
-    })) as ProviderFixtureRow[];
+      {
+        id: 'desc',
+      },
+    ],
+    take: input.maximumFixtures * 12,
+  })) as ProviderFixtureRow[];
 
-  return latestProviderFixtures(
-    rows,
-  )
-    .map(
-      (
-        row: ProviderFixtureRow,
-      ) => {
-        const due =
-          nearestDueCheckpoint({
-            kickoffAt:
-              row.kickoffAt,
-            now:
-              input.now,
-            checkpoints:
-              input.checkpoints,
-            toleranceMinutes:
-              input.toleranceMinutes,
-          });
+  return latestProviderFixtures(rows)
+    .map((row: ProviderFixtureRow) => {
+      const due = nearestDueCheckpoint({
+        kickoffAt: row.kickoffAt,
+        now: input.now,
+        checkpoints: input.checkpoints,
+        toleranceMinutes: input.toleranceMinutes,
+      });
 
-        return due == null
-          ? null
-          : {
-              ...row,
-              checkpointMinutes:
-                due.checkpointMinutes,
-              exactMinutesToKickoff:
-                due
-                  .exactMinutesToKickoff,
-              distanceMinutes:
-                due.distanceMinutes,
-            };
-      },
-    )
+      return due == null
+        ? null
+        : {
+            ...row,
+            checkpointMinutes: due.checkpointMinutes,
+            exactMinutesToKickoff: due.exactMinutesToKickoff,
+            distanceMinutes: due.distanceMinutes,
+          };
+    })
     .filter(
       (
         row,
-      ): row is
-        ProviderFixtureRow & {
-          checkpointMinutes: number;
-          exactMinutesToKickoff: number;
-          distanceMinutes: number;
-        } =>
-        row != null,
+      ): row is ProviderFixtureRow & {
+        checkpointMinutes: number;
+        exactMinutesToKickoff: number;
+        distanceMinutes: number;
+      } => row != null,
     )
     .sort(
-      (
-        left,
-        right,
-      ): number =>
-        left.kickoffAt.getTime() -
-          right.kickoffAt.getTime() ||
-        right.checkpointMinutes -
-          left.checkpointMinutes,
+      (left, right): number =>
+        left.kickoffAt.getTime() - right.kickoffAt.getTime() ||
+        right.checkpointMinutes - left.checkpointMinutes,
     )
-    .slice(
-      0,
-      input.maximumFixtures,
-    );
+    .slice(0, input.maximumFixtures);
 }
 
 export async function planDueCurrentSignalSnapshots(
@@ -483,60 +327,36 @@ export async function planDueCurrentSignalSnapshots(
     maximumFixtures?: number;
   } = {},
 ): Promise<CurrentSignalSnapshotPlan> {
-  const now =
-    input.now ??
-    new Date();
+  const now = input.now ?? new Date();
 
-  const checkpoints =
-    input.checkpoints ??
-    parseCurrentSignalCheckpoints();
+  const checkpoints = input.checkpoints ?? parseCurrentSignalCheckpoints();
 
   const toleranceMinutes =
-    input.toleranceMinutes ??
-    envNumber(
-      'CURRENT_SIGNAL_SNAPSHOT_TOLERANCE_MINUTES',
-      2,
-      0.25,
-      10,
-    );
+    input.toleranceMinutes ?? envNumber('CURRENT_SIGNAL_SNAPSHOT_TOLERANCE_MINUTES', 2, 0.25, 10);
 
   const maximumFixtures =
-    input.maximumFixtures ??
-    envInteger(
-      'CURRENT_SIGNAL_SNAPSHOT_MAX_FIXTURES',
-      100,
-      1,
-      300,
-    );
+    input.maximumFixtures ?? envInteger('CURRENT_SIGNAL_SNAPSHOT_MAX_FIXTURES', 100, 1, 300);
 
-  const dueFixtures =
-    await loadDueProviderFixtures({
-      now,
-      checkpoints,
-      toleranceMinutes,
-      providerFixtureIds:
-        input.providerFixtureIds,
-      maximumFixtures,
-    });
+  const dueFixtures = await loadDueProviderFixtures({
+    now,
+    checkpoints,
+    toleranceMinutes,
+    providerFixtureIds: input.providerFixtureIds,
+    maximumFixtures,
+  });
 
-  const dueProviderFixtureIds =
-    dueFixtures.map(
-      (row): number =>
-        row.providerFixtureId,
-    );
+  const dueProviderFixtureIds = dueFixtures.map((row): number => row.providerFixtureId);
 
   const existingRows =
     dueProviderFixtureIds.length === 0
       ? []
-      : (await prisma.scientificCurrentSignalSnapshot.findMany({
+      : ((await prisma.scientificCurrentSignalSnapshot.findMany({
           where: {
             providerFixtureId: {
-              in:
-                dueProviderFixtureIds,
+              in: dueProviderFixtureIds,
             },
             checkpointMinutes: {
-              in:
-                checkpoints,
+              in: checkpoints,
             },
           },
           select: {
@@ -547,471 +367,263 @@ export async function planDueCurrentSignalSnapshots(
             status: true,
             snapshotHash: true,
           },
-        })) as ExistingSnapshotRow[];
+        })) as ExistingSnapshotRow[]);
 
-  const existingByKey =
-    new Map<
-      string,
-      ExistingSnapshotRow
-    >(
-      existingRows.map(
-        (
-          row: ExistingSnapshotRow,
-        ) => [
-          `${row.providerFixtureId}:${row.checkpointMinutes}`,
-          row,
-        ],
-      ),
-    );
+  const existingByKey = new Map<string, ExistingSnapshotRow>(
+    existingRows.map((row: ExistingSnapshotRow) => [
+      `${row.providerFixtureId}:${row.checkpointMinutes}`,
+      row,
+    ]),
+  );
 
   const analysisByFixture =
     dueProviderFixtureIds.length === 0
       ? new Map()
       : await getCurrentScientificRecommendationMap({
-          providerFixtureIds:
-            dueProviderFixtureIds,
+          providerFixtureIds: dueProviderFixtureIds,
           now,
-          maxFixtures:
-            maximumFixtures,
+          maxFixtures: maximumFixtures,
         });
 
-  const rows:
-    CurrentSignalSnapshotPlanRow[] =
-    [];
+  const rows: CurrentSignalSnapshotPlanRow[] = [];
 
-  for (
-    const fixture of
-    dueFixtures
-  ) {
-    const analysis =
-      analysisByFixture.get(
-        fixture.providerFixtureId,
-      );
+  for (const fixture of dueFixtures) {
+    const analysis = analysisByFixture.get(fixture.providerFixtureId);
 
-    if (
-      analysis == null ||
-      !isAnalysisStatus(
-        analysis.status,
-      )
-    ) {
+    if (analysis == null || !isAnalysisStatus(analysis.status)) {
       rows.push({
-        providerFixtureId:
-          fixture.providerFixtureId,
-        kickoffAt:
-          fixture.kickoffAt.toISOString(),
-        checkpointMinutes:
-          fixture.checkpointMinutes,
-        checkpointLabel:
-          currentSignalCheckpointLabel(
-            fixture.checkpointMinutes,
-          ),
-        exactMinutesToKickoff:
-          fixture
-            .exactMinutesToKickoff,
-        distanceMinutes:
-          fixture.distanceMinutes,
-        analysisStatus:
-          'NO_MODEL',
-        analysisError:
-          'CURRENT_ANALYSIS_NOT_RETURNED',
-        action:
-          'WAIT_FOR_DATA',
-        reason:
-          'CURRENT_ANALYSIS_NOT_RETURNED',
-        existingSnapshotId:
-          null,
-        recommendation:
-          null,
+        providerFixtureId: fixture.providerFixtureId,
+        kickoffAt: fixture.kickoffAt.toISOString(),
+        checkpointMinutes: fixture.checkpointMinutes,
+        checkpointLabel: currentSignalCheckpointLabel(fixture.checkpointMinutes),
+        exactMinutesToKickoff: fixture.exactMinutesToKickoff,
+        distanceMinutes: fixture.distanceMinutes,
+        analysisStatus: 'NO_MODEL',
+        analysisError: 'CURRENT_ANALYSIS_NOT_RETURNED',
+        action: 'WAIT_FOR_DATA',
+        reason: 'CURRENT_ANALYSIS_NOT_RETURNED',
+        existingSnapshotId: null,
+        recommendation: null,
       });
 
       continue;
     }
 
     const existing =
-      existingByKey.get(
-        `${fixture.providerFixtureId}:${fixture.checkpointMinutes}`,
-      ) ??
-      null;
+      existingByKey.get(`${fixture.providerFixtureId}:${fixture.checkpointMinutes}`) ?? null;
 
-    const due =
-      evaluateCurrentSignalSnapshotDue({
-        kickoffAt:
-          fixture.kickoffAt,
-        now,
-        checkpoints,
-        toleranceMinutes,
-        status:
-          analysis.status,
-        alreadyCaptured:
-          existing != null,
-      });
+    const due = evaluateCurrentSignalSnapshotDue({
+      kickoffAt: fixture.kickoffAt,
+      now,
+      checkpoints,
+      toleranceMinutes,
+      status: analysis.status,
+      alreadyCaptured: existing != null,
+    });
 
     rows.push({
-      providerFixtureId:
-        fixture.providerFixtureId,
-      kickoffAt:
-        fixture.kickoffAt.toISOString(),
-      checkpointMinutes:
-        fixture.checkpointMinutes,
-      checkpointLabel:
-        currentSignalCheckpointLabel(
-          fixture.checkpointMinutes,
-        ),
-      exactMinutesToKickoff:
-        fixture
-          .exactMinutesToKickoff,
-      distanceMinutes:
-        fixture.distanceMinutes,
-      analysisStatus:
-        analysis.status,
-      analysisError:
-        analysis.error,
-      action:
-        due.action,
-      reason:
-        due.reason,
-      existingSnapshotId:
-        existing?.id ??
-        null,
-      recommendation:
-        analysis.recommendation,
+      providerFixtureId: fixture.providerFixtureId,
+      kickoffAt: fixture.kickoffAt.toISOString(),
+      checkpointMinutes: fixture.checkpointMinutes,
+      checkpointLabel: currentSignalCheckpointLabel(fixture.checkpointMinutes),
+      exactMinutesToKickoff: fixture.exactMinutesToKickoff,
+      distanceMinutes: fixture.distanceMinutes,
+      analysisStatus: analysis.status,
+      analysisError: analysis.error,
+      action: due.action,
+      reason: due.reason,
+      existingSnapshotId: existing?.id ?? null,
+      recommendation: analysis.recommendation,
     });
   }
 
   return {
-    version:
-      CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
-    now:
-      now.toISOString(),
+    version: CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
+    now: now.toISOString(),
     checkpoints,
     toleranceMinutes,
-    fixturesConsidered:
-      dueFixtures.length,
-    dueFixtures:
-      rows.length,
+    fixturesConsidered: dueFixtures.length,
+    dueFixtures: rows.length,
     rows,
-    externalApiCalled:
-      false,
-    databaseWritten:
-      false,
-    realMoneyExecution:
-      false,
+    externalApiCalled: false,
+    databaseWritten: false,
+    realMoneyExecution: false,
   };
 }
 
 async function analysisForCapture(input: {
   providerFixtureId: number;
   now: Date;
-}): Promise<
-  CurrentScientificRecommendationAnalysis |
-  null
-> {
-  const map =
-    await getCurrentScientificRecommendationMap({
-      providerFixtureIds: [
-        input.providerFixtureId,
-      ],
-      now:
-        input.now,
-      maxFixtures: 1,
-    });
+}): Promise<CurrentScientificRecommendationAnalysis | null> {
+  const map = await getCurrentScientificRecommendationMap({
+    providerFixtureIds: [input.providerFixtureId],
+    now: input.now,
+    maxFixtures: 1,
+  });
 
-  return (
-    map.get(
-      input.providerFixtureId,
-    ) ??
-    null
-  );
+  return map.get(input.providerFixtureId) ?? null;
 }
 
-async function createSnapshot(input: {
-  plan: CurrentSignalSnapshotPlanRow;
-  now: Date;
-}): Promise<{
+// R4103331_PERSISTED_PAYLOAD_HASH_AUTHORITY
+export function prepareCurrentSignalSnapshotPayloadForPersistence(value: unknown): {
+  persistedPayload: unknown;
+  snapshotHash: string;
+} {
+  const persistedPayload = JSON.parse(JSON.stringify(value)) as unknown;
+
+  return {
+    persistedPayload,
+    snapshotHash: snapshotHash(persistedPayload),
+  };
+}
+
+async function createSnapshot(input: { plan: CurrentSignalSnapshotPlanRow; now: Date }): Promise<{
   id: number;
   snapshotHash: string;
 }> {
-  const analysis =
-    await analysisForCapture({
-      providerFixtureId:
-        input.plan
-          .providerFixtureId,
-      now:
-        input.now,
-    });
+  const analysis = await analysisForCapture({
+    providerFixtureId: input.plan.providerFixtureId,
+    now: input.now,
+  });
 
-  if (
-    analysis == null ||
-    !isAnalysisStatus(
-      analysis.status,
-    )
-  ) {
-    throw new Error(
-      `Current analysis unavailable for fixture ${input.plan.providerFixtureId}.`,
-    );
+  if (analysis == null || !isAnalysisStatus(analysis.status)) {
+    throw new Error(`Current analysis unavailable for fixture ${input.plan.providerFixtureId}.`);
   }
 
-  const recommendation =
-    analysis.recommendation;
+  const recommendation = analysis.recommendation;
 
-  const snapshotAsOf =
-    new Date(
-      analysis.calculatedAt,
-    );
+  const snapshotAsOf = new Date(analysis.calculatedAt);
 
-  const kickoffAt =
-    new Date(
-      analysis.kickoffAt,
-    );
+  const kickoffAt = new Date(analysis.kickoffAt);
 
-  const context =
-    await latestContextTimestamps({
-      localFixtureId:
-        analysis.localFixtureId,
-      snapshotAsOf,
-    });
+  const context = await latestContextTimestamps({
+    localFixtureId: analysis.localFixtureId,
+    snapshotAsOf,
+  });
 
-  const candidateCount =
-    analysis.candidates.length;
+  const candidateCount = analysis.candidates.length;
 
-  const currentEligibleCandidateCount =
-    analysis.candidates.filter(
-      (candidate): boolean =>
-        candidate
-          .currentSignalEligible,
-    ).length;
+  const currentEligibleCandidateCount = analysis.candidates.filter(
+    (candidate): boolean => candidate.currentSignalEligible,
+  ).length;
 
-  const officialEligibleCandidateCount =
-    analysis.candidates.filter(
-      (candidate): boolean =>
-        candidate
-          .officialEligible,
-    ).length;
+  const officialEligibleCandidateCount = analysis.candidates.filter(
+    (candidate): boolean => candidate.officialEligible,
+  ).length;
+
+  const shadowCandidateDecision = selectCurrentShadowCandidate(
+    analysis.candidates as readonly unknown[],
+  );
+
+  // R4.10.2.10_SHADOW_CANDIDATE_DAILY_LEDGER
+  const shadowCandidate = buildShadowCandidateClassification({
+    providerFixtureId: analysis.providerFixtureId,
+    checkpointMinutes: input.plan.checkpointMinutes,
+    calculatedAt: analysis.calculatedAt,
+    analysisStatus: analysis.status,
+    candidates: analysis.candidates,
+  });
 
   const payload = {
-    ledgerVersion:
-      CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
+    paperShadowRecommendation: analysis.paperShadowRecommendation,
+    shadowCandidate,
+    ledgerVersion: CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
     checkpoint: {
-      minutes:
-        input.plan
-          .checkpointMinutes,
-      label:
-        input.plan
-          .checkpointLabel,
-      exactMinutesToKickoff:
-        input.plan
-          .exactMinutesToKickoff,
-      toleranceReason:
-        input.plan.reason,
+      minutes: input.plan.checkpointMinutes,
+      label: input.plan.checkpointLabel,
+      exactMinutesToKickoff: input.plan.exactMinutesToKickoff,
+      toleranceReason: input.plan.reason,
     },
     analysis,
+    shadowCandidateDecision,
     context: {
-      latestLineupCapturedAt:
-        context
-          .latestLineupCapturedAt
-          ?.toISOString() ??
-        null,
-      latestInjuryCapturedAt:
-        context
-          .latestInjuryCapturedAt
-          ?.toISOString() ??
-        null,
+      latestLineupCapturedAt: context.latestLineupCapturedAt?.toISOString() ?? null,
+      latestInjuryCapturedAt: context.latestInjuryCapturedAt?.toISOString() ?? null,
     },
     integrity: {
-      appendOnly:
-        true,
-      officialBestBetChanged:
-        false,
-      noFutureBackfill:
-        true,
-      externalApiCalled:
-        false,
-      automaticBetPlacement:
-        false,
-      realMoneyExecution:
-        false,
+      appendOnly: true,
+      officialBestBetChanged: false,
+      noFutureBackfill: true,
+      externalApiCalled: false,
+      automaticBetPlacement: false,
+      realMoneyExecution: false,
     },
   };
 
-  const hash =
-    snapshotHash(payload);
+  const preparedPayload = prepareCurrentSignalSnapshotPayloadForPersistence(payload);
+
+  const hash = preparedPayload.snapshotHash;
 
   try {
-    const created =
-      await prisma.scientificCurrentSignalSnapshot.create({
-        data: {
-          providerFixtureId:
-            analysis
-              .providerFixtureId,
-          localFixtureId:
-            analysis
-              .localFixtureId,
-          checkpointMinutes:
-            input.plan
-              .checkpointMinutes,
-          checkpointLabel:
-            input.plan
-              .checkpointLabel,
-          actualHorizonMinutes:
-            analysis
-              .horizonMinutes,
-          snapshotAsOf,
-          kickoffAt,
-          status:
-            analysis.status,
-          selectedMarket:
-            recommendation
-              ?.marketType ??
-            null,
-          selectedSelection:
-            recommendation
-              ?.selection ??
-            null,
-          lineValue:
-            recommendation
-              ?.lineValue ??
-            null,
-          decimalOdds:
-            recommendation
-              ?.decimalOdds ??
-            null,
-          bookmakerName:
-            recommendation
-              ?.bookmakerName ??
-            null,
-          modelProbability:
-            recommendation
-              ?.modelProbability ??
-            null,
-          fairMarketProbability:
-            recommendation
-              ?.fairMarketProbability ??
-            null,
-          impliedProbability:
-            recommendation == null
-              ? null
-              : 1 /
-                recommendation
-                  .decimalOdds,
-          edge:
-            recommendation
-              ?.edge ??
-            null,
-          expectedValue:
-            recommendation
-              ?.expectedValue ??
-            null,
-          reliabilityStatus:
-            recommendation
-              ?.reliabilityStatus ??
-            null,
-          modelSource:
-            recommendation
-              ?.modelSource ??
-            null,
-          modelFallbackReason:
-            recommendation
-              ?.modelFallbackReason ??
-            null,
-          modelConfidenceTier:
-            recommendation
-              ?.modelConfidenceTier ??
-            null,
-          modelHistorySampleSize:
-            recommendation
-              ?.modelHistorySampleSize ??
-            null,
-          dataQualityScore:
-            recommendation
-              ?.dataQualityScore ??
-            null,
-          modelVersion:
-            recommendation
-              ?.modelVersion ??
-            null,
-          sourceOddsSnapshotId:
-            recommendation
-              ?.sourceOddsSnapshotId ??
-            null,
-          sourceOddsUpdatedAt:
-            asDate(
-              recommendation
-                ?.sourceOddsUpdatedAt,
-            ),
-          sourceOddsFirstObservedAt:
-            asDate(
-              recommendation
-                ?.sourceOddsFirstObservedAt,
-            ),
-          sourceOddsReobservedAt:
-            asDate(
-              recommendation
-                ?.sourceOddsReobservedAt,
-            ),
-          sourceOddsFreshnessAt:
-            asDate(
-              recommendation
-                ?.sourceOddsFreshnessAt,
-            ),
-          oddsFreshnessBasis:
-            recommendation
-              ?.oddsFreshnessBasis ??
-            null,
-          reobservationRawSnapshotId:
-            recommendation
-              ?.reobservationRawSnapshotId ??
-            null,
-          latestLineupCapturedAt:
-            context
-              .latestLineupCapturedAt,
-          latestInjuryCapturedAt:
-            context
-              .latestInjuryCapturedAt,
-          candidateCount,
-          currentEligibleCandidateCount,
-          officialEligibleCandidateCount,
-          analysisPayload:
-            JSON.parse(
-              JSON.stringify(
-                payload,
-              ),
-            ),
-          snapshotHash:
-            hash,
+    const created = await prisma.scientificCurrentSignalSnapshot.create({
+      data: {
+        providerFixtureId: analysis.providerFixtureId,
+        localFixtureId: analysis.localFixtureId,
+        checkpointMinutes: input.plan.checkpointMinutes,
+        checkpointLabel: input.plan.checkpointLabel,
+        actualHorizonMinutes: analysis.horizonMinutes,
+        snapshotAsOf,
+        kickoffAt,
+        status: analysis.status,
+        selectedMarket: recommendation?.marketType ?? null,
+        selectedSelection: recommendation?.selection ?? null,
+        lineValue: recommendation?.lineValue ?? null,
+        decimalOdds: recommendation?.decimalOdds ?? null,
+        bookmakerName: recommendation?.bookmakerName ?? null,
+        modelProbability: recommendation?.modelProbability ?? null,
+        fairMarketProbability: recommendation?.fairMarketProbability ?? null,
+        impliedProbability: recommendation == null ? null : 1 / recommendation.decimalOdds,
+        edge: recommendation?.edge ?? null,
+        expectedValue: recommendation?.expectedValue ?? null,
+        reliabilityStatus: recommendation?.reliabilityStatus ?? null,
+        modelSource: recommendation?.modelSource ?? null,
+        modelFallbackReason: recommendation?.modelFallbackReason ?? null,
+        modelConfidenceTier: recommendation?.modelConfidenceTier ?? null,
+        modelHistorySampleSize: recommendation?.modelHistorySampleSize ?? null,
+        dataQualityScore: recommendation?.dataQualityScore ?? null,
+        modelVersion: recommendation?.modelVersion ?? null,
+        sourceOddsSnapshotId: recommendation?.sourceOddsSnapshotId ?? null,
+        sourceOddsUpdatedAt: asDate(recommendation?.sourceOddsUpdatedAt),
+        sourceOddsFirstObservedAt: asDate(recommendation?.sourceOddsFirstObservedAt),
+        sourceOddsReobservedAt: asDate(recommendation?.sourceOddsReobservedAt),
+        sourceOddsFreshnessAt: asDate(recommendation?.sourceOddsFreshnessAt),
+        oddsFreshnessBasis: recommendation?.oddsFreshnessBasis ?? null,
+        reobservationRawSnapshotId: recommendation?.reobservationRawSnapshotId ?? null,
+        latestLineupCapturedAt: context.latestLineupCapturedAt,
+        latestInjuryCapturedAt: context.latestInjuryCapturedAt,
+        candidateCount,
+        currentEligibleCandidateCount,
+        officialEligibleCandidateCount,
+        analysisPayload: preparedPayload.persistedPayload,
+        snapshotHash: hash,
+      },
+      select: {
+        id: true,
+        snapshotHash: true,
+      },
+    });
+
+    return created;
+  } catch (error) {
+    const code = (
+      error as {
+        code?: string;
+      }
+    ).code;
+
+    if (code === 'P2002') {
+      const existing = await prisma.scientificCurrentSignalSnapshot.findUnique({
+        where: {
+          providerFixtureId_checkpointMinutes: {
+            providerFixtureId: analysis.providerFixtureId,
+            checkpointMinutes: input.plan.checkpointMinutes,
+          },
         },
         select: {
           id: true,
           snapshotHash: true,
         },
       });
-
-    return created;
-  } catch (error) {
-    const code =
-      (
-        error as {
-          code?: string;
-        }
-      ).code;
-
-    if (code === 'P2002') {
-      const existing =
-        await prisma.scientificCurrentSignalSnapshot.findUnique({
-          where: {
-            providerFixtureId_checkpointMinutes: {
-              providerFixtureId:
-                analysis
-                  .providerFixtureId,
-              checkpointMinutes:
-                input.plan
-                  .checkpointMinutes,
-            },
-          },
-          select: {
-            id: true,
-            snapshotHash: true,
-          },
-        });
 
       if (existing != null) {
         return existing;
@@ -1031,143 +643,102 @@ export async function captureDueCurrentSignalSnapshots(
     maximumFixtures?: number;
   } = {},
 ): Promise<CurrentSignalSnapshotCaptureResult> {
-  const now =
-    input.now ??
-    new Date();
+  const now = input.now ?? new Date();
 
-  const plan =
-    await planDueCurrentSignalSnapshots({
-      ...input,
-      now,
-    });
+  const plan = await planDueCurrentSignalSnapshots({
+    ...input,
+    now,
+  });
 
-  const rows:
-    CurrentSignalSnapshotCaptureResult[
-      'rows'
-    ] = [];
+  const rows: CurrentSignalSnapshotCaptureResult['rows'] = [];
 
   let inserted = 0;
   let duplicates = 0;
   let waiting = 0;
   let skipped = 0;
 
-  for (
-    const row of plan.rows
-  ) {
-    if (
-      row.action ===
-      'WAIT_FOR_DATA'
-    ) {
+  for (const row of plan.rows) {
+    if (row.action === 'WAIT_FOR_DATA') {
       waiting += 1;
 
       rows.push({
         ...row,
-        insertedSnapshotId:
-          null,
-        insertedSnapshotHash:
-          null,
-        writeStatus:
-          'WAITING',
+        insertedSnapshotId: null,
+        insertedSnapshotHash: null,
+        writeStatus: 'WAITING',
       });
 
       continue;
     }
 
-    if (
-      row.action ===
-        'ALREADY_CAPTURED' ||
-      row.action ===
-        'NOT_DUE'
-    ) {
+    if (row.action === 'ALREADY_CAPTURED' || row.action === 'NOT_DUE') {
       skipped += 1;
 
       rows.push({
         ...row,
-        insertedSnapshotId:
-          row.existingSnapshotId,
-        insertedSnapshotHash:
-          null,
-        writeStatus:
-          'SKIPPED',
+        insertedSnapshotId: row.existingSnapshotId,
+        insertedSnapshotHash: null,
+        writeStatus: 'SKIPPED',
       });
 
       continue;
     }
 
-    const before =
-      await prisma.scientificCurrentSignalSnapshot.findUnique({
-        where: {
-          providerFixtureId_checkpointMinutes: {
-            providerFixtureId:
-              row.providerFixtureId,
-            checkpointMinutes:
-              row.checkpointMinutes,
-          },
+    const before = await prisma.scientificCurrentSignalSnapshot.findUnique({
+      where: {
+        providerFixtureId_checkpointMinutes: {
+          providerFixtureId: row.providerFixtureId,
+          checkpointMinutes: row.checkpointMinutes,
         },
-        select: {
-          id: true,
-          snapshotHash: true,
-        },
-      });
+      },
+      select: {
+        id: true,
+        snapshotHash: true,
+      },
+    });
 
     if (before != null) {
       duplicates += 1;
 
       rows.push({
         ...row,
-        insertedSnapshotId:
-          before.id,
-        insertedSnapshotHash:
-          before.snapshotHash,
-        writeStatus:
-          'DUPLICATE',
+        insertedSnapshotId: before.id,
+        insertedSnapshotHash: before.snapshotHash,
+        writeStatus: 'DUPLICATE',
       });
 
       continue;
     }
 
-    const created =
-      await createSnapshot({
-        plan:
-          row,
-        now,
-      });
+    const created = await createSnapshot({
+      plan: row,
+      now,
+    });
 
     inserted += 1;
 
     rows.push({
       ...row,
-      insertedSnapshotId:
-        created.id,
-      insertedSnapshotHash:
-        created.snapshotHash,
-      writeStatus:
-        'INSERTED',
+      insertedSnapshotId: created.id,
+      insertedSnapshotHash: created.snapshotHash,
+      writeStatus: 'INSERTED',
     });
   }
 
   return {
-    version:
-      CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
-    capturedAt:
-      now.toISOString(),
-    checkpoints:
-      plan.checkpoints,
-    toleranceMinutes:
-      plan.toleranceMinutes,
-    planned:
-      plan.rows.length,
+    version: CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
+    capturedAt: now.toISOString(),
+    checkpoints: plan.checkpoints,
+    toleranceMinutes: plan.toleranceMinutes,
+    planned: plan.rows.length,
     inserted,
     duplicates,
     waiting,
     skipped,
     rows,
-    externalApiCalled:
-      false,
-    databaseWritten:
-      inserted > 0,
-    realMoneyExecution:
-      false,
+    externalApiCalled: false,
+    databaseWritten: inserted > 0,
+    realMoneyExecution: false,
   };
 }
 
@@ -1184,61 +755,42 @@ export async function getCurrentSignalSnapshotEvidence(
   databaseWritten: false;
   realMoneyExecution: false;
 }> {
-  const limit =
-    Math.max(
-      1,
-      Math.min(
-        1000,
-        input.limit ??
-          200,
-      ),
-    );
+  const limit = Math.max(1, Math.min(1000, input.limit ?? 200));
 
-  const rows =
-    await prisma.scientificCurrentSignalSnapshot.findMany({
-      where:
-        input.providerFixtureId == null
-          ? undefined
-          : {
-              providerFixtureId:
-                input
-                  .providerFixtureId,
-            },
-      orderBy: [
-        {
-          snapshotAsOf: 'desc',
-        },
-        {
-          id: 'desc',
-        },
-      ],
-      take:
-        limit,
-    });
+  const rows = await prisma.scientificCurrentSignalSnapshot.findMany({
+    where:
+      input.providerFixtureId == null
+        ? undefined
+        : {
+            providerFixtureId: input.providerFixtureId,
+          },
+    orderBy: [
+      {
+        snapshotAsOf: 'desc',
+      },
+      {
+        id: 'desc',
+      },
+    ],
+    take: limit,
+  });
 
-  const totalRows =
-    await prisma.scientificCurrentSignalSnapshot.count({
-      where:
-        input.providerFixtureId == null
-          ? undefined
-          : {
-              providerFixtureId:
-                input
-                  .providerFixtureId,
-            },
-    });
+  const totalRows = await prisma.scientificCurrentSignalSnapshot.count({
+    where:
+      input.providerFixtureId == null
+        ? undefined
+        : {
+            providerFixtureId: input.providerFixtureId,
+          },
+  });
 
   return {
-    version:
-      CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
+    version: CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
     totalRows,
     rows,
-    externalApiCalled:
-      false,
-    databaseWritten:
-      false,
-    realMoneyExecution:
-      false,
+    externalApiCalled: false,
+    databaseWritten: false,
+    realMoneyExecution: false,
   };
 }
 
@@ -1269,42 +821,33 @@ export async function getCurrentSignalSnapshotCoverage(): Promise<{
     prisma.scientificCurrentSignalSnapshot.count(),
     prisma.scientificCurrentSignalSnapshot.count({
       where: {
-        status:
-          'AVAILABLE',
+        status: 'AVAILABLE',
       },
     }),
     prisma.scientificCurrentSignalSnapshot.count({
       where: {
-        status:
-          'NO_VALUE_SIGNAL',
+        status: 'NO_VALUE_SIGNAL',
       },
     }),
     prisma.scientificCurrentSignalSnapshot.count({
       where: {
-        modelSource:
-          'SCIENTIFIC_BASELINE_FALLBACK',
+        modelSource: 'SCIENTIFIC_BASELINE_FALLBACK',
       },
     }),
     prisma.scientificCurrentSignalSnapshot.groupBy({
-      by: [
-        'checkpointMinutes',
-      ],
+      by: ['checkpointMinutes'],
       _count: {
         _all: true,
       },
       orderBy: {
-        checkpointMinutes:
-          'desc',
+        checkpointMinutes: 'desc',
       },
     }),
     prisma.scientificCurrentSignalSnapshot.findMany({
       select: {
-        providerFixtureId:
-          true,
+        providerFixtureId: true,
       },
-      distinct: [
-        'providerFixtureId',
-      ],
+      distinct: ['providerFixtureId'],
     }),
     prisma.scientificCurrentSignalSnapshot.count({
       where: {
@@ -1316,34 +859,25 @@ export async function getCurrentSignalSnapshotCoverage(): Promise<{
   ]);
 
   return {
-    version:
-      CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
+    version: CURRENT_SIGNAL_SNAPSHOT_LEDGER_VERSION,
     totalRows,
-    fixtures:
-      fixtureRows.length,
+    fixtures: fixtureRows.length,
     available,
     noValue,
     fallbackRows,
     officialEligibleCandidateRows,
-    byCheckpoint:
-      grouped.map(
-        (
-          row: {
-            checkpointMinutes: number;
-            _count: {
-              _all: number;
-            };
-          },
-        ) => ({
-          checkpointMinutes:
-            row.checkpointMinutes,
-          rows:
-            row._count._all,
-        }),
-      ),
-    externalApiCalled:
-      false,
-    databaseWritten:
-      false,
+    byCheckpoint: grouped.map(
+      (row: {
+        checkpointMinutes: number;
+        _count: {
+          _all: number;
+        };
+      }) => ({
+        checkpointMinutes: row.checkpointMinutes,
+        rows: row._count._all,
+      }),
+    ),
+    externalApiCalled: false,
+    databaseWritten: false,
   };
 }
