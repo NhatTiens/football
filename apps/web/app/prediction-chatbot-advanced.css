@@ -1,0 +1,199 @@
+.prediction-chatbot-clear,
+.prediction-chatbot-quick-prompts button {
+  border: 1px solid rgba(99, 221, 177, 0.26);
+  border-radius: 999px;
+  color: rgba(225, 244, 237, 0.88);
+  background: rgba(20, 61, 49, 0.36);
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.prediction-chatbot-clear {
+  padding: 7px 10px;
+}
+
+.prediction-chatbot-clear:hover,
+.prediction-chatbot-quick-prompts button:hover {
+  border-color: rgba(99, 221, 177, 0.58);
+  background: rgba(23, 77, 59, 0.56);
+}
+
+.prediction-chatbot-clear:disabled,
+.prediction-chatbot-quick-prompts button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.prediction-chatbot-quick-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 12px 26px 0;
+  border-top: 1px solid rgba(128, 150, 168, 0.12);
+}
+
+.prediction-chatbot-quick-prompts button {
+  padding: 7px 11px;
+}
+
+.prediction-chatbot-panel {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid rgba(99, 221, 177, 0.2);
+  border-radius: 12px;
+  background: rgba(5, 14, 17, 0.42);
+}
+
+.prediction-chatbot-panel h4,
+.prediction-chatbot-panel p {
+  margin: 0;
+}
+
+.prediction-chatbot-panel h4 {
+  color: #8ce7c7;
+  font-size: 0.85rem;
+}
+
+.prediction-chatbot-panel p,
+.prediction-chatbot-panel small,
+.prediction-chatbot-panel li {
+  color: rgba(218, 229, 234, 0.68);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.prediction-chatbot-collection,
+.prediction-chatbot-history {
+  display: grid;
+  gap: 7px;
+}
+
+.prediction-chatbot-collection article,
+.prediction-chatbot-history article {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid rgba(128, 150, 168, 0.14);
+  border-radius: 9px;
+  background: rgba(20, 27, 32, 0.58);
+}
+
+.prediction-chatbot-collection article > div,
+.prediction-chatbot-history article > div {
+  display: grid;
+  gap: 3px;
+}
+
+.prediction-chatbot-collection article > div:last-child,
+.prediction-chatbot-history article > div:last-child {
+  text-align: right;
+}
+
+.prediction-chatbot-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.prediction-chatbot-evidence-grid span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 8px;
+  color: rgba(218, 229, 234, 0.63);
+  background: rgba(18, 27, 31, 0.68);
+  font-size: 0.68rem;
+}
+
+.prediction-chatbot-evidence-grid b {
+  overflow: hidden;
+  color: #eff8f4;
+  text-overflow: ellipsis;
+}
+
+.prediction-chatbot-lineups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prediction-chatbot-lineups > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid rgba(128, 150, 168, 0.14);
+  border-radius: 9px;
+}
+
+.prediction-chatbot-panel details summary {
+  color: #83dec0;
+  font-size: 0.73rem;
+  cursor: pointer;
+}
+
+.prediction-chatbot-panel details ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.prediction-chatbot-progress {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(100px, 1fr);
+  align-items: center;
+  gap: 6px 10px;
+  color: rgba(218, 229, 234, 0.65);
+  font-size: 0.7rem;
+}
+
+.prediction-chatbot-progress progress {
+  width: 100%;
+  accent-color: #58d6a7;
+}
+
+.prediction-chatbot-history .result-win {
+  color: #74dfa5;
+}
+
+.prediction-chatbot-history .result-loss {
+  color: #ff8c8c;
+}
+
+.prediction-chatbot-history .result-pending {
+  color: #f2c56c;
+}
+
+.prediction-chatbot-research-error {
+  padding: 9px 10px;
+  border: 1px solid rgba(242, 197, 108, 0.26);
+  border-radius: 9px;
+  color: #e9c77e;
+  background: rgba(72, 51, 16, 0.32);
+}
+
+@media (max-width: 720px) {
+  .prediction-chatbot-quick-prompts {
+    padding: 10px 14px 0;
+  }
+
+  .prediction-chatbot-evidence-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prediction-chatbot-lineups {
+    grid-template-columns: 1fr;
+  }
+
+  .prediction-chatbot-collection article,
+  .prediction-chatbot-history article {
+    display: grid;
+  }
+
+  .prediction-chatbot-collection article > div:last-child,
+  .prediction-chatbot-history article > div:last-child {
+    text-align: left;
+  }
+}

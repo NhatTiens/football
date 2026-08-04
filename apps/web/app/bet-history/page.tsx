@@ -1,23 +1,24 @@
 import { apiFetch } from '../../lib/api';
 
-type ScientificOverview = {
-  paperBet: {
-    decisions: number;
-    bestBets: number;
-    noBets: number;
-    settlements: number;
-    wins: number;
-    losses: number;
-    openBestBets: number;
-    totalStakeUnits: number;
-    profitUnits: number;
-    roi: number | null;
-  };
+type PaperHistorySummary = {
+  paperProposals: number;
+  pendingPaperProposals: number;
+  invalidPaperProposals: number;
+  settledPaperProposals: number;
+  paperWins: number;
+  paperLosses: number;
+  paperVoids: number;
+  paperHitRate: number | null;
+  paperProfitUnits: number;
+  paperRoi: number | null;
 };
 
 type BetRow = {
-  id: number;
+  id: string;
+  source: 'PAPER_LEDGER' | 'PAPER_SHADOW';
   providerFixtureId: number;
+  homeTeamName?: string;
+  awayTeamName?: string;
   horizonMinutes: number;
   decisionAsOf: string;
   kickoffAt: string;
@@ -36,6 +37,9 @@ type BetRow = {
   reliabilityStatus: string | null;
   candidateCount: number;
   rejectedCandidateCount: number;
+  sourcePredictionSelection: string | null;
+  sourcePredictionLineValue: number | null;
+  sourcePredictionProbability: number | null;
   settlement: {
     result: string;
     stakeUnits: number;
@@ -43,7 +47,7 @@ type BetRow = {
     fulltimeHomeGoals: number;
     fulltimeAwayGoals: number;
     clv: number | null;
-    settledAt: string;
+    settledAt: string | null;
   } | null;
 };
 
@@ -69,25 +73,28 @@ function vnDateTime(value: string): string {
   }).format(new Date(value));
 }
 
-export default async function BetHistoryPage() {
-  const [overview, betsResponse] = await Promise.all([
-    apiFetch<ScientificOverview>('/scientific/overview'),
-    apiFetch<{
-      data: BetRow[];
-    }>('/scientific/bets?limit=150'),
-  ]);
+function settlementLabel(result: string): string {
+  if (result === 'WIN') return 'ĐÚNG';
+  if (result === 'LOSS') return 'SAI';
+  return 'VOID';
+}
 
-  const paper = overview.paperBet;
+export default async function BetHistoryPage() {
+  const betsResponse = await apiFetch<{
+    summary: PaperHistorySummary;
+    data: BetRow[];
+  }>('/scientific/bets?limit=150');
+  const paper = betsResponse.summary;
 
   return (
     <>
       <section className="science-page-heading">
         <div>
-          <span className="science-kicker">APPEND-ONLY LEDGER</span>
-          <h1>Lịch sử BEST BET / NO BET</h1>
+          <span className="science-kicker">PAPER PREDICTION HISTORY</span>
+          <h1>Lịch sử dự đoán PAPER</h1>
           <p>
-            Mỗi quyết định được giữ nguyên cùng model, policy, odds, edge, EV và settlement để đánh
-            giá phần mềm theo thời gian.
+            Paper proposal được lưu từ snapshot PIT-safe; sau khi trận đấu kết thúc, hệ thống tự đối
+            chiếu tỷ số và đánh dấu dự đoán đúng, sai hoặc VOID.
           </p>
         </div>
         <span className="science-pill">Giờ Việt Nam · UTC+7</span>
@@ -95,42 +102,42 @@ export default async function BetHistoryPage() {
 
       <section className="science-metric-grid">
         <article className="science-metric-card">
-          <span>Quyết định</span>
-          <strong>{paper.decisions}</strong>
-          <small>
-            {paper.bestBets} BEST BET · {paper.noBets} NO BET
-          </small>
+          <span>Paper proposals</span>
+          <strong>{paper.paperProposals}</strong>
+          <small>{paper.settledPaperProposals} đã có kết quả</small>
         </article>
 
         <article className="science-metric-card">
-          <span>Đã settlement</span>
-          <strong>{paper.settlements}</strong>
-          <small>
-            {paper.wins} thắng · {paper.losses} thua
-          </small>
+          <span>Đang chờ kết quả</span>
+          <strong>{paper.pendingPaperProposals}</strong>
+          <small>{paper.invalidPaperProposals} snapshot không hợp lệ</small>
         </article>
 
         <article className="science-metric-card">
-          <span>Profit</span>
+          <span>Đúng / Sai</span>
           <strong>
-            {paper.profitUnits >= 0 ? '+' : ''}
-            {paper.profitUnits.toFixed(2)}u
+            {paper.paperWins} / {paper.paperLosses}
           </strong>
-          <small>Stake {paper.totalStakeUnits.toFixed(1)}u</small>
+          <small>{paper.paperVoids} VOID</small>
         </article>
 
         <article className="science-metric-card">
-          <span>ROI</span>
-          <strong>{percent(paper.roi)}</strong>
-          <small>Open bets: {paper.openBestBets}</small>
+          <span>Paper P/L</span>
+          <strong>
+            {paper.paperProfitUnits >= 0 ? '+' : ''}
+            {paper.paperProfitUnits.toFixed(2)}u
+          </strong>
+          <small>
+            Hit rate {percent(paper.paperHitRate)} · ROI {percent(paper.paperRoi)}
+          </small>
         </article>
       </section>
 
       <section className="science-panel">
         <div className="science-panel-header">
           <div>
-            <span className="science-kicker">BET LEDGER</span>
-            <h2>150 quyết định gần nhất</h2>
+            <span className="science-kicker">PAPER + LEDGER</span>
+            <h2>150 dự đoán và quyết định gần nhất</h2>
           </div>
         </div>
 
@@ -151,27 +158,32 @@ export default async function BetHistoryPage() {
               {betsResponse.data.length === 0 ? (
                 <tr>
                   <td className="science-empty-cell" colSpan={7}>
-                    Chưa có paper-bet decision. Hệ thống không tạo dữ liệu giả; ledger sẽ đầy lên
-                    khi live prediction được nối vào policy.
+                    Chưa có paper proposal tại các checkpoint. Worker sẽ tự bổ sung khi có kèo paper
+                    đủ điều kiện; hệ thống không tạo dữ liệu giả.
                   </td>
                 </tr>
               ) : (
                 betsResponse.data.map((bet) => (
                   <tr key={bet.id}>
                     <td>
-                      <strong>{vnDateTime(bet.decisionAsOf)}</strong>
+                      <strong>
+                        {bet.homeTeamName && bet.awayTeamName
+                          ? `${bet.homeTeamName} – ${bet.awayTeamName}`
+                          : `Fixture #${bet.providerFixtureId}`}
+                      </strong>
                       <small>
-                        T−{bet.horizonMinutes} · Fixture #{bet.providerFixtureId}
+                        {vnDateTime(bet.decisionAsOf)} · T−{bet.horizonMinutes}
                       </small>
                     </td>
                     <td>
                       <span
                         className={`science-decision science-decision-${bet.decisionType.toLowerCase()}`}
                       >
-                        {bet.decisionType}
+                        {bet.decisionType === 'PAPER_PROPOSAL' ? 'PAPER' : bet.decisionType}
                       </span>
                       <small>
-                        {bet.candidateCount} candidates · {bet.rejectedCandidateCount} loại
+                        {bet.source === 'PAPER_SHADOW' ? 'Snapshot PIT-safe' : 'Paper ledger'} ·{' '}
+                        {bet.candidateCount} candidates
                       </small>
                     </td>
                     <td>
@@ -183,6 +195,13 @@ export default async function BetHistoryPage() {
                         {bet.selection ?? '—'}
                         {bet.bookmakerName ? ` · ${bet.bookmakerName}` : ''}
                       </small>
+                      {bet.sourcePredictionSelection && bet.sourcePredictionLineValue != null ? (
+                        <small>
+                          Model gốc: {bet.sourcePredictionSelection} {bet.sourcePredictionLineValue}{' '}
+                          ({percent(bet.sourcePredictionProbability)}){' → '}Paper: {bet.selection}{' '}
+                          {bet.lineValue}
+                        </small>
+                      ) : null}
                     </td>
                     <td>{bet.decimalOdds?.toFixed(2) ?? '—'}</td>
                     <td>{percent(bet.modelProbability)}</td>
@@ -196,16 +215,23 @@ export default async function BetHistoryPage() {
                           <strong
                             className={`science-result science-result-${bet.settlement.result.toLowerCase()}`}
                           >
-                            {bet.settlement.result}
+                            {settlementLabel(bet.settlement.result)}
                           </strong>
                           <small>
-                            {bet.settlement.profitUnits >= 0 ? '+' : ''}
-                            {bet.settlement.profitUnits.toFixed(2)}u ·{' '}
-                            {bet.settlement.fulltimeHomeGoals}-{bet.settlement.fulltimeAwayGoals}
+                            Tỷ số {bet.settlement.fulltimeHomeGoals}-
+                            {bet.settlement.fulltimeAwayGoals}
+                          </small>
+                          <small>
+                            Paper P/L {bet.settlement.profitUnits >= 0 ? '+' : ''}
+                            {bet.settlement.profitUnits.toFixed(2)}u
                           </small>
                         </>
+                      ) : bet.decisionType === 'NO_BET' ? (
+                        <span className="science-muted">Không có lựa chọn</span>
+                      ) : new Date(bet.kickoffAt).getTime() > Date.now() ? (
+                        <span className="science-muted">Chờ trận đấu kết thúc</span>
                       ) : (
-                        <span className="science-muted">Chưa settlement</span>
+                        <span className="science-muted">Chờ đồng bộ kết quả</span>
                       )}
                     </td>
                   </tr>

@@ -5,8 +5,10 @@ import {
   API_FOOTBALL_ASIA_COUNTRIES,
   API_FOOTBALL_SOUTHEAST_ASIA_COUNTRIES,
   apiFootballLeagueProfile,
+  buildShadowSettlementRuntimeReport,
   buildVietnamHorizonSchedule,
   parseApiFootballLeagueProfile,
+  type ShadowSettlementRow,
 } from '@football-ai/sync';
 
 export const scientificRouter = Router();
@@ -248,51 +250,178 @@ scientificRouter.get('/fixtures', async (request, response, next) => {
 scientificRouter.get('/bets', async (request, response, next) => {
   try {
     const limit = positiveInteger(request.query.limit, 100, 300);
-    const decisions = await prisma.scientificPaperBetDecision.findMany({
-      include: {
-        settlement: true,
-      },
-      orderBy: {
-        decisionAsOf: 'desc',
-      },
-      take: limit,
-    });
+    const reportAsOf = new Date();
+    const [decisions, shadowReport] = await Promise.all([
+      prisma.scientificPaperBetDecision.findMany({
+        include: {
+          settlement: true,
+        },
+        orderBy: {
+          decisionAsOf: 'desc',
+        },
+        take: limit,
+      }),
+      buildShadowSettlementRuntimeReport({
+        hours: 8760,
+        providerFixtureId: null,
+        reportAsOf,
+        maximumSnapshots: Math.min(3000, limit * 10),
+      }),
+    ]);
+    const paperRows = (shadowReport.rows as ShadowSettlementRow[]).filter(
+      (row: ShadowSettlementRow) => row.decisionSource === 'paperShadowRecommendation',
+    );
+    const providerFixtureIds = [
+      ...new Set([
+        ...decisions.map((row: { providerFixtureId: number }) => row.providerFixtureId),
+        ...paperRows.map((row) => row.providerFixtureId),
+      ]),
+    ];
+    const fixtureSnapshots =
+      providerFixtureIds.length === 0
+        ? []
+        : await prisma.apiFootballFixtureSnapshot.findMany({
+            where: {
+              providerFixtureId: { in: providerFixtureIds },
+              observedAt: { lte: reportAsOf },
+            },
+            select: {
+              providerFixtureId: true,
+              homeTeamName: true,
+              awayTeamName: true,
+              observedAt: true,
+            },
+            orderBy: [{ observedAt: 'desc' }, { id: 'desc' }],
+            take: Math.min(10_000, providerFixtureIds.length * 12),
+          });
+    const fixtureNames = new Map<number, { homeTeamName: string; awayTeamName: string }>();
+
+    for (const fixture of fixtureSnapshots) {
+      if (!fixtureNames.has(fixture.providerFixtureId)) {
+        fixtureNames.set(fixture.providerFixtureId, {
+          homeTeamName: fixture.homeTeamName,
+          awayTeamName: fixture.awayTeamName,
+        });
+      }
+    }
+
+    const ledgerRows = decisions.map((decision: (typeof decisions)[number]) => ({
+      id: `ledger:${decision.id}`,
+      source: 'PAPER_LEDGER' as const,
+      providerFixtureId: decision.providerFixtureId,
+      horizonMinutes: decision.horizonMinutes,
+      decisionAsOf: decision.decisionAsOf.toISOString(),
+      kickoffAt: decision.kickoffAt.toISOString(),
+      decisionType: decision.decisionType,
+      market: decision.selectedMarket,
+      selection: decision.selectedSelection,
+      lineValue: decision.lineValue,
+      decimalOdds: decision.decimalOdds,
+      bookmakerName: decision.bookmakerName,
+      modelProbability: decision.modelProbability,
+      fairMarketProbability: decision.fairMarketProbability,
+      edge: decision.edge,
+      expectedValue: decision.expectedValue,
+      modelVersion: decision.modelVersion,
+      policyVersion: decision.policyVersion,
+      reliabilityStatus: decision.reliabilityStatus,
+      candidateCount: decision.candidateCount,
+      rejectedCandidateCount: decision.rejectedCandidateCount,
+      sourcePredictionSelection: null,
+      sourcePredictionLineValue: null,
+      sourcePredictionProbability: null,
+      ...fixtureNames.get(decision.providerFixtureId),
+      settlement: decision.settlement
+        ? {
+            result: decision.settlement.result,
+            stakeUnits: decision.settlement.stakeUnits,
+            profitUnits: decision.settlement.profitUnits,
+            fulltimeHomeGoals: decision.settlement.fulltimeHomeGoals,
+            fulltimeAwayGoals: decision.settlement.fulltimeAwayGoals,
+            clv: decision.settlement.clv,
+            settledAt: decision.settlement.settledAt.toISOString(),
+          }
+        : null,
+    }));
+    const shadowRows = paperRows.map((row) => ({
+      id: `shadow:${row.snapshotId}`,
+      source: 'PAPER_SHADOW' as const,
+      providerFixtureId: row.providerFixtureId,
+      horizonMinutes: row.checkpointMinutes,
+      decisionAsOf: row.snapshotAsOf,
+      kickoffAt: row.kickoffAt,
+      decisionType: 'PAPER_PROPOSAL' as const,
+      market: row.marketType,
+      selection: row.selection,
+      lineValue: row.lineValue,
+      decimalOdds: row.decisionOdds,
+      bookmakerName: row.bookmakerName,
+      modelProbability: row.paperModelProbability,
+      fairMarketProbability: row.fairMarketProbability,
+      edge: row.edge,
+      expectedValue: row.expectedValue,
+      modelVersion: row.modelVersion ?? 'UNKNOWN',
+      policyVersion: row.paperRecommendationVersion ?? row.version,
+      reliabilityStatus: row.shadowTier,
+      candidateCount: 1,
+      rejectedCandidateCount: 0,
+      sourcePredictionSelection: row.sourcePredictionSelection,
+      sourcePredictionLineValue: row.sourcePredictionLineValue,
+      sourcePredictionProbability: row.sourcePredictionProbability,
+      ...fixtureNames.get(row.providerFixtureId),
+      settlement:
+        row.status === 'SETTLED' &&
+        row.settlementResult != null &&
+        row.hypotheticalProfitUnits != null &&
+        row.outcome.fulltimeHomeGoals != null &&
+        row.outcome.fulltimeAwayGoals != null
+          ? {
+              result: row.settlementResult,
+              stakeUnits: row.flatStakeUnits,
+              profitUnits: row.hypotheticalProfitUnits,
+              fulltimeHomeGoals: row.outcome.fulltimeHomeGoals,
+              fulltimeAwayGoals: row.outcome.fulltimeAwayGoals,
+              clv: row.clv,
+              settledAt: row.outcome.sourceFixtureObservedAt,
+            }
+          : null,
+    }));
+    const data = [...ledgerRows, ...shadowRows]
+      .sort(
+        (left, right) =>
+          new Date(right.decisionAsOf).getTime() - new Date(left.decisionAsOf).getTime() ||
+          right.id.localeCompare(left.id),
+      )
+      .slice(0, limit);
+    const settledPaperRows = paperRows.filter(
+      (row) => row.status === 'SETTLED' && row.settlementResult != null,
+    );
+    const paperWins = settledPaperRows.filter((row) => row.settlementResult === 'WIN').length;
+    const paperLosses = settledPaperRows.filter((row) => row.settlementResult === 'LOSS').length;
+    const paperVoids = settledPaperRows.filter((row) => row.settlementResult === 'VOID').length;
+    const paperProfitUnits = settledPaperRows.reduce(
+      (sum, row) => sum + (row.hypotheticalProfitUnits ?? 0),
+      0,
+    );
+    const gradedPaperRows = paperWins + paperLosses;
 
     response.json({
       timezone: 'Asia/Ho_Chi_Minh',
-      data: decisions.map((decision: (typeof decisions)[number]) => ({
-        id: decision.id,
-        providerFixtureId: decision.providerFixtureId,
-        horizonMinutes: decision.horizonMinutes,
-        decisionAsOf: decision.decisionAsOf,
-        kickoffAt: decision.kickoffAt,
-        decisionType: decision.decisionType,
-        market: decision.selectedMarket,
-        selection: decision.selectedSelection,
-        lineValue: decision.lineValue,
-        decimalOdds: decision.decimalOdds,
-        bookmakerName: decision.bookmakerName,
-        modelProbability: decision.modelProbability,
-        fairMarketProbability: decision.fairMarketProbability,
-        edge: decision.edge,
-        expectedValue: decision.expectedValue,
-        modelVersion: decision.modelVersion,
-        policyVersion: decision.policyVersion,
-        reliabilityStatus: decision.reliabilityStatus,
-        candidateCount: decision.candidateCount,
-        rejectedCandidateCount: decision.rejectedCandidateCount,
-        settlement: decision.settlement
-          ? {
-              result: decision.settlement.result,
-              stakeUnits: decision.settlement.stakeUnits,
-              profitUnits: decision.settlement.profitUnits,
-              fulltimeHomeGoals: decision.settlement.fulltimeHomeGoals,
-              fulltimeAwayGoals: decision.settlement.fulltimeAwayGoals,
-              clv: decision.settlement.clv,
-              settledAt: decision.settlement.settledAt,
-            }
-          : null,
-      })),
+      generatedAt: reportAsOf,
+      summary: {
+        paperProposals: paperRows.length,
+        pendingPaperProposals: paperRows.filter((row) => row.status === 'PENDING_OUTCOME').length,
+        invalidPaperProposals: paperRows.filter((row) => row.status === 'INVALID_DECISION_LINEAGE')
+          .length,
+        settledPaperProposals: settledPaperRows.length,
+        paperWins,
+        paperLosses,
+        paperVoids,
+        paperHitRate: gradedPaperRows > 0 ? paperWins / gradedPaperRows : null,
+        paperProfitUnits,
+        paperRoi: settledPaperRows.length > 0 ? paperProfitUnits / settledPaperRows.length : null,
+      },
+      data,
     });
   } catch (error) {
     next(error);

@@ -163,6 +163,21 @@ export type PersonalCurrentRecommendationStatus =
   | 'NO_VALUE_SIGNAL'
   | 'NOT_EVALUATED';
 
+export interface PersonalOuOppositeLineStrategyDto {
+  version: string;
+  strategy: 'OU_OPPOSITE_PROTECTED_LINE';
+  predictionMarketType: 'TOTAL_GOALS_1_5' | 'TOTAL_GOALS_2_5' | 'TOTAL_GOALS_3_5';
+  predictionSelection: 'OVER' | 'UNDER';
+  predictionLineValue: 1.5 | 2.5 | 3.5;
+  predictionProbability: number;
+  recommendedMarketType: 'TOTAL_GOALS_1_5' | 'TOTAL_GOALS_2_5' | 'TOTAL_GOALS_3_5';
+  recommendedSelection: 'OVER' | 'UNDER';
+  recommendedLineValue: 1.5 | 2.5 | 3.5;
+  lineShiftGoals: 0 | 1;
+  boundaryClamped: boolean;
+  paperOnly: true;
+}
+
 export interface PersonalCurrentRecommendationDto {
   source: 'CURRENT_SCIENTIFIC_PIT';
   version: string;
@@ -213,6 +228,7 @@ export interface PersonalCurrentRecommendationDto {
   oddsFreshnessBasis: 'SOURCE_EFFECTIVE_AT' | 'REOBSERVED_AT' | null;
   reobservationRawSnapshotId: number | null;
   reobservationKind: string | null;
+  ouOppositeLineStrategy: PersonalOuOppositeLineStrategyDto | null;
   note: 'CURRENT_SIGNAL_NOT_OFFICIAL_BEST_BET';
 }
 
@@ -271,6 +287,7 @@ export interface PersonalPaperShadowRecommendationDto {
     modelHistorySampleSize: number;
     modelDataQualityScore: number;
     reasonCodes: string[];
+    ouOppositeLineStrategy: PersonalOuOppositeLineStrategyDto | null;
   } | null;
   pitSafe: true;
   paperOnly: true;

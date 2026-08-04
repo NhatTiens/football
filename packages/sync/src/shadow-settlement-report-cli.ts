@@ -112,6 +112,7 @@ function selectedCandidateFromPayload(
   if (paperDecision != null) {
     const selected = record(paperDecision.selected);
     if (selected != null && booleanValue(selected.paperTrackEligible) === true) {
+      const oppositeLineStrategy = record(selected.ouOppositeLineStrategy);
       const marketType = text(selected.marketType);
       const selection = text(selected.selection);
       const decimalOdds = finiteNumber(selected.decimalOdds);
@@ -151,7 +152,17 @@ function selectedCandidateFromPayload(
             selected.hierarchicalConservativeProbability,
             selected.modelProbability,
           ),
-          shadowTier: text(selected.status),
+          fairMarketProbability: finiteNumber(selected.fairMarketProbability),
+          edge: finiteNumber(selected.boundedEdge, selected.hierarchicalEdge, selected.edge),
+          expectedValue: finiteNumber(
+            selected.boundedExpectedValue,
+            selected.hierarchicalExpectedValue,
+            selected.expectedValue,
+          ),
+          sourcePredictionSelection: text(oppositeLineStrategy?.predictionSelection),
+          sourcePredictionLineValue: finiteNumber(oppositeLineStrategy?.predictionLineValue),
+          sourcePredictionProbability: finiteNumber(oppositeLineStrategy?.predictionProbability),
+          shadowTier: text(paperDecision.status, selected.status),
           decisionSource: 'paperShadowRecommendation',
         };
       }
@@ -211,6 +222,9 @@ function selectedCandidateFromPayload(
         selected.conservativeProbability,
         selected.modelProbability,
       ),
+      fairMarketProbability: finiteNumber(selected.fairMarketProbability),
+      edge: finiteNumber(selected.conservativeEdge, selected.edge),
+      expectedValue: finiteNumber(selected.conservativeExpectedValue, selected.expectedValue),
       decisionSource: 'shadowCandidateDecision',
     };
   }
@@ -262,6 +276,9 @@ function selectedCandidateFromPayload(
       selected.conservativeProbability,
       selected.modelProbability,
     ),
+    fairMarketProbability: finiteNumber(selected.fairMarketProbability),
+    edge: finiteNumber(selected.conservativeEdge, selected.edge),
+    expectedValue: finiteNumber(selected.conservativeExpectedValue, selected.expectedValue),
     decisionSource: 'shadowCandidate',
   };
 }
@@ -270,6 +287,7 @@ async function loadSnapshots(input: {
   hours: number;
   providerFixtureId: number | null;
   reportAsOf: Date;
+  maximumSnapshots?: number;
 }): Promise<CurrentSignalSnapshotRow[]> {
   const since = new Date(input.reportAsOf.getTime() - input.hours * 3_600_000);
 
@@ -290,7 +308,10 @@ async function loadSnapshots(input: {
       createdAt: true,
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: input.providerFixtureId == null ? 5000 : 100,
+    take:
+      input.providerFixtureId == null
+        ? Math.max(1, Math.min(5000, Math.floor(input.maximumSnapshots ?? 5000)))
+        : Math.max(1, Math.min(100, Math.floor(input.maximumSnapshots ?? 100))),
   })) as CurrentSignalSnapshotRow[];
 }
 
@@ -377,6 +398,7 @@ export async function buildShadowSettlementRuntimeReport(input: {
   hours: number;
   providerFixtureId: number | null;
   reportAsOf: Date;
+  maximumSnapshots?: number;
 }) {
   const snapshots = await loadSnapshots(input);
   const normalized = snapshots

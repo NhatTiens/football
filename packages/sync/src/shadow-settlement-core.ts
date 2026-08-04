@@ -39,6 +39,12 @@ export interface ShadowSettlementCandidate {
   paperRecommendationVersion?: string | null;
   rawModelProbability?: number | null;
   paperModelProbability?: number | null;
+  fairMarketProbability?: number | null;
+  edge?: number | null;
+  expectedValue?: number | null;
+  sourcePredictionSelection?: string | null;
+  sourcePredictionLineValue?: number | null;
+  sourcePredictionProbability?: number | null;
   shadowTier: string | null;
   decisionSource: 'paperShadowRecommendation' | 'shadowCandidate' | 'shadowCandidateDecision';
 }
@@ -111,6 +117,12 @@ export interface ShadowSettlementRow {
   paperRecommendationVersion: string | null;
   rawModelProbability: number | null;
   paperModelProbability: number | null;
+  fairMarketProbability: number | null;
+  edge: number | null;
+  expectedValue: number | null;
+  sourcePredictionSelection: string | null;
+  sourcePredictionLineValue: number | null;
+  sourcePredictionProbability: number | null;
   decisionSource: ShadowSettlementCandidate['decisionSource'];
   outcome: ShadowOutcomeLink;
   settlementResult: ShadowSettlementResult | null;
@@ -585,6 +597,12 @@ export function settleShadowCandidate(input: {
     paperRecommendationVersion: input.candidate.paperRecommendationVersion ?? null,
     rawModelProbability: input.candidate.rawModelProbability ?? null,
     paperModelProbability: input.candidate.paperModelProbability ?? null,
+    fairMarketProbability: input.candidate.fairMarketProbability ?? null,
+    edge: input.candidate.edge ?? null,
+    expectedValue: input.candidate.expectedValue ?? null,
+    sourcePredictionSelection: input.candidate.sourcePredictionSelection ?? null,
+    sourcePredictionLineValue: input.candidate.sourcePredictionLineValue ?? null,
+    sourcePredictionProbability: input.candidate.sourcePredictionProbability ?? null,
     decisionSource: input.candidate.decisionSource,
     outcome,
     settlementResult: lineageViolations.length > 0 ? null : settlementResult,

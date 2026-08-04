@@ -2278,6 +2278,11 @@ td {
   background: #f1f5f9;
 }
 
+.science-decision-paper_proposal {
+  color: #075985;
+  background: #e0f2fe;
+}
+
 .science-result-win {
   color: #166534;
   background: #dcfce7;
@@ -2286,6 +2291,11 @@ td {
 .science-result-loss {
   color: #991b1b;
   background: #fee2e2;
+}
+
+.science-result-void {
+  color: #854d0e;
+  background: #fef9c3;
 }
 
 .science-note {

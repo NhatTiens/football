@@ -23,7 +23,12 @@ import {
   syncLineups,
   syncPredictions,
 } from '@football-ai/sync';
-import { getPersonalUpcomingAnalysis, refreshPersonalUpcomingAnalysis } from '@football-ai/sync';
+import {
+  answerAdvancedPredictionChat,
+  predictionChatCapabilities,
+  getPersonalUpcomingAnalysis,
+  refreshPersonalUpcomingAnalysis,
+} from '@football-ai/sync';
 import { env } from './env.js';
 import { openApiDocument } from './openapi.js'; import { getScientificDashboard } from './scientific-dashboard.js';
 import { scientificRouter } from './scientific-routes.js';
@@ -842,6 +847,43 @@ app.post(
           | 'EPL'
           | 'LALIGA'
         >,
+      }),
+    );
+  }),
+);
+
+app.get('/api/personal/prediction-chat/capabilities', (_request, response) => {
+  response.json(predictionChatCapabilities);
+});
+
+app.post(
+  '/api/personal/prediction-chat',
+  rateLimit({
+    windowMs: 60_000,
+    limit: 30,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: 'Quá nhiều câu hỏi chatbot. Vui lòng thử lại sau một phút.' },
+  }),
+  asyncRoute(async (request, response) => {
+    const message =
+      typeof request.body?.message === 'string' ? request.body.message.trim() : '';
+
+    if (message.length === 0) {
+      response.status(400).json({ error: 'Vui lòng nhập tên trận hoặc câu hỏi dự đoán.' });
+      return;
+    }
+    if (message.length > 240) {
+      response.status(400).json({ error: 'Câu hỏi tối đa 240 ký tự.' });
+      return;
+    }
+
+    response.json(
+      await answerAdvancedPredictionChat({
+        message,
+        context: request.body?.context,
+        days: 14,
+        limit: 300,
       }),
     );
   }),

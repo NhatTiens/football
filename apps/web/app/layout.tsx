@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { Header } from '../components/Header';
 import { Disclaimer } from '../components/Disclaimer';
 import './globals.css';
+import './prediction-chatbot.css';
+import './prediction-chatbot-advanced.css';
 
 export const metadata: Metadata = {
   title: 'Football Value AI',

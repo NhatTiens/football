@@ -1,3 +1,4 @@
+import { PredictionChatbot } from '../../components/PredictionChatbot';
 import { UpcomingPredictionBoard } from '../../components/UpcomingPredictionBoard';
 import { apiFetch } from '../../lib/api';
 import type { PersonalUpcomingAnalysisDto } from '../../lib/personal-types';
@@ -7,5 +8,10 @@ export default async function PredictionsPage() {
     '/personal/upcoming-analysis?days=14&limit=300',
   );
 
-  return <UpcomingPredictionBoard initialData={analysis} />;
+  return (
+    <>
+      <PredictionChatbot />
+      <UpcomingPredictionBoard initialData={analysis} />
+    </>
+  );
 }

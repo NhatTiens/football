@@ -284,7 +284,7 @@ describe('beta.1B.1 real-odds paper-bet core', () => {
     expect(result.marketCoverage[0]?.completeBookmakers).toBe(1);
   });
 
-  it('creates all 11 target candidates when all markets are complete', () => {
+  it('replaces direct O/U candidates with the three paper opposite-line targets', () => {
     let id = 1;
     const odds: LiveOddsRow[] = [];
     const push = (
@@ -325,7 +325,47 @@ describe('beta.1B.1 real-odds paper-bet core', () => {
       reliability,
     });
 
-    expect(result.candidates).toHaveLength(11);
+    expect(result.candidates).toHaveLength(8);
     expect(result.candidates.filter((candidate) => candidate.reliabilityEligible)).toHaveLength(3);
+
+    const ouCandidates = result.candidates.filter((candidate) =>
+      candidate.marketType.startsWith('TOTAL_GOALS_'),
+    );
+    expect(ouCandidates).toHaveLength(3);
+    expect(
+      ouCandidates.map((candidate) => ({
+        marketType: candidate.marketType,
+        selection: candidate.selection,
+        modelProbability: candidate.modelProbability,
+        predictionSelection: candidate.ouOppositeLineStrategy?.predictionSelection,
+        predictionLineValue: candidate.ouOppositeLineStrategy?.predictionLineValue,
+        paperOnly: candidate.ouOppositeLineStrategy?.paperOnly,
+      })),
+    ).toEqual([
+      {
+        marketType: 'TOTAL_GOALS_2_5',
+        selection: 'OVER',
+        modelProbability: 0.53,
+        predictionSelection: 'UNDER',
+        predictionLineValue: 3.5,
+        paperOnly: true,
+      },
+      {
+        marketType: 'TOTAL_GOALS_2_5',
+        selection: 'UNDER',
+        modelProbability: 0.47,
+        predictionSelection: 'OVER',
+        predictionLineValue: 1.5,
+        paperOnly: true,
+      },
+      {
+        marketType: 'TOTAL_GOALS_3_5',
+        selection: 'UNDER',
+        modelProbability: 0.69,
+        predictionSelection: 'OVER',
+        predictionLineValue: 2.5,
+        paperOnly: true,
+      },
+    ]);
   });
 });

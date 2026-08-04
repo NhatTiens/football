@@ -1,5 +1,7 @@
+import type { PaperOuOppositeLineStrategyAudit } from './paper-ou-opposite-line-core.js';
+
 export const PAPER_SHADOW_RECOMMENDATION_VERSION =
-  'v7.0-r4.10.2.11.4-context-longshot-firewall-v1';
+  'v7.0-r4.10.2.11.5-ou-opposite-protected-line-v1';
 
 export const PAPER_SHADOW_FLAT_STAKE_UNITS = 1 as const;
 
@@ -33,6 +35,7 @@ export interface PaperShadowCandidateInput {
   sourceOddsEffectiveAt?: string | null;
   currentSignalRejectionReasons?: string[];
   officialRejectionReasons?: string[];
+  ouOppositeLineStrategy?: PaperOuOppositeLineStrategyAudit | null;
 }
 
 export interface PaperShadowRecommendationPolicy {
@@ -56,6 +59,7 @@ export interface PaperShadowRecommendationPolicy {
   ranking: 'RAW_THEN_HIERARCHICAL_THEN_BOUNDED_WITH_FALLBACK_HDA_LONGSHOT_QUARANTINE';
   paperOnly: true;
   automaticPromotion: false;
+  ouRecommendationStrategy: 'OPPOSITE_SELECTION_SHIFT_ONE_GOAL_CLAMPED_1_5_3_5';
 }
 
 export interface PaperShadowCandidateAssessment {
@@ -99,6 +103,7 @@ export interface PaperShadowCandidateAssessment {
   currentSignalRejectionReasons: string[];
   officialRejectionReasons: string[];
   reasonCodes: string[];
+  ouOppositeLineStrategy: PaperOuOppositeLineStrategyAudit | null;
 }
 
 export interface PaperShadowRecommendationDecision {
@@ -143,6 +148,7 @@ const POLICY: PaperShadowRecommendationPolicy = Object.freeze({
   ranking: 'RAW_THEN_HIERARCHICAL_THEN_BOUNDED_WITH_FALLBACK_HDA_LONGSHOT_QUARANTINE',
   paperOnly: true,
   automaticPromotion: false,
+  ouRecommendationStrategy: 'OPPOSITE_SELECTION_SHIFT_ONE_GOAL_CLAMPED_1_5_3_5',
 });
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -301,6 +307,14 @@ function assessCandidate(
       : 'FALLBACK_HDA_LONGSHOT_FIREWALL_NOT_TRIGGERED',
     baselineFallback ? 'BASELINE_FALLBACK_RESEARCH_ONLY' : 'DYNAMIC_MODEL_OBSERVED',
     'AUTOMATIC_PROMOTION_DISABLED',
+    ...(candidate.ouOppositeLineStrategy
+      ? [
+          'OU_OPPOSITE_PROTECTED_LINE_APPLIED',
+          candidate.ouOppositeLineStrategy.boundaryClamped
+            ? 'OU_LINE_BOUNDARY_CLAMPED'
+            : 'OU_LINE_SHIFTED_ONE_GOAL',
+        ]
+      : []),
   ];
 
   return {
@@ -343,6 +357,7 @@ function assessCandidate(
     currentSignalRejectionReasons: normalizedStrings(candidate.currentSignalRejectionReasons),
     officialRejectionReasons: normalizedStrings(candidate.officialRejectionReasons),
     reasonCodes,
+    ouOppositeLineStrategy: candidate.ouOppositeLineStrategy ?? null,
   };
 }
 

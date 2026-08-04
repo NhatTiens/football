@@ -100,9 +100,16 @@ export * from './real-odds-paper-bet-engine.js';
 export * from './paper-bet-operations-core.js';
 export * from './paper-bet-operations-engine.js';
 export * from './paper-shadow-recommendation-core.js';
+export * from './paper-ou-opposite-line-core.js';
+export * from './prediction-chatbot-core.js';
+export * from './prediction-chatbot-engine.js';
+export * from './prediction-chatbot-conversation-core.js';
+export * from './prediction-chatbot-research-engine.js';
+export * from './prediction-chatbot-advanced-engine.js';
 export * from './paper-hda-context-adjustment-core.js';
 export * from './paper-hda-context-adjustment-engine.js';
 export * from './shadow-settlement-core.js';
+export { buildShadowSettlementRuntimeReport } from './shadow-settlement-report-cli.js';
 export * from './daily-outcome-report-core.js';
 export {
   getPersonalUpcomingAnalysis,

@@ -43,9 +43,10 @@ import {
   getPaperHdaContextAdjustment,
   type PaperHdaContextAdjustmentEngineResult,
 } from './paper-hda-context-adjustment-engine.js';
+import type { PaperOuOppositeLineStrategyAudit } from './paper-ou-opposite-line-core.js';
 
 export const CURRENT_SCIENTIFIC_RECOMMENDATION_VERSION =
-  'v7.0-r4.10.2.11.4-paper-hda-context-v1';
+  'v7.0-r4.10.2.11.5-ou-opposite-protected-line-v1';
 
 export type CurrentRecommendationModelSource =
   'DYNAMIC_DIXON_COLES' | 'SCIENTIFIC_BASELINE_FALLBACK';
@@ -138,6 +139,7 @@ export interface CurrentScientificCandidate {
   oddsFreshnessBasis: 'SOURCE_EFFECTIVE_AT' | 'REOBSERVED_AT' | null;
   reobservationRawSnapshotId: number | null;
   reobservationKind: string | null;
+  ouOppositeLineStrategy: PaperOuOppositeLineStrategyAudit | null;
 }
 
 export interface CurrentScientificRecommendation {
@@ -190,6 +192,7 @@ export interface CurrentScientificRecommendation {
   oddsFreshnessBasis: 'SOURCE_EFFECTIVE_AT' | 'REOBSERVED_AT' | null;
   reobservationRawSnapshotId: number | null;
   reobservationKind: string | null;
+  ouOppositeLineStrategy: PaperOuOppositeLineStrategyAudit | null;
   note: 'CURRENT_SIGNAL_NOT_OFFICIAL_BEST_BET';
 }
 
@@ -1015,6 +1018,7 @@ export async function getCurrentScientificRecommendationMap(input: {
             oddsFreshnessBasis: freshnessEvidence?.basis ?? null,
             reobservationRawSnapshotId: freshnessEvidence?.reobservationRawSnapshotId ?? null,
             reobservationKind: freshnessEvidence?.reobservationKind ?? null,
+            ouOppositeLineStrategy: candidate.ouOppositeLineStrategy ?? null,
           };
         })
         .sort(compareCurrentCandidates);
@@ -1077,6 +1081,7 @@ export async function getCurrentScientificRecommendationMap(input: {
               oddsFreshnessBasis: selected.oddsFreshnessBasis,
               reobservationRawSnapshotId: selected.reobservationRawSnapshotId,
               reobservationKind: selected.reobservationKind,
+              ouOppositeLineStrategy: selected.ouOppositeLineStrategy,
               note: 'CURRENT_SIGNAL_NOT_OFFICIAL_BEST_BET' as const,
             };
       const paperShadowRecommendation = buildPaperShadowRecommendation({

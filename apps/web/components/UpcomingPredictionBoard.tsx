@@ -1488,6 +1488,37 @@ export function UpcomingPredictionBoard({
                     {row.paperShadowRecommendation.selected.hypotheticalFlatStakeUnits}u{' · '}real
                     stake 0u
                   </small>
+                  {row.paperShadowRecommendation.selected.ouOppositeLineStrategy ? (
+                    <small>
+                      O/U paper rule: model{' '}
+                      {
+                        row.paperShadowRecommendation.selected.ouOppositeLineStrategy
+                          .predictionSelection
+                      }{' '}
+                      {
+                        row.paperShadowRecommendation.selected.ouOppositeLineStrategy
+                          .predictionLineValue
+                      }
+                      {' ('}
+                      {pct(
+                        row.paperShadowRecommendation.selected.ouOppositeLineStrategy
+                          .predictionProbability,
+                      )}
+                      {') -> paper '}
+                      {
+                        row.paperShadowRecommendation.selected.ouOppositeLineStrategy
+                          .recommendedSelection
+                      }{' '}
+                      {
+                        row.paperShadowRecommendation.selected.ouOppositeLineStrategy
+                          .recommendedLineValue
+                      }
+                      {' | '}
+                      {row.paperShadowRecommendation.selected.ouOppositeLineStrategy.boundaryClamped
+                        ? 'boundary kept'
+                        : 'line shifted by 1 goal'}
+                    </small>
+                  ) : null}
                   <small>
                     {row.paperShadowRecommendation.selected.reasonCodes.slice(0, 4).join(' · ')}
                   </small>
@@ -1518,6 +1549,22 @@ export function UpcomingPredictionBoard({
                     {' · '}Conservative EV{' '}
                     {pct(row.currentRecommendation.conservativeExpectedValue)}
                   </small>
+                  {row.currentRecommendation.ouOppositeLineStrategy ? (
+                    <small>
+                      O/U paper rule: model{' '}
+                      {row.currentRecommendation.ouOppositeLineStrategy.predictionSelection}{' '}
+                      {row.currentRecommendation.ouOppositeLineStrategy.predictionLineValue}
+                      {' ('}
+                      {pct(row.currentRecommendation.ouOppositeLineStrategy.predictionProbability)}
+                      {') -> paper '}
+                      {row.currentRecommendation.ouOppositeLineStrategy.recommendedSelection}{' '}
+                      {row.currentRecommendation.ouOppositeLineStrategy.recommendedLineValue}
+                      {' | '}
+                      {row.currentRecommendation.ouOppositeLineStrategy.boundaryClamped
+                        ? 'boundary kept'
+                        : 'line shifted by 1 goal'}
+                    </small>
+                  ) : null}
 
                   <small>
                     Risk score {decimal(row.currentRecommendation.riskAdjustedScore, 3)}
