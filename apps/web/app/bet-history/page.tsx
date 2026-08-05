@@ -40,6 +40,14 @@ type BetRow = {
   sourcePredictionSelection: string | null;
   sourcePredictionLineValue: number | null;
   sourcePredictionProbability: number | null;
+  ouRuleVersion: string | null;
+  historyReplayStatus:
+    | 'NOT_OU'
+    | 'CURRENT_HALF_GOAL_RULE'
+    | 'REPLAYED_FROM_PIT_ODDS'
+    | 'MISSING_SOURCE_AUDIT'
+    | 'MISSING_TARGET_PIT_ODDS';
+  historyStrategyEligible: boolean;
   settlement: {
     result: string;
     stakeUnits: number;
@@ -196,12 +204,25 @@ export default async function BetHistoryPage() {
                         {bet.bookmakerName ? ` · ${bet.bookmakerName}` : ''}
                       </small>
                       {bet.sourcePredictionSelection && bet.sourcePredictionLineValue != null ? (
-                        <small>
-                          Model gốc: {bet.sourcePredictionSelection} {bet.sourcePredictionLineValue}{' '}
-                          ({percent(bet.sourcePredictionProbability)}){' → '}Paper: {bet.selection}{' '}
-                          {bet.lineValue}
-                        </small>
-                      ) : null}
+                         <small>
+                           Phần mềm: {bet.sourcePredictionSelection} {bet.sourcePredictionLineValue}{' '}
+                           ({percent(bet.sourcePredictionProbability)}){' → '}Kèo lưu/chấm: {bet.selection}{' '}
+                           {bet.lineValue}
+                         </small>
+                       ) : null}
+                       {bet.historyReplayStatus === 'REPLAYED_FROM_PIT_ODDS' ? (
+                         <small>
+                           Lịch sử cũ đã tái dựng từ odds PIT theo quy luật ±0.5.
+                         </small>
+                       ) : bet.historyReplayStatus === 'MISSING_TARGET_PIT_ODDS' ? (
+                         <small>
+                           Thiếu odds PIT của kèo đích; chưa chấm theo quy luật mới.
+                         </small>
+                       ) : bet.historyReplayStatus === 'MISSING_SOURCE_AUDIT' ? (
+                         <small>
+                           Thiếu dấu vết dự đoán gốc; chưa thể tái dựng an toàn.
+                         </small>
+                       ) : null}
                     </td>
                     <td>{bet.decimalOdds?.toFixed(2) ?? '—'}</td>
                     <td>{percent(bet.modelProbability)}</td>
@@ -226,7 +247,11 @@ export default async function BetHistoryPage() {
                             {bet.settlement.profitUnits.toFixed(2)}u
                           </small>
                         </>
-                      ) : bet.decisionType === 'NO_BET' ? (
+                      ) : bet.historyReplayStatus === 'MISSING_TARGET_PIT_ODDS' ? (
+                         <span className="science-muted">Thiếu odds PIT của kèo đích</span>
+                       ) : bet.historyReplayStatus === 'MISSING_SOURCE_AUDIT' ? (
+                         <span className="science-muted">Thiếu dấu vết dự đoán gốc</span>
+                       ) : bet.decisionType === 'NO_BET' ? (
                         <span className="science-muted">Không có lựa chọn</span>
                       ) : new Date(bet.kickoffAt).getTime() > Date.now() ? (
                         <span className="science-muted">Chờ trận đấu kết thúc</span>

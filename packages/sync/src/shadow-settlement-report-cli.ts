@@ -12,6 +12,10 @@ import {
   type ShadowOutcomeSnapshot,
   type ShadowSettlementCandidate,
 } from './shadow-settlement-core.js';
+import {
+  OU_LEGACY_HISTORY_REPLAY_VERSION,
+  replayLegacyOuHistorySelection,
+} from './ou-legacy-history-replay-core.js';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -110,9 +114,17 @@ function selectedCandidateFromPayload(
   );
 
   if (paperDecision != null) {
-    const selected = record(paperDecision.selected);
+    const persistedSelected = record(paperDecision.selected);
+    const selected =
+      persistedSelected == null || record(persistedSelected.ouOppositeLineStrategy) != null
+        ? persistedSelected
+        : (replayLegacyOuHistorySelection({
+            selected: persistedSelected,
+            analysisCandidates: analysis?.candidates,
+          }) ?? persistedSelected);
     if (selected != null && booleanValue(selected.paperTrackEligible) === true) {
       const oppositeLineStrategy = record(selected.ouOppositeLineStrategy);
+      const legacyOuReplay = record(selected.legacyOuHistoryReplay);
       const marketType = text(selected.marketType);
       const selection = text(selected.selection);
       const decimalOdds = finiteNumber(selected.decimalOdds);
@@ -145,7 +157,12 @@ function selectedCandidateFromPayload(
           sourceOddsSnapshotId: positiveInteger(selected.sourceOddsSnapshotId),
           modelSource: text(selected.modelSource),
           modelVersion: text(selected.modelVersion),
-          paperRecommendationVersion: text(paperDecision.version),
+          paperRecommendationVersion:
+            legacyOuReplay == null
+              ? text(paperDecision.version)
+              : [text(paperDecision.version), OU_LEGACY_HISTORY_REPLAY_VERSION].filter(
+                  (value): value is string => value != null,
+                ).join('::'),
           rawModelProbability: finiteNumber(selected.modelProbability),
           paperModelProbability: finiteNumber(
             selected.boundedAdjustedProbability,
@@ -491,6 +508,7 @@ async function main(): Promise<void> {
           closingTarget: 'T-5',
           closingToleranceMinutes: SHADOW_CLOSING_PROXY_TOLERANCE_MINUTES,
           appendOnlyDerivedReadModel: true,
+          legacyOuHistoryReplay: OU_LEGACY_HISTORY_REPLAY_VERSION,
           historicalRowsRewritten: false,
         },
         safety: {

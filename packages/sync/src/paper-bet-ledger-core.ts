@@ -1,15 +1,13 @@
 import {
   calculateExpectedValue,
-  calculateImpliedProbability,
   selectScientificBestBet,
   type ScientificBetCandidate,
   type ScientificBestBetDecision,
 } from './scientific-best-bet-policy-contract.js';
 import type { PaperOuOppositeLineStrategyAudit } from './paper-ou-opposite-line-core.js';
-
 export const SCIENTIFIC_PAPER_BET_LEDGER_VERSION = 'v7.0-beta.1B-paper-bet-ledger-v1';
 
-export type PaperBetSettlementResult = 'WIN' | 'LOSS';
+export type PaperBetSettlementResult = 'WIN' | 'LOSS' | 'VOID';
 
 export interface PaperBetCandidateInput {
   providerFixtureId: number;
@@ -86,18 +84,20 @@ function syntheticReliability(
 export function normalizePaperBetCandidate(
   input: PaperBetCandidateInput,
 ): NormalizedPaperBetCandidate {
-  const lineValue =
+  const inferredLineValue =
     input.marketType === 'TOTAL_GOALS_1_5'
       ? 1.5
       : input.marketType === 'TOTAL_GOALS_2_5'
         ? 2.5
         : input.marketType === 'TOTAL_GOALS_3_5'
           ? 3.5
-          : input.lineValue;
-
-  const impliedProbability = calculateImpliedProbability(input.decimalOdds);
+          : null;
+  const lineValue = input.lineValue ?? inferredLineValue;
   const edge = input.modelProbability - input.fairMarketProbability;
-  const expectedValue = calculateExpectedValue(input.modelProbability, input.decimalOdds);
+  const expectedValue = calculateExpectedValue(
+    input.modelProbability,
+    input.decimalOdds,
+  );
 
   return {
     input,
@@ -159,7 +159,7 @@ export function settlePaperBetSelection(input: {
     throw new RangeError('stakeUnits must be positive.');
   }
 
-  let won = false;
+  let result: PaperBetSettlementResult;
 
   if (input.marketType === 'MATCH_WINNER') {
     const actual =
@@ -169,26 +169,42 @@ export function settlePaperBetSelection(input: {
           ? 'AWAY'
           : 'DRAW';
 
-    won = actual === input.selection;
+    result = actual === input.selection ? 'WIN' : 'LOSS';
   } else if (input.marketType.startsWith('TOTAL_GOALS')) {
     if (input.lineValue == null) {
       throw new Error('Total-goals settlement requires lineValue.');
     }
 
-    const over = input.homeGoals + input.awayGoals > input.lineValue;
+    const totalGoals = input.homeGoals + input.awayGoals;
 
-    won = (input.selection === 'OVER' && over) || (input.selection === 'UNDER' && !over);
+    if (Math.abs(totalGoals - input.lineValue) < 1e-12) {
+      result = 'VOID';
+    } else if (input.selection === 'OVER') {
+      result = totalGoals > input.lineValue ? 'WIN' : 'LOSS';
+    } else if (input.selection === 'UNDER') {
+      result = totalGoals < input.lineValue ? 'WIN' : 'LOSS';
+    } else {
+      throw new Error(`Unsupported total-goals selection: ${input.selection}`);
+    }
   } else if (input.marketType === 'BTTS') {
     const yes = input.homeGoals > 0 && input.awayGoals > 0;
-
-    won = (input.selection === 'YES' && yes) || (input.selection === 'NO' && !yes);
+    result =
+      (input.selection === 'YES' && yes) ||
+      (input.selection === 'NO' && !yes)
+        ? 'WIN'
+        : 'LOSS';
   } else {
     throw new Error(`Unsupported market settlement: ${input.marketType}`);
   }
 
   return {
-    result: won ? 'WIN' : 'LOSS',
+    result,
     stakeUnits,
-    profitUnits: won ? stakeUnits * (input.decimalOdds - 1) : -stakeUnits,
+    profitUnits:
+      result === 'WIN'
+        ? stakeUnits * (input.decimalOdds - 1)
+        : result === 'LOSS'
+          ? -stakeUnits
+          : 0,
   };
 }

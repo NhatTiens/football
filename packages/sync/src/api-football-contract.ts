@@ -57,7 +57,7 @@ export interface ApiFootballLeagueProfileEntry {
   score: number;
 }
 
-export const API_FOOTBALL_SUPPORTED_TOTAL_LINES = [1.5, 2.5, 3.5] as const;
+export const API_FOOTBALL_SUPPORTED_TOTAL_LINES = [1.5, 2, 2.5, 3, 3.5] as const;
 
 export type ApiFootballSupportedTotalLine = (typeof API_FOOTBALL_SUPPORTED_TOTAL_LINES)[number];
 

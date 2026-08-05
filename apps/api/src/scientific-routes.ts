@@ -10,6 +10,7 @@ import {
   parseApiFootballLeagueProfile,
   type ShadowSettlementRow,
 } from '@football-ai/sync';
+import { replayOuBetHistoryRows } from './ou-history-replay.js';
 
 export const scientificRouter = Router();
 
@@ -21,6 +22,144 @@ function positiveInteger(value: unknown, fallback: number, maximum: number): num
   }
 
   return Math.min(maximum, parsed);
+}
+
+type HistoryOuRuleStatus = 'APPLIED' | 'LEGACY_EXCLUDED' | 'NOT_APPLICABLE';
+type HistoryOuAudit = {
+  sourcePredictionSelection: string | null;
+  sourcePredictionLineValue: number | null;
+  sourcePredictionProbability: number | null;
+  ouRuleStatus: HistoryOuRuleStatus;
+};
+
+type HistoryRecord = Record<string, unknown>;
+function historyRecord(value: unknown): HistoryRecord | null {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as HistoryRecord)
+    : null;
+}
+
+function historyText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function historyNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function isHistoryOuMarket(value: string | null): boolean {
+  return value != null && (value === 'TOTAL_GOALS' || value.startsWith('TOTAL_GOALS_'));
+}
+
+function normalizedHistoryMarket(value: string | null): string | null {
+  return value != null && value.startsWith('TOTAL_GOALS_') ? 'TOTAL_GOALS' : value;
+}
+
+function expectedHistoryOuTarget(input: {
+  sourceSelection: string | null;
+  sourceLineValue: number | null;
+}): { selection: 'OVER' | 'UNDER'; lineValue: number } | null {
+  if (
+    (input.sourceSelection !== 'OVER' && input.sourceSelection !== 'UNDER') ||
+    ![1.5, 2.5, 3.5].includes(input.sourceLineValue ?? Number.NaN)
+  ) {
+    return null;
+  }
+
+  if (input.sourceSelection === 'OVER') {
+    return {
+      selection: 'UNDER',
+      lineValue: input.sourceLineValue === 1.5 ? 2.5 : 3.5,
+    };
+  }
+
+  return {
+    selection: 'OVER',
+    lineValue: input.sourceLineValue === 3.5 ? 2.5 : 1.5,
+  };
+}
+
+function historyOuRuleStatus(input: {
+  market: string | null;
+  selection: string | null;
+  lineValue: number | null;
+  sourcePredictionSelection: string | null;
+  sourcePredictionLineValue: number | null;
+}): HistoryOuRuleStatus {
+  if (!isHistoryOuMarket(input.market)) return 'NOT_APPLICABLE';
+
+  const expected = expectedHistoryOuTarget({
+    sourceSelection: input.sourcePredictionSelection,
+    sourceLineValue: input.sourcePredictionLineValue,
+  });
+
+  if (expected == null) return 'LEGACY_EXCLUDED';
+
+  return input.selection === expected.selection && input.lineValue === expected.lineValue
+    ? 'APPLIED'
+    : 'LEGACY_EXCLUDED';
+}
+
+function ledgerOuAudit(input: {
+  decisionPayload: unknown;
+  market: string | null;
+  selection: string | null;
+  lineValue: number | null;
+}): HistoryOuAudit {
+  if (!isHistoryOuMarket(input.market)) {
+    return {
+      sourcePredictionSelection: null,
+      sourcePredictionLineValue: null,
+      sourcePredictionProbability: null,
+      ouRuleStatus: 'NOT_APPLICABLE',
+    };
+  }
+
+  const payload = historyRecord(input.decisionPayload);
+  const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+
+  for (const candidateValue of candidates) {
+    const candidate = historyRecord(candidateValue);
+    const original = historyRecord(candidate?.input);
+    const strategy = historyRecord(original?.ouOppositeLineStrategy);
+    if (strategy == null) continue;
+
+    const recommendedMarket = historyText(strategy.recommendedMarketType);
+    const recommendedSelection = historyText(strategy.recommendedSelection);
+    const recommendedLineValue = historyNumber(strategy.recommendedLineValue);
+
+    if (
+      normalizedHistoryMarket(recommendedMarket) !== normalizedHistoryMarket(input.market) ||
+      recommendedSelection !== input.selection ||
+      recommendedLineValue !== input.lineValue
+    ) {
+      continue;
+    }
+
+    const sourcePredictionSelection = historyText(strategy.predictionSelection);
+    const sourcePredictionLineValue = historyNumber(strategy.predictionLineValue);
+    const sourcePredictionProbability = historyNumber(strategy.predictionProbability);
+
+    return {
+      sourcePredictionSelection,
+      sourcePredictionLineValue,
+      sourcePredictionProbability,
+      ouRuleStatus: historyOuRuleStatus({
+        market: input.market,
+        selection: input.selection,
+        lineValue: input.lineValue,
+        sourcePredictionSelection,
+        sourcePredictionLineValue,
+      }),
+    };
+  }
+
+  return {
+    sourcePredictionSelection: null,
+    sourcePredictionLineValue: null,
+    sourcePredictionProbability: null,
+    ouRuleStatus: 'LEGACY_EXCLUDED',
+  };
 }
 
 async function latestLeagueProfile() {
@@ -305,121 +444,165 @@ scientificRouter.get('/bets', async (request, response, next) => {
       }
     }
 
-    const ledgerRows = decisions.map((decision: (typeof decisions)[number]) => ({
-      id: `ledger:${decision.id}`,
-      source: 'PAPER_LEDGER' as const,
-      providerFixtureId: decision.providerFixtureId,
-      horizonMinutes: decision.horizonMinutes,
-      decisionAsOf: decision.decisionAsOf.toISOString(),
-      kickoffAt: decision.kickoffAt.toISOString(),
-      decisionType: decision.decisionType,
-      market: decision.selectedMarket,
-      selection: decision.selectedSelection,
-      lineValue: decision.lineValue,
-      decimalOdds: decision.decimalOdds,
-      bookmakerName: decision.bookmakerName,
-      modelProbability: decision.modelProbability,
-      fairMarketProbability: decision.fairMarketProbability,
-      edge: decision.edge,
-      expectedValue: decision.expectedValue,
-      modelVersion: decision.modelVersion,
-      policyVersion: decision.policyVersion,
-      reliabilityStatus: decision.reliabilityStatus,
-      candidateCount: decision.candidateCount,
-      rejectedCandidateCount: decision.rejectedCandidateCount,
-      sourcePredictionSelection: null,
-      sourcePredictionLineValue: null,
-      sourcePredictionProbability: null,
-      ...fixtureNames.get(decision.providerFixtureId),
-      settlement: decision.settlement
-        ? {
-            result: decision.settlement.result,
-            stakeUnits: decision.settlement.stakeUnits,
-            profitUnits: decision.settlement.profitUnits,
-            fulltimeHomeGoals: decision.settlement.fulltimeHomeGoals,
-            fulltimeAwayGoals: decision.settlement.fulltimeAwayGoals,
-            clv: decision.settlement.clv,
-            settledAt: decision.settlement.settledAt.toISOString(),
-          }
-        : null,
-    }));
-    const shadowRows = paperRows.map((row) => ({
-      id: `shadow:${row.snapshotId}`,
-      source: 'PAPER_SHADOW' as const,
-      providerFixtureId: row.providerFixtureId,
-      horizonMinutes: row.checkpointMinutes,
-      decisionAsOf: row.snapshotAsOf,
-      kickoffAt: row.kickoffAt,
-      decisionType: 'PAPER_PROPOSAL' as const,
-      market: row.marketType,
-      selection: row.selection,
-      lineValue: row.lineValue,
-      decimalOdds: row.decisionOdds,
-      bookmakerName: row.bookmakerName,
-      modelProbability: row.paperModelProbability,
-      fairMarketProbability: row.fairMarketProbability,
-      edge: row.edge,
-      expectedValue: row.expectedValue,
-      modelVersion: row.modelVersion ?? 'UNKNOWN',
-      policyVersion: row.paperRecommendationVersion ?? row.version,
-      reliabilityStatus: row.shadowTier,
-      candidateCount: 1,
-      rejectedCandidateCount: 0,
-      sourcePredictionSelection: row.sourcePredictionSelection,
-      sourcePredictionLineValue: row.sourcePredictionLineValue,
-      sourcePredictionProbability: row.sourcePredictionProbability,
-      ...fixtureNames.get(row.providerFixtureId),
-      settlement:
-        row.status === 'SETTLED' &&
-        row.settlementResult != null &&
-        row.hypotheticalProfitUnits != null &&
-        row.outcome.fulltimeHomeGoals != null &&
-        row.outcome.fulltimeAwayGoals != null
+    const ledgerRows = decisions.map((decision: (typeof decisions)[number]) => {
+      const ouAudit = ledgerOuAudit({
+        decisionPayload: decision.decisionPayload,
+        market: decision.selectedMarket,
+        selection: decision.selectedSelection,
+        lineValue: decision.lineValue,
+      });
+
+      return {
+        id: `ledger:${decision.id}`,
+        source: 'PAPER_LEDGER' as const,
+        providerFixtureId: decision.providerFixtureId,
+        horizonMinutes: decision.horizonMinutes,
+        decisionAsOf: decision.decisionAsOf.toISOString(),
+        kickoffAt: decision.kickoffAt.toISOString(),
+        decisionType: decision.decisionType,
+        market: decision.selectedMarket,
+        selection: decision.selectedSelection,
+        lineValue: decision.lineValue,
+        decimalOdds: decision.decimalOdds,
+        bookmakerName: decision.bookmakerName,
+        modelProbability: decision.modelProbability,
+        fairMarketProbability: decision.fairMarketProbability,
+        edge: decision.edge,
+        expectedValue: decision.expectedValue,
+        modelVersion: decision.modelVersion,
+        policyVersion: decision.policyVersion,
+        reliabilityStatus: decision.reliabilityStatus,
+        candidateCount: decision.candidateCount,
+        rejectedCandidateCount: decision.rejectedCandidateCount,
+        sourcePredictionSelection: ouAudit.sourcePredictionSelection,
+        sourcePredictionLineValue: ouAudit.sourcePredictionLineValue,
+        sourcePredictionProbability: ouAudit.sourcePredictionProbability,
+        ouRuleStatus: ouAudit.ouRuleStatus,
+        ...fixtureNames.get(decision.providerFixtureId),
+        settlement: decision.settlement
           ? {
-              result: row.settlementResult,
-              stakeUnits: row.flatStakeUnits,
-              profitUnits: row.hypotheticalProfitUnits,
-              fulltimeHomeGoals: row.outcome.fulltimeHomeGoals,
-              fulltimeAwayGoals: row.outcome.fulltimeAwayGoals,
-              clv: row.clv,
-              settledAt: row.outcome.sourceFixtureObservedAt,
+              result: decision.settlement.result,
+              stakeUnits: decision.settlement.stakeUnits,
+              profitUnits: decision.settlement.profitUnits,
+              fulltimeHomeGoals: decision.settlement.fulltimeHomeGoals,
+              fulltimeAwayGoals: decision.settlement.fulltimeAwayGoals,
+              clv: decision.settlement.clv,
+              settledAt: decision.settlement.settledAt.toISOString(),
             }
           : null,
-    }));
-    const data = [...ledgerRows, ...shadowRows]
+      };
+    });
+    const shadowRows = paperRows.map((row) => {
+      const ouRuleStatus = historyOuRuleStatus({
+        market: row.marketType,
+        selection: row.selection,
+        lineValue: row.lineValue,
+        sourcePredictionSelection: row.sourcePredictionSelection,
+        sourcePredictionLineValue: row.sourcePredictionLineValue,
+      });
+
+      return {
+        id: `shadow:${row.snapshotId}`,
+        source: 'PAPER_SHADOW' as const,
+        providerFixtureId: row.providerFixtureId,
+        horizonMinutes: row.checkpointMinutes,
+        decisionAsOf: row.snapshotAsOf,
+        kickoffAt: row.kickoffAt,
+        decisionType: 'PAPER_PROPOSAL' as const,
+        market: row.marketType,
+        selection: row.selection,
+        lineValue: row.lineValue,
+        decimalOdds: row.decisionOdds,
+        bookmakerName: row.bookmakerName,
+        modelProbability: row.paperModelProbability,
+        fairMarketProbability: row.fairMarketProbability,
+        edge: row.edge,
+        expectedValue: row.expectedValue,
+        modelVersion: row.modelVersion ?? 'UNKNOWN',
+        policyVersion: row.paperRecommendationVersion ?? row.version,
+        reliabilityStatus: row.shadowTier,
+        candidateCount: 1,
+        rejectedCandidateCount: 0,
+        sourcePredictionSelection: row.sourcePredictionSelection,
+        sourcePredictionLineValue: row.sourcePredictionLineValue,
+        sourcePredictionProbability: row.sourcePredictionProbability,
+        ouRuleStatus,
+        ...fixtureNames.get(row.providerFixtureId),
+        settlement:
+          row.status === 'SETTLED' &&
+          row.settlementResult != null &&
+          row.hypotheticalProfitUnits != null &&
+          row.outcome.fulltimeHomeGoals != null &&
+          row.outcome.fulltimeAwayGoals != null
+            ? {
+                result: row.settlementResult,
+                stakeUnits: row.flatStakeUnits,
+                profitUnits: row.hypotheticalProfitUnits,
+                fulltimeHomeGoals: row.outcome.fulltimeHomeGoals,
+                fulltimeAwayGoals: row.outcome.fulltimeAwayGoals,
+                clv: row.clv,
+                settledAt: row.outcome.sourceFixtureObservedAt,
+              }
+            : null,
+      };
+    });
+    const replayedRows = await replayOuBetHistoryRows(
+      [...ledgerRows, ...shadowRows],
+      reportAsOf,
+    );
+    const data = replayedRows
       .sort(
         (left, right) =>
-          new Date(right.decisionAsOf).getTime() - new Date(left.decisionAsOf).getTime() ||
+          new Date(right.decisionAsOf).getTime() -
+            new Date(left.decisionAsOf).getTime() ||
           right.id.localeCompare(left.id),
       )
       .slice(0, limit);
-    const settledPaperRows = paperRows.filter(
-      (row) => row.status === 'SETTLED' && row.settlementResult != null,
+    const replayedPaperRows = replayedRows.filter(
+      (row) => row.source === 'PAPER_SHADOW',
     );
-    const paperWins = settledPaperRows.filter((row) => row.settlementResult === 'WIN').length;
-    const paperLosses = settledPaperRows.filter((row) => row.settlementResult === 'LOSS').length;
-    const paperVoids = settledPaperRows.filter((row) => row.settlementResult === 'VOID').length;
+    const eligiblePaperRows = replayedPaperRows.filter(
+      (row) => row.historyStrategyEligible,
+    );
+    const settledPaperRows = eligiblePaperRows.filter(
+      (row) => row.settlement != null,
+    );
+    const paperWins = settledPaperRows.filter(
+      (row) => row.settlement?.result === 'WIN',
+    ).length;
+    const paperLosses = settledPaperRows.filter(
+      (row) => row.settlement?.result === 'LOSS',
+    ).length;
+    const paperVoids = settledPaperRows.filter(
+      (row) => row.settlement?.result === 'VOID',
+    ).length;
     const paperProfitUnits = settledPaperRows.reduce(
-      (sum, row) => sum + (row.hypotheticalProfitUnits ?? 0),
+      (sum, row) => sum + (row.settlement?.profitUnits ?? 0),
+      0,
+    );
+    const paperStakeUnits = settledPaperRows.reduce(
+      (sum, row) => sum + (row.settlement?.stakeUnits ?? 0),
       0,
     );
     const gradedPaperRows = paperWins + paperLosses;
-
     response.json({
       timezone: 'Asia/Ho_Chi_Minh',
       generatedAt: reportAsOf,
       summary: {
-        paperProposals: paperRows.length,
-        pendingPaperProposals: paperRows.filter((row) => row.status === 'PENDING_OUTCOME').length,
-        invalidPaperProposals: paperRows.filter((row) => row.status === 'INVALID_DECISION_LINEAGE')
-          .length,
+        paperProposals: replayedPaperRows.length,
+        pendingPaperProposals: eligiblePaperRows.filter(
+          (row) => row.settlement == null,
+        ).length,
+        invalidPaperProposals: replayedPaperRows.filter(
+          (row) => !row.historyStrategyEligible,
+        ).length,
         settledPaperProposals: settledPaperRows.length,
         paperWins,
         paperLosses,
         paperVoids,
         paperHitRate: gradedPaperRows > 0 ? paperWins / gradedPaperRows : null,
         paperProfitUnits,
-        paperRoi: settledPaperRows.length > 0 ? paperProfitUnits / settledPaperRows.length : null,
+        paperRoi: paperStakeUnits > 0 ? paperProfitUnits / paperStakeUnits : null,
       },
       data,
     });

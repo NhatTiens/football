@@ -4,16 +4,14 @@ import {
 } from './scientific-best-bet-policy-contract.js';
 import type { PaperBetCandidateInput } from './paper-bet-ledger-core.js';
 import {
-  PAPER_OU_SUPPORTED_LINES,
+  derivePaperOuTargetProbabilities,
   isPaperOuMarketType,
+  isPaperOuSourceLine,
   mapPaperOuPredictionToOppositeLine,
-  paperOuMarketForLine,
-  type PaperOuOppositeLineStrategyAudit,
-  type PaperOuSelection,
+  type PaperOuSourceLine,
 } from './paper-ou-opposite-line-core.js';
-
 export const LIVE_PAPER_BET_ENGINE_VERSION =
-  'v7.0-r4.10.2.11.5-ou-opposite-protected-line-paper-bet-v1';
+  'v7.0-r4.10.2.11.6-ou-rule-history-v2';
 
 export const LIVE_PAPER_BET_HORIZONS = [90, 30, 5] as const;
 
@@ -376,6 +374,18 @@ function toPolicyMarket(market: LiveMarketType): ScientificBestBetMarket {
   return market;
 }
 
+function isOuMarketDefinition(
+  definition: MarketDefinition,
+): definition is MarketDefinition & {
+  market: 'TOTAL_GOALS_1_5' | 'TOTAL_GOALS_2_5' | 'TOTAL_GOALS_3_5';
+  lineValue: PaperOuSourceLine;
+} {
+  return (
+    isPaperOuMarketType(definition.market) &&
+    isPaperOuSourceLine(definition.lineValue)
+  );
+}
+
 export function buildLivePaperBetCandidates(input: {
   providerFixtureId: number;
   oddsRows: LiveOddsRow[];
@@ -390,14 +400,101 @@ export function buildLivePaperBetCandidates(input: {
   }>;
 } {
   const latest = input.oddsRows;
-  const directCandidates: PaperBetCandidateInput[] = [];
+  const candidates: PaperBetCandidateInput[] = [];
   const marketCoverage: Array<{
     market: LiveMarketType;
     completeBookmakers: number;
     candidates: number;
   }> = [];
+  const underProbabilities = {
+    line1_5: input.modelProbabilities.TOTAL_GOALS_1_5.UNDER,
+    line2_5: input.modelProbabilities.TOTAL_GOALS_2_5.UNDER,
+    line3_5: input.modelProbabilities.TOTAL_GOALS_3_5.UNDER,
+  };
 
   for (const definition of MARKET_DEFINITIONS) {
+    if (isOuMarketDefinition(definition)) {
+      let candidateCount = 0;
+      let completeBookmakers = 0;
+
+      for (const sourceSelection of ['OVER', 'UNDER'] as const) {
+        const mapping = mapPaperOuPredictionToOppositeLine({
+          predictionSelection: sourceSelection,
+          predictionLineValue: definition.lineValue,
+        });
+        const targetDefinition: MarketDefinition = {
+          ...definition,
+          lineValue: mapping.recommendedLineValue,
+          selections: ['OVER', 'UNDER'],
+        };
+        const targetConsensus = consensusForDefinition(latest, targetDefinition);
+
+        if (!targetConsensus) {
+          continue;
+        }
+
+        completeBookmakers = Math.max(
+          completeBookmakers,
+          targetConsensus.completeBookmakers,
+        );
+        const bestOdds = bestOddsForSelection(
+          latest,
+          targetDefinition,
+          mapping.recommendedSelection,
+        );
+        const fair = targetConsensus.fair[mapping.recommendedSelection];
+
+        if (!bestOdds || fair == null) {
+          continue;
+        }
+
+        const sourceProbability = modelProbability(
+          input.modelProbabilities,
+          definition.market,
+          sourceSelection,
+        );
+        const targetProbabilities = derivePaperOuTargetProbabilities({
+          mapping,
+          underProbabilities,
+          decimalOdds: bestOdds.decimalOdds,
+        });
+        const gate = input.reliability[definition.market];
+
+        candidates.push({
+          providerFixtureId: input.providerFixtureId,
+          marketType: toPolicyMarket(definition.market),
+          selection: mapping.recommendedSelection,
+          lineValue: mapping.recommendedLineValue,
+          decimalOdds: bestOdds.decimalOdds,
+          bookmakerId: bestOdds.bookmakerId,
+          bookmakerName: bestOdds.bookmakerName,
+          modelProbability: targetProbabilities.effectiveProbability,
+          fairMarketProbability: fair,
+          reliabilityStatus: gate.status,
+          reliabilityEligible: gate.eligible,
+          sourceOddsSnapshotId: bestOdds.id,
+          sourceOddsUpdatedAt: bestOdds.sourceUpdatedAt,
+          sourceOddsObservedAt: bestOdds.observedAt,
+          ouOppositeLineStrategy: {
+            ...mapping,
+            predictionProbability: sourceProbability,
+            targetWinProbability: targetProbabilities.winProbability,
+            targetPushProbability: targetProbabilities.pushProbability,
+            targetLossProbability: targetProbabilities.lossProbability,
+            targetEffectiveProbability: targetProbabilities.effectiveProbability,
+          },
+        });
+        candidateCount += 1;
+      }
+
+      marketCoverage.push({
+        market: definition.market,
+        completeBookmakers,
+        candidates: candidateCount,
+      });
+      continue;
+    }
+
     const consensus = consensusForDefinition(latest, definition);
 
     if (!consensus) {
@@ -417,7 +514,6 @@ export function buildLivePaperBetCandidates(input: {
       if (!bestOdds) {
         continue;
       }
-
       const fair = consensus.fair[selection];
 
       if (fair == null) {
@@ -425,9 +521,13 @@ export function buildLivePaperBetCandidates(input: {
       }
 
       const gate = input.reliability[definition.market];
-      const probability = modelProbability(input.modelProbabilities, definition.market, selection);
+      const probability = modelProbability(
+        input.modelProbabilities,
+        definition.market,
+        selection,
+      );
 
-      directCandidates.push({
+      candidates.push({
         providerFixtureId: input.providerFixtureId,
         marketType: toPolicyMarket(definition.market),
         selection,
@@ -453,93 +553,10 @@ export function buildLivePaperBetCandidates(input: {
     });
   }
 
-  const transformedOuCandidates = buildOppositeProtectedOuCandidates({
-    directCandidates,
-    modelProbabilities: input.modelProbabilities,
-  });
-  const candidates = [
-    ...directCandidates.filter((candidate) => !isPaperOuMarketType(candidate.marketType)),
-    ...transformedOuCandidates,
-  ];
-  const candidateCountByMarket = new Map<LiveMarketType, number>();
-
-  for (const candidate of candidates) {
-    candidateCountByMarket.set(
-      candidate.marketType,
-      (candidateCountByMarket.get(candidate.marketType) ?? 0) + 1,
-    );
-  }
-
   return {
     candidates,
-    marketCoverage: marketCoverage.map((coverage) => ({
-      ...coverage,
-      candidates: candidateCountByMarket.get(coverage.market) ?? 0,
-    })),
+    marketCoverage,
   };
-}
-
-function buildOppositeProtectedOuCandidates(input: {
-  directCandidates: PaperBetCandidateInput[];
-  modelProbabilities: LiveModelProbabilities;
-}): PaperBetCandidateInput[] {
-  const selected = new Map<
-    string,
-    PaperBetCandidateInput & { ouOppositeLineStrategy: PaperOuOppositeLineStrategyAudit }
-  >();
-
-  for (const predictionLineValue of PAPER_OU_SUPPORTED_LINES) {
-    const predictionMarketType = paperOuMarketForLine(predictionLineValue);
-    const probabilities = input.modelProbabilities[predictionMarketType];
-    const probabilityDifference = probabilities.OVER - probabilities.UNDER;
-
-    if (Math.abs(probabilityDifference) < EPSILON) continue;
-
-    const predictionSelection: PaperOuSelection = probabilityDifference > 0 ? 'OVER' : 'UNDER';
-    const predictionProbability = probabilities[predictionSelection];
-    const mapping = mapPaperOuPredictionToOppositeLine({
-      predictionSelection,
-      predictionLineValue,
-    });
-    const target = input.directCandidates.find(
-      (candidate) =>
-        candidate.marketType === mapping.recommendedMarketType &&
-        candidate.selection === mapping.recommendedSelection &&
-        candidate.lineValue === mapping.recommendedLineValue,
-    );
-
-    if (!target) continue;
-
-    const ouOppositeLineStrategy: PaperOuOppositeLineStrategyAudit = {
-      ...mapping,
-      predictionProbability,
-    };
-    const transformed = {
-      ...target,
-      ouOppositeLineStrategy,
-    };
-    const key = [
-      mapping.recommendedMarketType,
-      mapping.recommendedSelection,
-      mapping.recommendedLineValue.toFixed(1),
-    ].join(':');
-    const existing = selected.get(key);
-
-    if (
-      existing == null ||
-      predictionProbability > existing.ouOppositeLineStrategy.predictionProbability + EPSILON ||
-      (Math.abs(predictionProbability - existing.ouOppositeLineStrategy.predictionProbability) <
-        EPSILON &&
-        predictionLineValue < existing.ouOppositeLineStrategy.predictionLineValue)
-    ) {
-      selected.set(key, transformed);
-    }
-  }
-
-  return [...selected.values()].sort(
-    (left, right) =>
-      left.lineValue! - right.lineValue! || left.selection.localeCompare(right.selection),
-  );
 }
 
 export function livePaperBetPolicyVersion(): string {

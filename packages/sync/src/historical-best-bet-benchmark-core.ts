@@ -304,6 +304,9 @@ export function evaluateHistoricalMatchWinnerEvent(input: {
     decimalOdds: selectedInput.decimalOdds,
     stakeUnits: 1,
   });
+  if (settlement.result === 'VOID') {
+    throw new Error('HISTORICAL_BENCHMARK_MATCH_WINNER_CANNOT_VOID');
+  }
   const closingOdds =
     input.closingOdds != null && Number.isFinite(input.closingOdds) && input.closingOdds > 1
       ? input.closingOdds

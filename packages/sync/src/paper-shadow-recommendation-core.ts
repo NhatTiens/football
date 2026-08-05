@@ -1,7 +1,7 @@
 import type { PaperOuOppositeLineStrategyAudit } from './paper-ou-opposite-line-core.js';
 
 export const PAPER_SHADOW_RECOMMENDATION_VERSION =
-  'v7.0-r4.10.2.11.5-ou-opposite-protected-line-v1';
+  'v7.0-r4.10.2.11.6-ou-opposite-half-goal-v2';
 
 export const PAPER_SHADOW_FLAT_STAKE_UNITS = 1 as const;
 
@@ -59,7 +59,7 @@ export interface PaperShadowRecommendationPolicy {
   ranking: 'RAW_THEN_HIERARCHICAL_THEN_BOUNDED_WITH_FALLBACK_HDA_LONGSHOT_QUARANTINE';
   paperOnly: true;
   automaticPromotion: false;
-  ouRecommendationStrategy: 'OPPOSITE_SELECTION_SHIFT_ONE_GOAL_CLAMPED_1_5_3_5';
+  ouRecommendationStrategy: 'OPPOSITE_SELECTION_SHIFT_HALF_GOAL_CLAMPED_1_5_3_5';
 }
 
 export interface PaperShadowCandidateAssessment {
@@ -148,7 +148,7 @@ const POLICY: PaperShadowRecommendationPolicy = Object.freeze({
   ranking: 'RAW_THEN_HIERARCHICAL_THEN_BOUNDED_WITH_FALLBACK_HDA_LONGSHOT_QUARANTINE',
   paperOnly: true,
   automaticPromotion: false,
-  ouRecommendationStrategy: 'OPPOSITE_SELECTION_SHIFT_ONE_GOAL_CLAMPED_1_5_3_5',
+  ouRecommendationStrategy: 'OPPOSITE_SELECTION_SHIFT_HALF_GOAL_CLAMPED_1_5_3_5',
 });
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -309,10 +309,10 @@ function assessCandidate(
     'AUTOMATIC_PROMOTION_DISABLED',
     ...(candidate.ouOppositeLineStrategy
       ? [
-          'OU_OPPOSITE_PROTECTED_LINE_APPLIED',
+          'OU_OPPOSITE_PROTECTED_HALF_GOAL_APPLIED',
           candidate.ouOppositeLineStrategy.boundaryClamped
             ? 'OU_LINE_BOUNDARY_CLAMPED'
-            : 'OU_LINE_SHIFTED_ONE_GOAL',
+            : 'OU_LINE_SHIFTED_HALF_GOAL',
         ]
       : []),
   ];
