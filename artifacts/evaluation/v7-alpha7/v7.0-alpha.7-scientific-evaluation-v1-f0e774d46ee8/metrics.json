@@ -1,0 +1,281 @@
+{
+  "betting": {
+    "baseline": {
+      "averageClv": -0.036047805737608296,
+      "averageEdge": 0.09255987835327356,
+      "averageExpectedValue": 0.2172689485675073,
+      "averageOdds": 2.8189189189189188,
+      "bets": 37,
+      "hitRate": 0.35135135135135137,
+      "losses": 24,
+      "maximumDrawdownUnits": 6.43,
+      "positiveClvRate": 0.0,
+      "profitUnits": -0.9900000000000002,
+      "pushes": 0,
+      "roi": -0.02675675675675676,
+      "stakeUnits": 37.0,
+      "wins": 13
+    },
+    "byHorizon": {
+      "30": {
+        "baseline": {
+          "averageClv": 0.0,
+          "averageEdge": 0.09114637947843936,
+          "averageExpectedValue": 0.25455234709635627,
+          "averageOdds": 2.911025641025641,
+          "bets": 39,
+          "hitRate": 0.358974358974359,
+          "losses": 25,
+          "maximumDrawdownUnits": 6.180000000000001,
+          "positiveClvRate": 0.0,
+          "profitUnits": 1.1599999999999997,
+          "pushes": 0,
+          "roi": 0.029743589743589736,
+          "stakeUnits": 39.0,
+          "wins": 14
+        },
+        "candidate": {
+          "averageClv": 0.0,
+          "averageEdge": 0.2576782893229159,
+          "averageExpectedValue": 0.6471312725959718,
+          "averageOdds": 2.551875,
+          "bets": 64,
+          "hitRate": 0.359375,
+          "losses": 41,
+          "maximumDrawdownUnits": 18.73,
+          "positiveClvRate": 0.0,
+          "profitUnits": -5.630000000000001,
+          "pushes": 0,
+          "roi": -0.08796875000000001,
+          "stakeUnits": 64.0,
+          "wins": 23
+        }
+      },
+      "5": {
+        "baseline": {
+          "averageClv": 0.0,
+          "averageEdge": 0.09114637947843936,
+          "averageExpectedValue": 0.25455234709635627,
+          "averageOdds": 2.911025641025641,
+          "bets": 39,
+          "hitRate": 0.358974358974359,
+          "losses": 25,
+          "maximumDrawdownUnits": 6.180000000000001,
+          "positiveClvRate": 0.0,
+          "profitUnits": 1.1599999999999997,
+          "pushes": 0,
+          "roi": 0.029743589743589736,
+          "stakeUnits": 39.0,
+          "wins": 14
+        },
+        "candidate": {
+          "averageClv": 0.0,
+          "averageEdge": 0.26107399294480027,
+          "averageExpectedValue": 0.6552084306476119,
+          "averageOdds": 2.551875,
+          "bets": 64,
+          "hitRate": 0.359375,
+          "losses": 41,
+          "maximumDrawdownUnits": 18.73,
+          "positiveClvRate": 0.0,
+          "profitUnits": -5.630000000000001,
+          "pushes": 0,
+          "roi": -0.08796875000000001,
+          "stakeUnits": 64.0,
+          "wins": 23
+        }
+      },
+      "90": {
+        "baseline": {
+          "averageClv": -0.036047805737608296,
+          "averageEdge": 0.09255987835327356,
+          "averageExpectedValue": 0.2172689485675073,
+          "averageOdds": 2.8189189189189188,
+          "bets": 37,
+          "hitRate": 0.35135135135135137,
+          "losses": 24,
+          "maximumDrawdownUnits": 6.43,
+          "positiveClvRate": 0.0,
+          "profitUnits": -0.9900000000000002,
+          "pushes": 0,
+          "roi": -0.02675675675675676,
+          "stakeUnits": 37.0,
+          "wins": 13
+        },
+        "candidate": {
+          "averageClv": -0.03400939771489983,
+          "averageEdge": 0.2517049618777324,
+          "averageExpectedValue": 0.6038210662693044,
+          "averageOdds": 2.455081967213115,
+          "bets": 61,
+          "hitRate": 0.39344262295081966,
+          "losses": 37,
+          "maximumDrawdownUnits": 15.470000000000002,
+          "positiveClvRate": 0.0,
+          "profitUnits": -1.7100000000000004,
+          "pushes": 0,
+          "roi": -0.02803278688524591,
+          "stakeUnits": 61.0,
+          "wins": 24
+        }
+      }
+    },
+    "candidate": {
+      "averageClv": -0.03400939771489983,
+      "averageEdge": 0.2517049618777324,
+      "averageExpectedValue": 0.6038210662693044,
+      "averageOdds": 2.455081967213115,
+      "bets": 61,
+      "hitRate": 0.39344262295081966,
+      "losses": 37,
+      "maximumDrawdownUnits": 15.470000000000002,
+      "positiveClvRate": 0.0,
+      "profitUnits": -1.7100000000000004,
+      "pushes": 0,
+      "roi": -0.02803278688524591,
+      "stakeUnits": 61.0,
+      "wins": 24
+    },
+    "policyVersion": "fixed-1x2-policy-v1",
+    "promotionHorizonMinutes": 90
+  },
+  "prediction": {
+    "baseline": {
+      "accuracy": 0.35384615384615387,
+      "brier": 0.6734347087423506,
+      "expectedCalibrationError": 0.08466044341419454,
+      "logLoss": 1.1075064382333755,
+      "rows": 65
+    },
+    "byHorizon": {
+      "30": {
+        "baseline": {
+          "accuracy": 0.35384615384615387,
+          "brier": 0.673696833359628,
+          "expectedCalibrationError": 0.10320670668990828,
+          "logLoss": 1.107969900973847,
+          "rows": 65
+        },
+        "candidate": {
+          "accuracy": 0.4,
+          "brier": 0.8208349691425495,
+          "expectedCalibrationError": 0.27664813018313017,
+          "logLoss": 1.4069427307294542,
+          "rows": 65
+        },
+        "catBoost": {
+          "accuracy": 0.3076923076923077,
+          "brier": 0.697522294258906,
+          "expectedCalibrationError": 0.20581258991900145,
+          "logLoss": 1.1543063092272672,
+          "rows": 65
+        },
+        "dixonColes": {
+          "accuracy": 0.4,
+          "brier": 0.7009346008872881,
+          "expectedCalibrationError": 0.1370373586445228,
+          "logLoss": 1.1469815955400962,
+          "rows": 65
+        }
+      },
+      "5": {
+        "baseline": {
+          "accuracy": 0.35384615384615387,
+          "brier": 0.673696833359628,
+          "expectedCalibrationError": 0.10320670668990828,
+          "logLoss": 1.107969900973847,
+          "rows": 65
+        },
+        "candidate": {
+          "accuracy": 0.4,
+          "brier": 0.822621413469565,
+          "expectedCalibrationError": 0.2703544261873278,
+          "logLoss": 1.4116368641700954,
+          "rows": 65
+        },
+        "catBoost": {
+          "accuracy": 0.3076923076923077,
+          "brier": 0.6978392402377334,
+          "expectedCalibrationError": 0.18767642343295426,
+          "logLoss": 1.154664707362274,
+          "rows": 65
+        },
+        "dixonColes": {
+          "accuracy": 0.4,
+          "brier": 0.7009346008872881,
+          "expectedCalibrationError": 0.1370373586445228,
+          "logLoss": 1.1469815955400962,
+          "rows": 65
+        }
+      },
+      "90": {
+        "baseline": {
+          "accuracy": 0.35384615384615387,
+          "brier": 0.6734347087423506,
+          "expectedCalibrationError": 0.08466044341419454,
+          "logLoss": 1.1075064382333755,
+          "rows": 65
+        },
+        "candidate": {
+          "accuracy": 0.4,
+          "brier": 0.7775809666797816,
+          "expectedCalibrationError": 0.25711142144607946,
+          "logLoss": 1.266800989062779,
+          "rows": 65
+        },
+        "catBoost": {
+          "accuracy": 0.3384615384615385,
+          "brier": 0.7052253124395992,
+          "expectedCalibrationError": 0.15474129402049291,
+          "logLoss": 1.1699400047737085,
+          "rows": 65
+        },
+        "dixonColes": {
+          "accuracy": 0.4,
+          "brier": 0.7009346008872881,
+          "expectedCalibrationError": 0.1370373586445228,
+          "logLoss": 1.1469815955400962,
+          "rows": 65
+        }
+      }
+    },
+    "candidate": {
+      "accuracy": 0.4,
+      "brier": 0.7775809666797816,
+      "expectedCalibrationError": 0.25711142144607946,
+      "logLoss": 1.266800989062779,
+      "rows": 65
+    },
+    "diagnostics": {
+      "catBoost": {
+        "accuracy": 0.3384615384615385,
+        "brier": 0.7052253124395992,
+        "expectedCalibrationError": 0.15474129402049291,
+        "logLoss": 1.1699400047737085,
+        "rows": 65
+      },
+      "dixonColes": {
+        "accuracy": 0.4,
+        "brier": 0.7009346008872881,
+        "expectedCalibrationError": 0.1370373586445228,
+        "logLoss": 1.1469815955400962,
+        "rows": 65
+      },
+      "market": {
+        "accuracy": null,
+        "brier": null,
+        "expectedCalibrationError": null,
+        "logLoss": null,
+        "rows": 0
+      },
+      "stackedUncalibrated": {
+        "accuracy": 0.4,
+        "brier": 0.895990704815662,
+        "expectedCalibrationError": 0.4032642904925898,
+        "logLoss": 1.5061851045296137,
+        "rows": 65
+      }
+    },
+    "promotionHorizonMinutes": 90
+  }
+}

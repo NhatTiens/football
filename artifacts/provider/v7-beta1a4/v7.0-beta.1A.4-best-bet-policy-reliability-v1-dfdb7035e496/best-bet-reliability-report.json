@@ -1,0 +1,248 @@
+{
+  "version": "v7.0-beta.1A.4-best-bet-policy-reliability-v1",
+  "evidenceClass": "HISTORICAL_DIAGNOSTIC_NON_PROMOTIONAL",
+  "promotional": false,
+  "sourceReplay": {
+    "version": "v7.0-beta.1A.3-scientific-multi-market-replay-v1",
+    "replayRunId": 1,
+    "evaluationFixtures": 171,
+    "pitViolations": 0,
+    "dixonStoredProbabilityViolations": 0,
+    "frozenHdaReplayMetricViolations": 0
+  },
+  "policy": {
+    "minimumOdds": 1.4,
+    "minimumEdge": 0.04,
+    "minimumExpectedValue": 0.03,
+    "maximumBetsPerFixture": 1,
+    "minimumReliabilityRows": 150,
+    "minimumRelativeBrierSkillVsClimatology": 0.005,
+    "minimumLogLossSkillVsClimatology": 0.005,
+    "maximumEce": 0.05,
+    "stakeUnitsForEvaluation": 1
+  },
+  "reliability": {
+    "MATCH_WINNER": {
+      "market": "MATCH_WINNER",
+      "status": "DIAGNOSTIC_ELIGIBLE",
+      "diagnosticEligible": true,
+      "model": {
+        "rows": 171,
+        "classCount": 3,
+        "accuracy": 0.47953216374269003,
+        "brier": 0.6226676942776199,
+        "logLoss": 1.0363698357955642,
+        "ece": 0.025757603238431338
+      },
+      "climatology": {
+        "rows": 171,
+        "classCount": 3,
+        "accuracy": 0.39766081871345027,
+        "brier": 0.660305735097981,
+        "logLoss": 1.0893059796509321,
+        "classProbabilities": {
+          "HOME": 0.39766081871345027,
+          "DRAW": 0.29239766081871343,
+          "AWAY": 0.30994152046783624
+        }
+      },
+      "relativeBrierSkillVsClimatology": 0.057000929750785856,
+      "logLossSkillVsClimatology": 0.04859621157347482,
+      "eceWithinLimit": true,
+      "sufficientRows": true,
+      "reasons": [],
+      "evidenceClass": "HISTORICAL_DIAGNOSTIC_NON_PROMOTIONAL",
+      "promotional": false
+    },
+    "TOTAL_GOALS_1_5": {
+      "market": "TOTAL_GOALS_1_5",
+      "status": "NO_PROVEN_SKILL",
+      "diagnosticEligible": false,
+      "model": {
+        "rows": 171,
+        "classCount": 2,
+        "accuracy": 0.8245614035087719,
+        "brier": 0.14828045616376853,
+        "logLoss": 0.47320629086669985,
+        "ece": 0.032342450199079394
+      },
+      "climatology": {
+        "rows": 171,
+        "classCount": 2,
+        "accuracy": 0.8245614035087719,
+        "brier": 0.1446598953524159,
+        "logLoss": 0.4644058606360739,
+        "classProbabilities": {
+          "POSITIVE": 0.8245614035087719,
+          "NEGATIVE": 0.17543859649122806
+        }
+      },
+      "relativeBrierSkillVsClimatology": -0.025028089523584374,
+      "logLossSkillVsClimatology": -0.018949869018819898,
+      "eceWithinLimit": true,
+      "sufficientRows": true,
+      "reasons": [
+        "BRIER_NOT_BETTER_THAN_CLIMATOLOGY",
+        "LOG_LOSS_NOT_BETTER_THAN_CLIMATOLOGY"
+      ],
+      "evidenceClass": "HISTORICAL_DIAGNOSTIC_NON_PROMOTIONAL",
+      "promotional": false
+    },
+    "TOTAL_GOALS_2_5": {
+      "market": "TOTAL_GOALS_2_5",
+      "status": "NO_PROVEN_SKILL",
+      "diagnosticEligible": false,
+      "model": {
+        "rows": 171,
+        "classCount": 2,
+        "accuracy": 0.5614035087719298,
+        "brier": 0.24453050083892777,
+        "logLoss": 0.6818141470861677,
+        "ece": 0.0119109903940093
+      },
+      "climatology": {
+        "rows": 171,
+        "classCount": 2,
+        "accuracy": 0.5964912280701754,
+        "brier": 0.2406894429055096,
+        "logLoss": 0.6744087274254292,
+        "classProbabilities": {
+          "POSITIVE": 0.5964912280701754,
+          "NEGATIVE": 0.4035087719298246
+        }
+      },
+      "relativeBrierSkillVsClimatology": -0.01595856422720665,
+      "logLossSkillVsClimatology": -0.01098061065877487,
+      "eceWithinLimit": true,
+      "sufficientRows": true,
+      "reasons": [
+        "BRIER_NOT_BETTER_THAN_CLIMATOLOGY",
+        "LOG_LOSS_NOT_BETTER_THAN_CLIMATOLOGY"
+      ],
+      "evidenceClass": "HISTORICAL_DIAGNOSTIC_NON_PROMOTIONAL",
+      "promotional": false
+    },
+    "TOTAL_GOALS_3_5": {
+      "market": "TOTAL_GOALS_3_5",
+      "status": "CALIBRATION_BLOCKED",
+      "diagnosticEligible": false,
+      "model": {
+        "rows": 171,
+        "classCount": 2,
+        "accuracy": 0.6374269005847953,
+        "brier": 0.2369316316702255,
+        "logLoss": 0.6699101332244795,
+        "ece": 0.05774319387364675
+      },
+      "climatology": {
+        "rows": 171,
+        "classCount": 2,
+        "accuracy": 0.6374269005847953,
+        "brier": 0.23111384699565596,
+        "logLoss": 0.654884310679429,
+        "classProbabilities": {
+          "POSITIVE": 0.36257309941520466,
+          "NEGATIVE": 0.6374269005847953
+        }
+      },
+      "relativeBrierSkillVsClimatology": -0.02517280877021144,
+      "logLossSkillVsClimatology": -0.022944239616095707,
+      "eceWithinLimit": false,
+      "sufficientRows": true,
+      "reasons": [
+        "BRIER_NOT_BETTER_THAN_CLIMATOLOGY",
+        "LOG_LOSS_NOT_BETTER_THAN_CLIMATOLOGY",
+        "CALIBRATION_EXCEEDS_LIMIT"
+      ],
+      "evidenceClass": "HISTORICAL_DIAGNOSTIC_NON_PROMOTIONAL",
+      "promotional": false
+    },
+    "BTTS": {
+      "market": "BTTS",
+      "status": "NO_PROVEN_SKILL",
+      "diagnosticEligible": false,
+      "model": {
+        "rows": 171,
+        "classCount": 2,
+        "accuracy": 0.5906432748538012,
+        "brier": 0.2383789800417464,
+        "logLoss": 0.6695899955072389,
+        "ece": 0.021332235496651957
+      },
+      "climatology": {
+        "rows": 171,
+        "classCount": 2,
+        "accuracy": 0.6198830409356725,
+        "brier": 0.23562805649601642,
+        "logLoss": 0.6641213546366048,
+        "classProbabilities": {
+          "POSITIVE": 0.6198830409356725,
+          "NEGATIVE": 0.3801169590643275
+        }
+      },
+      "relativeBrierSkillVsClimatology": -0.011674855645963822,
+      "logLossSkillVsClimatology": -0.008234399981952745,
+      "eceWithinLimit": true,
+      "sufficientRows": true,
+      "reasons": [
+        "BRIER_NOT_BETTER_THAN_CLIMATOLOGY",
+        "LOG_LOSS_NOT_BETTER_THAN_CLIMATOLOGY"
+      ],
+      "evidenceClass": "HISTORICAL_DIAGNOSTIC_NON_PROMOTIONAL",
+      "promotional": false
+    }
+  },
+  "diagnosticEligibleMarkets": [
+    "MATCH_WINNER"
+  ],
+  "blockedMarkets": [
+    "TOTAL_GOALS_1_5",
+    "TOTAL_GOALS_2_5",
+    "TOTAL_GOALS_3_5",
+    "BTTS"
+  ],
+  "bestBetContract": {
+    "frozen": true,
+    "rankingOrder": [
+      "EXPECTED_VALUE_DESC",
+      "EDGE_DESC",
+      "MODEL_PROBABILITY_DESC",
+      "DECIMAL_ODDS_ASC",
+      "DETERMINISTIC_MARKET_SELECTION_TIEBREAK"
+    ],
+    "noBetIsValidDecision": true,
+    "requiresReliabilityEligibility": true,
+    "requiresRealOdds": true,
+    "realBestBetExecutionEnabled": false,
+    "rationale": "The selection contract is frozen now, but real BEST BET execution remains disabled until beta.1B provides timestamped real bookmaker odds."
+  },
+  "safety": {
+    "historicalDataRewritten": false,
+    "liveApiCalled": false,
+    "syntheticOddsUsed": false,
+    "roiCalculated": false,
+    "clvCalculated": false,
+    "freshShadowRowsWritten": 0,
+    "productionRoutingChanged": false,
+    "automaticPromotion": false
+  },
+  "apiHandoff": {
+    "upgradeRequiredBeforeNextStage": true,
+    "requiredAtStage": "v7.0-beta.1B",
+    "requiredCapabilities": [
+      "HISTORICAL_FIXTURES_RESULTS",
+      "HISTORICAL_TEAM_MATCH_STATISTICS",
+      "TIMESTAMPED_HISTORICAL_MATCH_WINNER_ODDS",
+      "TIMESTAMPED_HISTORICAL_TOTAL_GOALS_ODDS",
+      "TIMESTAMPED_HISTORICAL_BTTS_ODDS",
+      "LIVE_FIXTURES_RESULTS",
+      "LIVE_MATCH_WINNER_ODDS",
+      "LIVE_TOTAL_GOALS_ODDS",
+      "LIVE_BTTS_ODDS",
+      "PREFER_STANDINGS_INJURIES_LINEUPS_WITH_AVAILABILITY_TIMESTAMPS"
+    ]
+  },
+  "nextStage": "v7.0-beta.1B",
+  "artifactDirectory": "artifacts/provider/v7-beta1a4/v7.0-beta.1A.4-best-bet-policy-reliability-v1-dfdb7035e496",
+  "payloadHash": "dfdb7035e4963e833538b38fa79078da9737d945b2a67a2ad9d014447c7c4fd4"
+}

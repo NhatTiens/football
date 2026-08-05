@@ -1,0 +1,104 @@
+{
+  "apiCalled": false,
+  "artifactDirectory": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221",
+  "artifactSha256": {
+    "developmentCandidates": "5c36ab307352b07fb0371a17e9a5ebe389ed1dee3f29f4c2f9ec93d61776e6e8",
+    "developmentPredictions": "2d20281c2eea0a8606add314b183b1ee50f5cf441156a27f409f336a4d7d4293",
+    "diagnosticSummary": "dfc940ca5a2a440070b68531903b53a8debcf01a9fe6567c4fe9155f7acb720b",
+    "featureDrift": "d3c3886fb07ad3b91ddb891131531d468e5801586caa755b53a091524275331f",
+    "labelDrift": "d7801d679fc46ce2816bd7a60bdf2bbb33f59458fa3e0edc3b006cbbaeb8e09b",
+    "marketCoverage": "c8cea9c97c01508b8a4242168a02f4176c990a9d60add78868490ce6b29d010c",
+    "metricsByClass": "3683ae460d2c0784b0478f5481b082931ef63dd7579c6808bd1ad56acd12ad7c",
+    "metricsByFold": "0357606bb9010937d18f448029661aff13057e1b36ef71c7f95d50d27daf3a51",
+    "metricsByHorizon": "347c8b6cbad060cf8c2b9ef40dae802c4f87c09de14de40873d306754c72c19d",
+    "overconfidence": "b1b8cb6e9e891459e7533be960f02bd868023d498c97979d7fbcdbe63c8cbe32",
+    "reliabilityBins": "ad44fa60a77f07e3a24e1f98b6a8c92dce979dc63ffc7fb21e311dba48c33753"
+  },
+  "automaticPromotion": false,
+  "configuration": {
+    "blendStep": 0.05,
+    "driftBins": 10,
+    "evaluationHoldoutUsedForSelection": false,
+    "maximumEceRegression": 0.02,
+    "maximumLogLossRegression": 0.005,
+    "maximumProbabilityShift": 0.08,
+    "minimumBaselineWeight": 0.5,
+    "minimumBranchFixtures": 36,
+    "minimumBrierImprovement": 0.002,
+    "minimumValidationFixtures": 12,
+    "reliabilityBins": 10,
+    "topDriftFeatures": 30
+  },
+  "datasetFingerprint": "7af88a31f22145f1627671561a2dfa20adf5a29bcaab7477d33003dda8178f42",
+  "developmentCandidateCount": 1,
+  "developmentPolicyVersion": "safe-convex-development-v1",
+  "developmentRows": 762,
+  "diagnosticSummary": {
+    "apiCalled": false,
+    "automaticPromotion": false,
+    "developmentSelectionUsesOldEvaluation": false,
+    "diagnosticVersion": "v7.0-alpha.7.1-diagnostic-improvement-v1",
+    "evaluationFixtures": 65,
+    "evaluationRows": 195,
+    "findings": [
+      {
+        "code": "OPENED_HOLDOUT_CANDIDATE_REGRESSION",
+        "detail": {
+          "baselineBrier": 0.6734347087423506,
+          "baselineLogLoss": 1.1075064382333755,
+          "candidateBrier": 0.7775809666797816,
+          "candidateLogLoss": 1.2668009890627792
+        },
+        "severity": "HIGH"
+      },
+      {
+        "code": "CALIBRATION_PARTIALLY_REPAIRS_STACKER",
+        "detail": {
+          "calibratedBrier": 0.7775809666797816,
+          "stackedBrier": 0.895990704815662
+        },
+        "severity": "HIGH"
+      },
+      {
+        "code": "BASE_LEARNERS_DO_NOT_BEAT_BASELINE_ON_OPENED_T90",
+        "detail": {
+          "baselineBrier": 0.6734347087423506,
+          "catBoostBrier": 0.7052253124395992,
+          "dixonColesBrier": 0.7009346008872881
+        },
+        "severity": "HIGH"
+      }
+    ],
+    "fixtures": 319,
+    "leakageViolations": 0,
+    "oldEvaluationHoldoutStatus": "DIAGNOSTIC_ONLY_ALREADY_OPENED",
+    "productionModelChanged": false,
+    "recommendedNextStage": "v7.0-alpha.8-fresh-nested-evaluation",
+    "rows": 957,
+    "selectedDevelopmentCandidates": 1
+  },
+  "diagnosticVersion": "v7.0-alpha.7.1-diagnostic-improvement-v1",
+  "evaluationRows": 195,
+  "fixtures": 319,
+  "leakageViolations": 0,
+  "numpyVersion": "2.5.1",
+  "paths": {
+    "developmentCandidates": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\development_candidates.json",
+    "developmentPredictions": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\development_predictions.jsonl",
+    "diagnosticSummary": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\diagnostic_summary.json",
+    "featureDrift": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\feature_drift.json",
+    "labelDrift": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\label_drift.json",
+    "marketCoverage": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\market_coverage.json",
+    "metricsByClass": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\model_metrics_by_class.json",
+    "metricsByFold": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\model_metrics_by_fold.json",
+    "metricsByHorizon": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\model_metrics_by_horizon.json",
+    "overconfidence": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\overconfidence.json",
+    "reliabilityBins": "C:\\Users\\tienb\\OneDrive\\Desktop\\Dự án\\SDR\\football-ai-platform-scientific\\artifacts\\diagnostics\\v7-alpha71\\v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221\\reliability_bins.json"
+  },
+  "productionModelChanged": false,
+  "pythonVersion": "3.13.1",
+  "rows": 957,
+  "sourceEvaluationRunId": 1,
+  "sourceFeatureContractHash": "e6abf02ebbc90ab13019a4db2efd35971064c2c3519ad8ea0b30d2ba56c1b75d",
+  "version": "v7.0-alpha.7.1-diagnostic-improvement-v1-7af88a31f221"
+}

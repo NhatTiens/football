@@ -1,0 +1,357 @@
+{
+  "1": {
+    "dateFrom": "2024-12-26T11:00:00.000Z",
+    "dateTo": "2025-02-01T14:55:00.000Z",
+    "fixtures": 64,
+    "models": {
+      "baseline": {
+        "accuracy": 0.59375,
+        "brier": 0.5805324185352516,
+        "expectedCalibrationError": 0.11795947421085809,
+        "logLoss": 0.9787609243763701,
+        "meanConfidence": 0.47579052578914194,
+        "meanEntropy": 1.039782852133135,
+        "rows": 192
+      },
+      "calibrated": {
+        "accuracy": 0.5677083333333334,
+        "brier": 0.5744449305186645,
+        "expectedCalibrationError": 0.10724372909976329,
+        "logLoss": 0.9690662695855193,
+        "meanConfidence": 0.46632519837395936,
+        "meanEntropy": 1.0391717978017294,
+        "rows": 192
+      },
+      "catBoost": {
+        "accuracy": 0.390625,
+        "brier": 0.6440085751827589,
+        "expectedCalibrationError": 0.1313835813617964,
+        "logLoss": 1.0709752389847087,
+        "meanConfidence": 0.4905218500390067,
+        "meanEntropy": 1.0096207663845373,
+        "rows": 192
+      },
+      "dixonColes": {
+        "accuracy": 0.546875,
+        "brier": 0.6052448624756108,
+        "expectedCalibrationError": 0.12034781379503906,
+        "logLoss": 1.0117678224849953,
+        "meanConfidence": 0.4265271862049607,
+        "meanEntropy": 1.0736233708635685,
+        "rows": 192
+      },
+      "market": {
+        "accuracy": null,
+        "brier": null,
+        "expectedCalibrationError": null,
+        "logLoss": null,
+        "meanConfidence": null,
+        "meanEntropy": null,
+        "rows": 0
+      },
+      "residualMarket": {
+        "accuracy": null,
+        "brier": null,
+        "expectedCalibrationError": null,
+        "logLoss": null,
+        "meanConfidence": null,
+        "meanEntropy": null,
+        "rows": 0
+      },
+      "stacked": {
+        "accuracy": 0.5677083333333334,
+        "brier": 0.5575391289498132,
+        "expectedCalibrationError": 0.16379724388011696,
+        "logLoss": 0.947302861081579,
+        "meanConfidence": 0.5277527250831849,
+        "meanEntropy": 0.9767008169864297,
+        "rows": 192
+      }
+    },
+    "rows": 192
+  },
+  "2": {
+    "dateFrom": "2025-02-01T13:30:00.000Z",
+    "dateTo": "2025-04-02T18:40:00.000Z",
+    "fixtures": 64,
+    "models": {
+      "baseline": {
+        "accuracy": 0.53125,
+        "brier": 0.5823847461146022,
+        "expectedCalibrationError": 0.08000682291135196,
+        "logLoss": 0.9785483500581197,
+        "meanConfidence": 0.48401625774845014,
+        "meanEntropy": 1.03058771805937,
+        "rows": 192
+      },
+      "calibrated": {
+        "accuracy": 0.5729166666666666,
+        "brier": 0.5678385368435338,
+        "expectedCalibrationError": 0.07391740682788238,
+        "logLoss": 0.9607027851428741,
+        "meanConfidence": 0.49899925983878424,
+        "meanEntropy": 1.0164484174222883,
+        "rows": 192
+      },
+      "catBoost": {
+        "accuracy": 0.5,
+        "brier": 0.6181475542097251,
+        "expectedCalibrationError": 0.0426511623580512,
+        "logLoss": 1.0397682926551781,
+        "meanConfidence": 0.5391463341365881,
+        "meanEntropy": 0.946745011517189,
+        "rows": 192
+      },
+      "dixonColes": {
+        "accuracy": 0.515625,
+        "brier": 0.5969947577051452,
+        "expectedCalibrationError": 0.0881825038405535,
+        "logLoss": 0.9986925632416664,
+        "meanConfidence": 0.43676566393708277,
+        "meanEntropy": 1.0649765711629178,
+        "rows": 192
+      },
+      "market": {
+        "accuracy": null,
+        "brier": null,
+        "expectedCalibrationError": null,
+        "logLoss": null,
+        "meanConfidence": null,
+        "meanEntropy": null,
+        "rows": 0
+      },
+      "residualMarket": {
+        "accuracy": null,
+        "brier": null,
+        "expectedCalibrationError": null,
+        "logLoss": null,
+        "meanConfidence": null,
+        "meanEntropy": null,
+        "rows": 0
+      },
+      "stacked": {
+        "accuracy": 0.5729166666666666,
+        "brier": 0.560083373556045,
+        "expectedCalibrationError": 0.13024449474441455,
+        "logLoss": 0.9509536807387375,
+        "meanConfidence": 0.5744982938805121,
+        "meanEntropy": 0.9300610697418573,
+        "rows": 192
+      }
+    },
+    "rows": 192
+  },
+  "3": {
+    "dateFrom": "2025-04-02T17:30:00.000Z",
+    "dateTo": "2025-05-16T18:25:00.000Z",
+    "fixtures": 64,
+    "models": {
+      "baseline": {
+        "accuracy": 0.53125,
+        "brier": 0.6034764848896842,
+        "expectedCalibrationError": 0.07959259083945922,
+        "logLoss": 1.005789158721614,
+        "meanConfidence": 0.4684160728949744,
+        "meanEntropy": 1.0410993072012498,
+        "rows": 192
+      },
+      "calibrated": {
+        "accuracy": 0.5,
+        "brier": 0.5839898207830918,
+        "expectedCalibrationError": 0.20901804011766367,
+        "logLoss": 0.9753952678955713,
+        "meanConfidence": 0.46034340081480707,
+        "meanEntropy": 1.039154568293126,
+        "rows": 192
+      },
+      "catBoost": {
+        "accuracy": 0.5,
+        "brier": 0.631439385157493,
+        "expectedCalibrationError": 0.18062947602782528,
+        "logLoss": 1.0430552537220352,
+        "meanConfidence": 0.5638734641790527,
+        "meanEntropy": 0.9261946484283712,
+        "rows": 192
+      },
+      "dixonColes": {
+        "accuracy": 0.484375,
+        "brier": 0.6273553267709469,
+        "expectedCalibrationError": 0.06083963530131718,
+        "logLoss": 1.0442618473618868,
+        "meanConfidence": 0.4394027133320957,
+        "meanEntropy": 1.0643014166727218,
+        "rows": 192
+      },
+      "market": {
+        "accuracy": null,
+        "brier": null,
+        "expectedCalibrationError": null,
+        "logLoss": null,
+        "meanConfidence": null,
+        "meanEntropy": null,
+        "rows": 0
+      },
+      "residualMarket": {
+        "accuracy": null,
+        "brier": null,
+        "expectedCalibrationError": null,
+        "logLoss": null,
+        "meanConfidence": null,
+        "meanEntropy": null,
+        "rows": 0
+      },
+      "stacked": {
+        "accuracy": 0.5,
+        "brier": 0.5744190390625836,
+        "expectedCalibrationError": 0.10463068634952936,
+        "logLoss": 0.9565385617393746,
+        "meanConfidence": 0.5184006546945233,
+        "meanEntropy": 0.977801368031372,
+        "rows": 192
+      }
+    },
+    "rows": 192
+  },
+  "4": {
+    "dateFrom": "2025-05-16T17:45:00.000Z",
+    "dateTo": "2025-12-22T15:55:00.000Z",
+    "fixtures": 64,
+    "models": {
+      "baseline": {
+        "accuracy": 0.5625,
+        "brier": 0.5953274021074312,
+        "expectedCalibrationError": 0.1160460867437541,
+        "logLoss": 0.9991637562434862,
+        "meanConfidence": 0.4555758436455888,
+        "meanEntropy": 1.0572505527833513,
+        "rows": 192
+      },
+      "calibrated": {
+        "accuracy": 0.5416666666666666,
+        "brier": 0.5718496233438084,
+        "expectedCalibrationError": 0.0625052325377228,
+        "logLoss": 0.9682399285237177,
+        "meanConfidence": 0.5291265338103487,
+        "meanEntropy": 0.9748459292929895,
+        "rows": 192
+      },
+      "catBoost": {
+        "accuracy": 0.390625,
+        "brier": 0.6760657891344529,
+        "expectedCalibrationError": 0.12024778814598196,
+        "logLoss": 1.1276647128721278,
+        "meanConfidence": 0.49640390781018423,
+        "meanEntropy": 1.0028908371476695,
+        "rows": 192
+      },
+      "dixonColes": {
+        "accuracy": 0.578125,
+        "brier": 0.5698490353671358,
+        "expectedCalibrationError": 0.07079484144177599,
+        "logLoss": 0.9653918084626198,
+        "meanConfidence": 0.507330158558224,
+        "meanEntropy": 1.0119939261976638,
+        "rows": 192
+      },
+      "market": {
+        "accuracy": 0.6,
+        "brier": 0.5772603841961883,
+        "expectedCalibrationError": 0.15185294267963845,
+        "logLoss": 0.9717476648205768,
+        "meanConfidence": 0.4481470573203616,
+        "meanEntropy": 1.0567746860945855,
+        "rows": 90
+      },
+      "residualMarket": {
+        "accuracy": null,
+        "brier": null,
+        "expectedCalibrationError": null,
+        "logLoss": null,
+        "meanConfidence": null,
+        "meanEntropy": null,
+        "rows": 0
+      },
+      "stacked": {
+        "accuracy": 0.5416666666666666,
+        "brier": 0.5768923275301154,
+        "expectedCalibrationError": 0.0989163262835791,
+        "logLoss": 0.9887355039216056,
+        "meanConfidence": 0.607770272815416,
+        "meanEntropy": 0.8628471240354361,
+        "rows": 192
+      }
+    },
+    "rows": 192
+  },
+  "5": {
+    "dateFrom": "2025-12-25T15:30:00.000Z",
+    "dateTo": "2026-06-29T18:55:00.000Z",
+    "fixtures": 63,
+    "models": {
+      "baseline": {
+        "accuracy": 0.3492063492063492,
+        "brier": 0.6784706882013991,
+        "expectedCalibrationError": 0.10116434557203824,
+        "logLoss": 1.114953647479507,
+        "meanConfidence": 0.4291361069551079,
+        "meanEntropy": 1.0724524271639841,
+        "rows": 189
+      },
+      "calibrated": {
+        "accuracy": 0.38095238095238093,
+        "brier": 0.823497161866463,
+        "expectedCalibrationError": 0.28363627152296794,
+        "logLoss": 1.3871146483950714,
+        "meanConfidence": 0.6645886524753489,
+        "meanEntropy": 0.8296813162400364,
+        "rows": 189
+      },
+      "catBoost": {
+        "accuracy": 0.31216931216931215,
+        "brier": 0.7051296190229083,
+        "expectedCalibrationError": 0.1851402447761669,
+        "logLoss": 1.168202944004131,
+        "meanConfidence": 0.4910537531272504,
+        "meanEntropy": 1.0138951943432177,
+        "rows": 189
+      },
+      "dixonColes": {
+        "accuracy": 0.38095238095238093,
+        "brier": 0.7134694244805432,
+        "expectedCalibrationError": 0.15549514975447842,
+        "logLoss": 1.164499656051254,
+        "meanConfidence": 0.5364475307068594,
+        "meanEntropy": 1.0015848990520841,
+        "rows": 189
+      },
+      "market": {
+        "accuracy": 0.36507936507936506,
+        "brier": 0.6867203535307739,
+        "expectedCalibrationError": 0.14232657902023368,
+        "logLoss": 1.1238680678086548,
+        "meanConfidence": 0.4470137051385486,
+        "meanEntropy": 1.057524071968596,
+        "rows": 126
+      },
+      "residualMarket": {
+        "accuracy": 0.3968253968253968,
+        "brier": 0.8390428350871926,
+        "expectedCalibrationError": 0.2873271719272372,
+        "logLoss": 2.531614801712609,
+        "meanConfidence": 0.6841525687526342,
+        "meanEntropy": 0.7465846664007435,
+        "rows": 126
+      },
+      "stacked": {
+        "accuracy": 0.38095238095238093,
+        "brier": 0.9336067813666439,
+        "expectedCalibrationError": 0.4064508191130142,
+        "logLoss": 1.7053394638945838,
+        "meanConfidence": 0.775654243771931,
+        "meanEntropy": 0.6329828008499073,
+        "rows": 189
+      }
+    },
+    "rows": 189
+  }
+}

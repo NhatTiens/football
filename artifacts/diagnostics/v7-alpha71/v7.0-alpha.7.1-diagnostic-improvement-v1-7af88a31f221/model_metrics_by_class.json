@@ -1,0 +1,226 @@
+{
+  "baseline": {
+    "classes": {
+      "AWAY": {
+        "meanPredictedProbability": 0.3407633304058072,
+        "observedFrequency": 0.3385579937304075,
+        "oneVsRestBrier": 0.2031692496263366,
+        "precision": 0.5128205128205128,
+        "predictedCount": 351,
+        "recall": 0.5555555555555556,
+        "support": 324
+      },
+      "DRAW": {
+        "meanPredictedProbability": 0.2534216157220563,
+        "observedFrequency": 0.22884012539184953,
+        "oneVsRestBrier": 0.17583860539858814,
+        "precision": null,
+        "predictedCount": 0,
+        "recall": 0.0,
+        "support": 219
+      },
+      "HOME": {
+        "meanPredictedProbability": 0.40581505387213657,
+        "observedFrequency": 0.43260188087774293,
+        "oneVsRestBrier": 0.2288097019095398,
+        "precision": 0.5148514851485149,
+        "predictedCount": 606,
+        "recall": 0.7536231884057971,
+        "support": 414
+      }
+    },
+    "rows": 957
+  },
+  "calibrated": {
+    "classes": {
+      "AWAY": {
+        "meanPredictedProbability": 0.29260017151128975,
+        "observedFrequency": 0.3385579937304075,
+        "oneVsRestBrier": 0.20536826954880133,
+        "precision": 0.5300353356890459,
+        "predictedCount": 283,
+        "recall": 0.46296296296296297,
+        "support": 324
+      },
+      "DRAW": {
+        "meanPredictedProbability": 0.24495337888803304,
+        "observedFrequency": 0.22884012539184953,
+        "oneVsRestBrier": 0.1775634675644154,
+        "precision": 0.2692307692307692,
+        "predictedCount": 26,
+        "recall": 0.0319634703196347,
+        "support": 219
+      },
+      "HOME": {
+        "meanPredictedProbability": 0.4624464496006772,
+        "observedFrequency": 0.43260188087774293,
+        "oneVsRestBrier": 0.24076791032530825,
+        "precision": 0.5154320987654321,
+        "predictedCount": 648,
+        "recall": 0.8067632850241546,
+        "support": 414
+      }
+    },
+    "rows": 957
+  },
+  "catBoost": {
+    "classes": {
+      "AWAY": {
+        "meanPredictedProbability": 0.3397916126153633,
+        "observedFrequency": 0.3385579937304075,
+        "oneVsRestBrier": 0.20625802757636538,
+        "precision": 0.484375,
+        "predictedCount": 320,
+        "recall": 0.4783950617283951,
+        "support": 324
+      },
+      "DRAW": {
+        "meanPredictedProbability": 0.29355108860587525,
+        "observedFrequency": 0.22884012539184953,
+        "oneVsRestBrier": 0.19671216263518443,
+        "precision": 0.16853932584269662,
+        "predictedCount": 178,
+        "recall": 0.136986301369863,
+        "support": 219
+      },
+      "HOME": {
+        "meanPredictedProbability": 0.36665729877876146,
+        "observedFrequency": 0.43260188087774293,
+        "oneVsRestBrier": 0.25183071710583804,
+        "precision": 0.47058823529411764,
+        "predictedCount": 459,
+        "recall": 0.5217391304347826,
+        "support": 414
+      }
+    },
+    "rows": 957
+  },
+  "dixonColes": {
+    "classes": {
+      "AWAY": {
+        "meanPredictedProbability": 0.32330529493572324,
+        "observedFrequency": 0.3385579937304075,
+        "oneVsRestBrier": 0.21008913401969162,
+        "precision": 0.5111111111111111,
+        "predictedCount": 270,
+        "recall": 0.42592592592592593,
+        "support": 324
+      },
+      "DRAW": {
+        "meanPredictedProbability": 0.23949623484011204,
+        "observedFrequency": 0.22884012539184953,
+        "oneVsRestBrier": 0.17782986410661752,
+        "precision": null,
+        "predictedCount": 0,
+        "recall": 0.0,
+        "support": 219
+      },
+      "HOME": {
+        "meanPredictedProbability": 0.43719847022416475,
+        "observedFrequency": 0.43260188087774293,
+        "oneVsRestBrier": 0.23437877181312627,
+        "precision": 0.4978165938864629,
+        "predictedCount": 687,
+        "recall": 0.8260869565217391,
+        "support": 414
+      }
+    },
+    "rows": 957
+  },
+  "market": {
+    "classes": {
+      "AWAY": {
+        "meanPredictedProbability": 0.3290208797339893,
+        "observedFrequency": 0.2777777777777778,
+        "oneVsRestBrier": 0.2013460933920326,
+        "precision": 0.3448275862068966,
+        "predictedCount": 58,
+        "recall": 0.3333333333333333,
+        "support": 60
+      },
+      "DRAW": {
+        "meanPredictedProbability": 0.257275938691498,
+        "observedFrequency": 0.24074074074074073,
+        "oneVsRestBrier": 0.18351552132347976,
+        "precision": null,
+        "predictedCount": 0,
+        "recall": 0.0,
+        "support": 52
+      },
+      "HOME": {
+        "meanPredictedProbability": 0.41370318157451275,
+        "observedFrequency": 0.48148148148148145,
+        "oneVsRestBrier": 0.25625041825918415,
+        "precision": 0.5063291139240507,
+        "predictedCount": 158,
+        "recall": 0.7692307692307693,
+        "support": 104
+      }
+    },
+    "rows": 216
+  },
+  "residualMarket": {
+    "classes": {
+      "AWAY": {
+        "meanPredictedProbability": 0.16275455365123673,
+        "observedFrequency": 0.31746031746031744,
+        "oneVsRestBrier": 0.24676255881665826,
+        "precision": 0.3333333333333333,
+        "predictedCount": 6,
+        "recall": 0.05,
+        "support": 40
+      },
+      "DRAW": {
+        "meanPredictedProbability": 0.15946889419856658,
+        "observedFrequency": 0.30158730158730157,
+        "oneVsRestBrier": 0.2486490897722837,
+        "precision": 0.0,
+        "predictedCount": 2,
+        "recall": 0.0,
+        "support": 38
+      },
+      "HOME": {
+        "meanPredictedProbability": 0.6777765521501967,
+        "observedFrequency": 0.38095238095238093,
+        "oneVsRestBrier": 0.3436311864982506,
+        "precision": 0.4067796610169492,
+        "predictedCount": 118,
+        "recall": 1.0,
+        "support": 48
+      }
+    },
+    "rows": 126
+  },
+  "stacked": {
+    "classes": {
+      "AWAY": {
+        "meanPredictedProbability": 0.283243467446115,
+        "observedFrequency": 0.3385579937304075,
+        "oneVsRestBrier": 0.20753843854657444,
+        "precision": 0.5300353356890459,
+        "predictedCount": 283,
+        "recall": 0.46296296296296297,
+        "support": 324
+      },
+      "DRAW": {
+        "meanPredictedProbability": 0.205576701577555,
+        "observedFrequency": 0.22884012539184953,
+        "oneVsRestBrier": 0.17911144541260904,
+        "precision": 0.2692307692307692,
+        "predictedCount": 26,
+        "recall": 0.0319634703196347,
+        "support": 219
+      },
+      "HOME": {
+        "meanPredictedProbability": 0.51117983097633,
+        "observedFrequency": 0.43260188087774293,
+        "oneVsRestBrier": 0.25293944158440973,
+        "precision": 0.5154320987654321,
+        "predictedCount": 648,
+        "recall": 0.8067632850241546,
+        "support": 414
+      }
+    },
+    "rows": 957
+  }
+}

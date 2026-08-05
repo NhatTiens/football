@@ -284,7 +284,7 @@ describe('beta.1B.1 real-odds paper-bet core', () => {
     expect(result.marketCoverage[0]?.completeBookmakers).toBe(1);
   });
 
-  it('replaces direct O/U candidates with the three paper opposite-line targets', () => {
+  it('replaces direct O/U candidates with exact half-goal opposite targets', () => {
     let id = 1;
     const odds: LiveOddsRow[] = [];
     const push = (
@@ -310,10 +310,18 @@ describe('beta.1B.1 real-odds paper-bet core', () => {
     push('MATCH_WINNER', 'DRAW', null, 3.4);
     push('MATCH_WINNER', 'AWAY', null, 3.8);
 
-    for (const line of [1.5, 2.5, 3.5]) {
-      push('TOTAL_GOALS', 'OVER', line, 1.9);
-      push('TOTAL_GOALS', 'UNDER', line, 1.9);
-    }
+    // Include the exact integer target lines. The engine must never relabel
+    // half-line odds as 2.0/3.0 odds.
+    push('TOTAL_GOALS', 'OVER', 1.5, 1.91);
+    push('TOTAL_GOALS', 'UNDER', 1.5, 1.81);
+    push('TOTAL_GOALS', 'OVER', 2.0, 2.02);
+    push('TOTAL_GOALS', 'UNDER', 2.0, 2.12);
+    push('TOTAL_GOALS', 'OVER', 2.5, 1.93);
+    push('TOTAL_GOALS', 'UNDER', 2.5, 1.83);
+    push('TOTAL_GOALS', 'OVER', 3.0, 2.23);
+    push('TOTAL_GOALS', 'UNDER', 3.0, 2.33);
+    push('TOTAL_GOALS', 'OVER', 3.5, 1.95);
+    push('TOTAL_GOALS', 'UNDER', 3.5, 1.85);
 
     push('BTTS', 'YES', null, 1.9);
     push('BTTS', 'NO', null, 1.9);
@@ -332,40 +340,40 @@ describe('beta.1B.1 real-odds paper-bet core', () => {
       candidate.marketType.startsWith('TOTAL_GOALS_'),
     );
     expect(ouCandidates).toHaveLength(3);
-    expect(
-      ouCandidates.map((candidate) => ({
-        marketType: candidate.marketType,
-        selection: candidate.selection,
-        modelProbability: candidate.modelProbability,
-        predictionSelection: candidate.ouOppositeLineStrategy?.predictionSelection,
-        predictionLineValue: candidate.ouOppositeLineStrategy?.predictionLineValue,
-        paperOnly: candidate.ouOppositeLineStrategy?.paperOnly,
-      })),
-    ).toEqual([
-      {
-        marketType: 'TOTAL_GOALS_2_5',
-        selection: 'OVER',
-        modelProbability: 0.53,
-        predictionSelection: 'UNDER',
-        predictionLineValue: 3.5,
-        paperOnly: true,
-      },
-      {
-        marketType: 'TOTAL_GOALS_2_5',
-        selection: 'UNDER',
-        modelProbability: 0.47,
-        predictionSelection: 'OVER',
-        predictionLineValue: 1.5,
-        paperOnly: true,
-      },
-      {
-        marketType: 'TOTAL_GOALS_3_5',
-        selection: 'UNDER',
-        modelProbability: 0.69,
-        predictionSelection: 'OVER',
-        predictionLineValue: 2.5,
-        paperOnly: true,
-      },
-    ]);
+
+    const bySourceLine = new Map(
+      ouCandidates.map((candidate) => [
+        candidate.ouOppositeLineStrategy?.predictionLineValue,
+        candidate,
+      ]),
+    );
+
+    const from15 = bySourceLine.get(1.5);
+    expect(from15?.marketType).toBe('TOTAL_GOALS_1_5');
+    expect(from15?.selection).toBe('UNDER');
+    expect(from15?.lineValue).toBe(2);
+    expect(from15?.decimalOdds).toBe(2.12);
+    expect(from15?.ouOppositeLineStrategy?.predictionSelection).toBe('OVER');
+    expect(from15?.ouOppositeLineStrategy?.recommendedLineValue).toBe(2);
+    expect(from15?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0.5);
+
+    const from25 = bySourceLine.get(2.5);
+    expect(from25?.marketType).toBe('TOTAL_GOALS_2_5');
+    expect(from25?.selection).toBe('UNDER');
+    expect(from25?.lineValue).toBe(3);
+    expect(from25?.decimalOdds).toBe(2.33);
+    expect(from25?.ouOppositeLineStrategy?.predictionSelection).toBe('OVER');
+    expect(from25?.ouOppositeLineStrategy?.recommendedLineValue).toBe(3);
+    expect(from25?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0.5);
+
+    const from35 = bySourceLine.get(3.5);
+    expect(from35?.marketType).toBe('TOTAL_GOALS_3_5');
+    expect(from35?.selection).toBe('OVER');
+    expect(from35?.lineValue).toBe(3);
+    expect(from35?.decimalOdds).toBe(2.23);
+    expect(from35?.ouOppositeLineStrategy?.predictionSelection).toBe('UNDER');
+    expect(from35?.ouOppositeLineStrategy?.recommendedLineValue).toBe(3);
+    expect(from35?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0.5);
   });
+
 });

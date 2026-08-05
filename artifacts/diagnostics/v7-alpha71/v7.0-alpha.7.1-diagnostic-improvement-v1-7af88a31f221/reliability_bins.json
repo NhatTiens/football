@@ -1,0 +1,4252 @@
+{
+  "baseline": {
+    "30": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.35714285714285715,
+          "gap": 0.02089149670134033,
+          "lower": 0.3,
+          "meanConfidence": 0.3780343538441975,
+          "rows": 14,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5714285714285714,
+          "gap": -0.11469582075267049,
+          "lower": 0.4,
+          "meanConfidence": 0.4567327506759009,
+          "rows": 35,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.7692307692307693,
+          "gap": -0.23720156185878882,
+          "lower": 0.5,
+          "meanConfidence": 0.5320292073719805,
+          "rows": 13,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.391356591773556,
+          "lower": 0.6,
+          "meanConfidence": 0.608643408226444,
+          "rows": 1,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4375,
+          "gap": -0.05440963739232607,
+          "lower": 0.3,
+          "meanConfidence": 0.38309036260767393,
+          "rows": 16,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.30952380952380953,
+          "gap": 0.1244427800291329,
+          "lower": 0.4,
+          "meanConfidence": 0.43396658955294243,
+          "rows": 42,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.08732642504903415,
+          "lower": 0.5,
+          "meanConfidence": 0.5158978536204627,
+          "rows": 7,
+          "upper": 0.6
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.6,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.5384615384615384,
+          "gap": -0.15705115121983204,
+          "lower": 0.3,
+          "meanConfidence": 0.3814103872417064,
+          "rows": 39,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4606741573033708,
+          "gap": -0.018597108623445102,
+          "lower": 0.4,
+          "meanConfidence": 0.4420770486799257,
+          "rows": 89,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": -0.1256062381167028,
+          "lower": 0.5,
+          "meanConfidence": 0.5410604285499638,
+          "rows": 39,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.6956521739130435,
+          "gap": -0.054825384188540105,
+          "lower": 0.6,
+          "meanConfidence": 0.6408267897245034,
+          "rows": 23,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.23313763165706936,
+          "lower": 0.7,
+          "meanConfidence": 0.7668623683429306,
+          "rows": 1,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    },
+    "5": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.35714285714285715,
+          "gap": 0.02089149670134033,
+          "lower": 0.3,
+          "meanConfidence": 0.3780343538441975,
+          "rows": 14,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5714285714285714,
+          "gap": -0.11469582075267049,
+          "lower": 0.4,
+          "meanConfidence": 0.4567327506759009,
+          "rows": 35,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.7692307692307693,
+          "gap": -0.23720156185878882,
+          "lower": 0.5,
+          "meanConfidence": 0.5320292073719805,
+          "rows": 13,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.391356591773556,
+          "lower": 0.6,
+          "meanConfidence": 0.608643408226444,
+          "rows": 1,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4375,
+          "gap": -0.05440963739232607,
+          "lower": 0.3,
+          "meanConfidence": 0.38309036260767393,
+          "rows": 16,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.30952380952380953,
+          "gap": 0.1244427800291329,
+          "lower": 0.4,
+          "meanConfidence": 0.43396658955294243,
+          "rows": 42,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.08732642504903415,
+          "lower": 0.5,
+          "meanConfidence": 0.5158978536204627,
+          "rows": 7,
+          "upper": 0.6
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.6,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.5384615384615384,
+          "gap": -0.1570511512198321,
+          "lower": 0.3,
+          "meanConfidence": 0.38141038724170634,
+          "rows": 39,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4606741573033708,
+          "gap": -0.018597108623445102,
+          "lower": 0.4,
+          "meanConfidence": 0.4420770486799257,
+          "rows": 89,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": -0.1256062381167028,
+          "lower": 0.5,
+          "meanConfidence": 0.5410604285499638,
+          "rows": 39,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.6956521739130435,
+          "gap": -0.054825384188540105,
+          "lower": 0.6,
+          "meanConfidence": 0.6408267897245034,
+          "rows": 23,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.23313763165706936,
+          "lower": 0.7,
+          "meanConfidence": 0.7668623683429306,
+          "rows": 1,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    },
+    "90": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.35714285714285715,
+          "gap": 0.020767386409956623,
+          "lower": 0.3,
+          "meanConfidence": 0.3779102435528138,
+          "rows": 14,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5714285714285714,
+          "gap": -0.11467992191136822,
+          "lower": 0.4,
+          "meanConfidence": 0.4567486495172032,
+          "rows": 35,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.7692307692307693,
+          "gap": -0.23720991346622,
+          "lower": 0.5,
+          "meanConfidence": 0.5320208557645493,
+          "rows": 13,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.391356591773556,
+          "lower": 0.6,
+          "meanConfidence": 0.608643408226444,
+          "rows": 1,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4,
+          "gap": -0.01770401018303258,
+          "lower": 0.3,
+          "meanConfidence": 0.38229598981696744,
+          "rows": 15,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.32558139534883723,
+          "gap": 0.10755822058043768,
+          "lower": 0.4,
+          "meanConfidence": 0.4331396159292749,
+          "rows": 43,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.08748074060261951,
+          "lower": 0.5,
+          "meanConfidence": 0.5160521691740481,
+          "rows": 7,
+          "upper": 0.6
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.6,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.5384615384615384,
+          "gap": -0.1570511512198321,
+          "lower": 0.3,
+          "meanConfidence": 0.38141038724170634,
+          "rows": 39,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4606741573033708,
+          "gap": -0.018595348440937687,
+          "lower": 0.4,
+          "meanConfidence": 0.4420788088624331,
+          "rows": 89,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": -0.1256062381167028,
+          "lower": 0.5,
+          "meanConfidence": 0.5410604285499638,
+          "rows": 39,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.6956521739130435,
+          "gap": -0.054825384188540105,
+          "lower": 0.6,
+          "meanConfidence": 0.6408267897245034,
+          "rows": 23,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.23313763165706936,
+          "lower": 0.7,
+          "meanConfidence": 0.7668623683429306,
+          "rows": 1,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    }
+  },
+  "calibrated": {
+    "30": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.38461538461538464,
+          "gap": -0.003082600125138446,
+          "lower": 0.3,
+          "meanConfidence": 0.3815327844902462,
+          "rows": 13,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.44,
+          "gap": 0.005554529497253657,
+          "lower": 0.4,
+          "meanConfidence": 0.44555452949725366,
+          "rows": 25,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.6,
+          "gap": -0.058182131539009974,
+          "lower": 0.5,
+          "meanConfidence": 0.54181786846099,
+          "rows": 10,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": -0.08183419139665049,
+          "lower": 0.6,
+          "meanConfidence": 0.6454385358760768,
+          "rows": 11,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.75,
+          "gap": 0.003414501607296727,
+          "lower": 0.7,
+          "meanConfidence": 0.7534145016072967,
+          "rows": 4,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5,
+          "gap": -0.03960296037892519,
+          "lower": 0.4,
+          "meanConfidence": 0.4603970396210748,
+          "rows": 8,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.3333333333333333,
+          "gap": 0.2227626552550362,
+          "lower": 0.5,
+          "meanConfidence": 0.5560959885883695,
+          "rows": 15,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.5333333333333333,
+          "gap": 0.11617216718620127,
+          "lower": 0.6,
+          "meanConfidence": 0.6495055005195346,
+          "rows": 15,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.4375,
+          "gap": 0.2968149387318135,
+          "lower": 0.7,
+          "meanConfidence": 0.7343149387318135,
+          "rows": 16,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.5,
+          "gap": 0.34900692752111917,
+          "lower": 0.8,
+          "meanConfidence": 0.8490069275211192,
+          "rows": 4,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.9194593874942865,
+          "lower": 0.9,
+          "meanConfidence": 0.9194593874942865,
+          "rows": 7,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4666666666666667,
+          "gap": -0.0902617192067805,
+          "lower": 0.3,
+          "meanConfidence": 0.3764049474598862,
+          "rows": 45,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4457831325301205,
+          "gap": -0.000647127463182684,
+          "lower": 0.4,
+          "meanConfidence": 0.4451360050669378,
+          "rows": 83,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.7105263157894737,
+          "gap": -0.17003444780501886,
+          "lower": 0.5,
+          "meanConfidence": 0.5404918679844548,
+          "rows": 38,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.7619047619047619,
+          "gap": -0.1197384926146231,
+          "lower": 0.6,
+          "meanConfidence": 0.6421662692901388,
+          "rows": 21,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.75,
+          "gap": -0.020826907916743687,
+          "lower": 0.7,
+          "meanConfidence": 0.7291730920832563,
+          "rows": 4,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    },
+    "5": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4166666666666667,
+          "gap": -0.03622912475849338,
+          "lower": 0.3,
+          "meanConfidence": 0.3804375419081733,
+          "rows": 12,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.46153846153846156,
+          "gap": -0.016551719433275602,
+          "lower": 0.4,
+          "meanConfidence": 0.44498674210518596,
+          "rows": 26,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.5555555555555556,
+          "gap": -0.017887097894024206,
+          "lower": 0.5,
+          "meanConfidence": 0.5376684576615314,
+          "rows": 9,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.75,
+          "gap": -0.10652237403101472,
+          "lower": 0.6,
+          "meanConfidence": 0.6434776259689853,
+          "rows": 12,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.75,
+          "gap": 0.005324063762538911,
+          "lower": 0.7,
+          "meanConfidence": 0.7553240637625389,
+          "rows": 4,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.029643383410829338,
+          "lower": 0.4,
+          "meanConfidence": 0.4582148119822579,
+          "rows": 7,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.375,
+          "gap": 0.18178100333350578,
+          "lower": 0.5,
+          "meanConfidence": 0.5567810033335058,
+          "rows": 16,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.5333333333333333,
+          "gap": 0.11955421967103586,
+          "lower": 0.6,
+          "meanConfidence": 0.6528875530043692,
+          "rows": 15,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.4375,
+          "gap": 0.29946604053364767,
+          "lower": 0.7,
+          "meanConfidence": 0.7369660405336477,
+          "rows": 16,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.5,
+          "gap": 0.35661462544380873,
+          "lower": 0.8,
+          "meanConfidence": 0.8566146254438087,
+          "rows": 4,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.920829931369325,
+          "lower": 0.9,
+          "meanConfidence": 0.920829931369325,
+          "rows": 7,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.45454545454545453,
+          "gap": -0.07818488244658611,
+          "lower": 0.3,
+          "meanConfidence": 0.3763605720988684,
+          "rows": 44,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4588235294117647,
+          "gap": -0.012983052407319229,
+          "lower": 0.4,
+          "meanConfidence": 0.44584047700444546,
+          "rows": 85,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.7027027027027027,
+          "gap": -0.16047831555747916,
+          "lower": 0.5,
+          "meanConfidence": 0.5422243871452236,
+          "rows": 37,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.7619047619047619,
+          "gap": -0.11957820763318083,
+          "lower": 0.6,
+          "meanConfidence": 0.642326554271581,
+          "rows": 21,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.75,
+          "gap": -0.0187608567535269,
+          "lower": 0.7,
+          "meanConfidence": 0.7312391432464731,
+          "rows": 4,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    },
+    "90": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": -0.2860238840535762,
+          "lower": 0.3,
+          "meanConfidence": 0.3806427826130904,
+          "rows": 6,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.3333333333333333,
+          "gap": 0.1194207340973138,
+          "lower": 0.4,
+          "meanConfidence": 0.4527540674306471,
+          "rows": 21,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.45454545454545453,
+          "gap": 0.11068324315202122,
+          "lower": 0.5,
+          "meanConfidence": 0.5652286976974757,
+          "rows": 11,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.7777777777777778,
+          "gap": -0.13119409299750062,
+          "lower": 0.6,
+          "meanConfidence": 0.6465836847802772,
+          "rows": 9,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.8181818181818182,
+          "gap": -0.07844193623461648,
+          "lower": 0.7,
+          "meanConfidence": 0.7397398819472017,
+          "rows": 11,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.4,
+          "gap": 0.4276231738236077,
+          "lower": 0.8,
+          "meanConfidence": 0.8276231738236077,
+          "rows": 5,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5,
+          "gap": -0.06257243949568797,
+          "lower": 0.4,
+          "meanConfidence": 0.43742756050431203,
+          "rows": 4,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.36363636363636365,
+          "gap": 0.19052075500161925,
+          "lower": 0.5,
+          "meanConfidence": 0.5541571186379829,
+          "rows": 11,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4482758620689655,
+          "gap": 0.20525979579932696,
+          "lower": 0.6,
+          "meanConfidence": 0.6535356578682925,
+          "rows": 29,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.3333333333333333,
+          "gap": 0.4006519168006723,
+          "lower": 0.7,
+          "meanConfidence": 0.7339852501340056,
+          "rows": 21,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.48936170212765956,
+          "gap": -0.1131845444132048,
+          "lower": 0.3,
+          "meanConfidence": 0.37617715771445476,
+          "rows": 47,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.425,
+          "gap": 0.01936397360568093,
+          "lower": 0.4,
+          "meanConfidence": 0.4443639736056809,
+          "rows": 80,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.717948717948718,
+          "gap": -0.18003210831030825,
+          "lower": 0.5,
+          "meanConfidence": 0.5379166096384097,
+          "rows": 39,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.7619047619047619,
+          "gap": -0.11996231610322416,
+          "lower": 0.6,
+          "meanConfidence": 0.6419424458015377,
+          "rows": 21,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.75,
+          "gap": -0.025827478667188375,
+          "lower": 0.7,
+          "meanConfidence": 0.7241725213328116,
+          "rows": 4,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    }
+  },
+  "catBoost": {
+    "30": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.2727272727272727,
+          "gap": 0.11286397742776544,
+          "lower": 0.3,
+          "meanConfidence": 0.38559125015503815,
+          "rows": 11,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.39285714285714285,
+          "gap": 0.06366138594084181,
+          "lower": 0.4,
+          "meanConfidence": 0.45651852879798466,
+          "rows": 28,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.11770242577319573,
+          "lower": 0.5,
+          "meanConfidence": 0.5462738543446243,
+          "rows": 14,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.375,
+          "gap": 0.25629689088629615,
+          "lower": 0.6,
+          "meanConfidence": 0.6312968908862961,
+          "rows": 8,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.23150208537276362,
+          "lower": 0.7,
+          "meanConfidence": 0.7684979146272364,
+          "rows": 2,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.16666666666666666,
+          "gap": 0.2146768722782272,
+          "lower": 0.3,
+          "meanConfidence": 0.38134353894489387,
+          "rows": 6,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.22857142857142856,
+          "gap": 0.22464123318757404,
+          "lower": 0.4,
+          "meanConfidence": 0.4532126617590026,
+          "rows": 35,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.3888888888888889,
+          "gap": 0.14982429957091187,
+          "lower": 0.5,
+          "meanConfidence": 0.5387131884598008,
+          "rows": 18,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.8,
+          "gap": -0.15654515661938107,
+          "lower": 0.6,
+          "meanConfidence": 0.643454843380619,
+          "rows": 5,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.7477507741273204,
+          "lower": 0.7,
+          "meanConfidence": 0.7477507741273204,
+          "rows": 1,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.25925925925925924,
+          "gap": 0.11486689708618375,
+          "lower": 0.3,
+          "meanConfidence": 0.374126156345443,
+          "rows": 27,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4189189189189189,
+          "gap": 0.025793116063322408,
+          "lower": 0.4,
+          "meanConfidence": 0.4447120349822413,
+          "rows": 74,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.5365853658536586,
+          "gap": 0.01714613584048119,
+          "lower": 0.5,
+          "meanConfidence": 0.5537315016941398,
+          "rows": 41,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4482758620689655,
+          "gap": 0.20766889988507575,
+          "lower": 0.6,
+          "meanConfidence": 0.6559447619540413,
+          "rows": 29,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": 0.0982184192635307,
+          "lower": 0.7,
+          "meanConfidence": 0.7648850859301973,
+          "rows": 6,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": 0.123543273596599,
+          "lower": 0.8,
+          "meanConfidence": 0.8508160008693263,
+          "rows": 11,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.09312076391278412,
+          "lower": 0.9,
+          "meanConfidence": 0.9068792360872159,
+          "rows": 3,
+          "upper": 1.0
+        }
+      ]
+    },
+    "5": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.2727272727272727,
+          "gap": 0.11286397742776544,
+          "lower": 0.3,
+          "meanConfidence": 0.38559125015503815,
+          "rows": 11,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.39285714285714285,
+          "gap": 0.06366138594084181,
+          "lower": 0.4,
+          "meanConfidence": 0.45651852879798466,
+          "rows": 28,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.11770242577319573,
+          "lower": 0.5,
+          "meanConfidence": 0.5462738543446243,
+          "rows": 14,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.375,
+          "gap": 0.25629689088629615,
+          "lower": 0.6,
+          "meanConfidence": 0.6312968908862961,
+          "rows": 8,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.23150208537276362,
+          "lower": 0.7,
+          "meanConfidence": 0.7684979146272364,
+          "rows": 2,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.16666666666666666,
+          "gap": 0.21543341569925376,
+          "lower": 0.3,
+          "meanConfidence": 0.3821000823659204,
+          "rows": 6,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.22857142857142856,
+          "gap": 0.22488351806828286,
+          "lower": 0.4,
+          "meanConfidence": 0.4534549466397114,
+          "rows": 35,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.4117647058823529,
+          "gap": 0.1238799717754131,
+          "lower": 0.5,
+          "meanConfidence": 0.535644677657766,
+          "rows": 17,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": -0.030288933707876442,
+          "lower": 0.6,
+          "meanConfidence": 0.6363777329587902,
+          "rows": 6,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.7477507741273204,
+          "lower": 0.7,
+          "meanConfidence": 0.7477507741273204,
+          "rows": 1,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.25925925925925924,
+          "gap": 0.11486689708618375,
+          "lower": 0.3,
+          "meanConfidence": 0.374126156345443,
+          "rows": 27,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4189189189189189,
+          "gap": 0.025793116063322408,
+          "lower": 0.4,
+          "meanConfidence": 0.4447120349822413,
+          "rows": 74,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.5365853658536586,
+          "gap": 0.01714613584048119,
+          "lower": 0.5,
+          "meanConfidence": 0.5537315016941398,
+          "rows": 41,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4482758620689655,
+          "gap": 0.20766889988507575,
+          "lower": 0.6,
+          "meanConfidence": 0.6559447619540413,
+          "rows": 29,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": 0.0982184192635307,
+          "lower": 0.7,
+          "meanConfidence": 0.7648850859301973,
+          "rows": 6,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": 0.123543273596599,
+          "lower": 0.8,
+          "meanConfidence": 0.8508160008693263,
+          "rows": 11,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.09312076391278412,
+          "lower": 0.9,
+          "meanConfidence": 0.9068792360872159,
+          "rows": 3,
+          "upper": 1.0
+        }
+      ]
+    },
+    "90": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.125,
+          "gap": 0.24598628588682564,
+          "lower": 0.3,
+          "meanConfidence": 0.37098628588682564,
+          "rows": 8,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.43333333333333335,
+          "gap": 0.02561995721430682,
+          "lower": 0.4,
+          "meanConfidence": 0.45895329054764017,
+          "rows": 30,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.35714285714285715,
+          "gap": 0.18602101562609247,
+          "lower": 0.5,
+          "meanConfidence": 0.5431638727689496,
+          "rows": 14,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4444444444444444,
+          "gap": 0.19590986506232766,
+          "lower": 0.6,
+          "meanConfidence": 0.6403543095067721,
+          "rows": 9,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.23150208537276362,
+          "lower": 0.7,
+          "meanConfidence": 0.7684979146272364,
+          "rows": 2,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.25,
+          "gap": 0.12770635929057755,
+          "lower": 0.3,
+          "meanConfidence": 0.37770635929057755,
+          "rows": 4,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.2894736842105263,
+          "gap": 0.16574852864851736,
+          "lower": 0.4,
+          "meanConfidence": 0.4552222128590437,
+          "rows": 38,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.4,
+          "gap": 0.14402048124247113,
+          "lower": 0.5,
+          "meanConfidence": 0.5440204812424712,
+          "rows": 15,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.5714285714285714,
+          "gap": 0.05332656064593788,
+          "lower": 0.6,
+          "meanConfidence": 0.6247551320745093,
+          "rows": 7,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.7153214423674362,
+          "lower": 0.7,
+          "meanConfidence": 0.7153214423674362,
+          "rows": 1,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.25925925925925924,
+          "gap": 0.11486689708618375,
+          "lower": 0.3,
+          "meanConfidence": 0.374126156345443,
+          "rows": 27,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4189189189189189,
+          "gap": 0.025793116063322408,
+          "lower": 0.4,
+          "meanConfidence": 0.4447120349822413,
+          "rows": 74,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.5365853658536586,
+          "gap": 0.01714613584048119,
+          "lower": 0.5,
+          "meanConfidence": 0.5537315016941398,
+          "rows": 41,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4482758620689655,
+          "gap": 0.20766889988507575,
+          "lower": 0.6,
+          "meanConfidence": 0.6559447619540413,
+          "rows": 29,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": 0.0982184192635307,
+          "lower": 0.7,
+          "meanConfidence": 0.7648850859301973,
+          "rows": 6,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": 0.123543273596599,
+          "lower": 0.8,
+          "meanConfidence": 0.8508160008693263,
+          "rows": 11,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.09312076391278412,
+          "lower": 0.9,
+          "meanConfidence": 0.9068792360872159,
+          "rows": 3,
+          "upper": 1.0
+        }
+      ]
+    }
+  },
+  "dixonColes": {
+    "30": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4444444444444444,
+          "gap": -0.05423692949495584,
+          "lower": 0.3,
+          "meanConfidence": 0.3902075149494886,
+          "rows": 9,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5,
+          "gap": -0.05555412263891951,
+          "lower": 0.4,
+          "meanConfidence": 0.4444458773610805,
+          "rows": 24,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.6875,
+          "gap": -0.1414234025246187,
+          "lower": 0.5,
+          "meanConfidence": 0.5460765974753813,
+          "rows": 16,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.6428571428571429,
+          "gap": -0.009610490101739866,
+          "lower": 0.6,
+          "meanConfidence": 0.633246652755403,
+          "rows": 14,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.45,
+          "gap": 0.024932805886645426,
+          "lower": 0.4,
+          "meanConfidence": 0.47493280588664544,
+          "rows": 20,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.3611111111111111,
+          "gap": 0.18803310747334995,
+          "lower": 0.5,
+          "meanConfidence": 0.549144218584461,
+          "rows": 36,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4444444444444444,
+          "gap": 0.18217559168005282,
+          "lower": 0.6,
+          "meanConfidence": 0.6266200361244972,
+          "rows": 9,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.3673469387755102,
+          "gap": 0.01568171440446825,
+          "lower": 0.3,
+          "meanConfidence": 0.3830286531799785,
+          "rows": 49,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5294117647058824,
+          "gap": -0.09247959430095337,
+          "lower": 0.4,
+          "meanConfidence": 0.436932170404929,
+          "rows": 119,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": -0.20174457986632466,
+          "lower": 0.5,
+          "meanConfidence": 0.5255281474064026,
+          "rows": 22,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.3757865836300184,
+          "lower": 0.6,
+          "meanConfidence": 0.6242134163699816,
+          "rows": 1,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    },
+    "5": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4444444444444444,
+          "gap": -0.05423692949495584,
+          "lower": 0.3,
+          "meanConfidence": 0.3902075149494886,
+          "rows": 9,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5,
+          "gap": -0.05555412263891957,
+          "lower": 0.4,
+          "meanConfidence": 0.44444587736108043,
+          "rows": 24,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.6875,
+          "gap": -0.1414234025246186,
+          "lower": 0.5,
+          "meanConfidence": 0.5460765974753814,
+          "rows": 16,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.6428571428571429,
+          "gap": -0.009610490101739866,
+          "lower": 0.6,
+          "meanConfidence": 0.633246652755403,
+          "rows": 14,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.45,
+          "gap": 0.024932805886645426,
+          "lower": 0.4,
+          "meanConfidence": 0.47493280588664544,
+          "rows": 20,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.3611111111111111,
+          "gap": 0.18803310747334995,
+          "lower": 0.5,
+          "meanConfidence": 0.549144218584461,
+          "rows": 36,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4444444444444444,
+          "gap": 0.18217559168005282,
+          "lower": 0.6,
+          "meanConfidence": 0.6266200361244972,
+          "rows": 9,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.3673469387755102,
+          "gap": 0.01568171440446836,
+          "lower": 0.3,
+          "meanConfidence": 0.3830286531799786,
+          "rows": 49,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5294117647058824,
+          "gap": -0.09247959430095337,
+          "lower": 0.4,
+          "meanConfidence": 0.436932170404929,
+          "rows": 119,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": -0.20174457986632455,
+          "lower": 0.5,
+          "meanConfidence": 0.5255281474064027,
+          "rows": 22,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.3757865836300186,
+          "lower": 0.6,
+          "meanConfidence": 0.6242134163699814,
+          "rows": 1,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    },
+    "90": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4444444444444444,
+          "gap": -0.05423692949495584,
+          "lower": 0.3,
+          "meanConfidence": 0.3902075149494886,
+          "rows": 9,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5,
+          "gap": -0.05555412263891957,
+          "lower": 0.4,
+          "meanConfidence": 0.44444587736108043,
+          "rows": 24,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.6875,
+          "gap": -0.1414234025246187,
+          "lower": 0.5,
+          "meanConfidence": 0.5460765974753813,
+          "rows": 16,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.6428571428571429,
+          "gap": -0.009610490101739866,
+          "lower": 0.6,
+          "meanConfidence": 0.633246652755403,
+          "rows": 14,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.45,
+          "gap": 0.024932805886645426,
+          "lower": 0.4,
+          "meanConfidence": 0.47493280588664544,
+          "rows": 20,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.3611111111111111,
+          "gap": 0.18803310747334995,
+          "lower": 0.5,
+          "meanConfidence": 0.549144218584461,
+          "rows": 36,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4444444444444444,
+          "gap": 0.18217559168005282,
+          "lower": 0.6,
+          "meanConfidence": 0.6266200361244972,
+          "rows": 9,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.3673469387755102,
+          "gap": 0.01568171440446825,
+          "lower": 0.3,
+          "meanConfidence": 0.3830286531799785,
+          "rows": 49,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.5294117647058824,
+          "gap": -0.09247959430095343,
+          "lower": 0.4,
+          "meanConfidence": 0.43693217040492893,
+          "rows": 119,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": -0.20174457986632455,
+          "lower": 0.5,
+          "meanConfidence": 0.5255281474064027,
+          "rows": 22,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.3757865836300184,
+          "lower": 0.6,
+          "meanConfidence": 0.6242134163699816,
+          "rows": 1,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    }
+  },
+  "market": {
+    "30": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": -0.34586676655690896,
+          "lower": 0.3,
+          "meanConfidence": 0.38140596071581834,
+          "rows": 11,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4090909090909091,
+          "gap": 0.014561763730503163,
+          "lower": 0.4,
+          "meanConfidence": 0.4236526728214123,
+          "rows": 22,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.8,
+          "gap": -0.2332944301186377,
+          "lower": 0.5,
+          "meanConfidence": 0.5667055698813623,
+          "rows": 10,
+          "upper": 0.6
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.6,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.5,
+          "gap": -0.11889722045456741,
+          "lower": 0.3,
+          "meanConfidence": 0.3811027795454326,
+          "rows": 16,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.3333333333333333,
+          "gap": 0.09026925079985632,
+          "lower": 0.4,
+          "meanConfidence": 0.42360258413318963,
+          "rows": 33,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.375,
+          "gap": 0.19181694907899738,
+          "lower": 0.5,
+          "meanConfidence": 0.5668169490789974,
+          "rows": 16,
+          "upper": 0.6
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.6,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": []
+    },
+    "5": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": -0.34586676655690896,
+          "lower": 0.3,
+          "meanConfidence": 0.38140596071581834,
+          "rows": 11,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4090909090909091,
+          "gap": 0.014561763730503163,
+          "lower": 0.4,
+          "meanConfidence": 0.4236526728214123,
+          "rows": 22,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.8,
+          "gap": -0.2332944301186377,
+          "lower": 0.5,
+          "meanConfidence": 0.5667055698813623,
+          "rows": 10,
+          "upper": 0.6
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.6,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.5,
+          "gap": -0.11889722045456741,
+          "lower": 0.3,
+          "meanConfidence": 0.3811027795454326,
+          "rows": 16,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.3333333333333333,
+          "gap": 0.09026925079985632,
+          "lower": 0.4,
+          "meanConfidence": 0.42360258413318963,
+          "rows": 33,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.375,
+          "gap": 0.19181694907899738,
+          "lower": 0.5,
+          "meanConfidence": 0.5668169490789974,
+          "rows": 16,
+          "upper": 0.6
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.6,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.7
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.7,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.8
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.8,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": []
+    },
+    "90": {
+      "CALIBRATION": [],
+      "EVALUATION": [],
+      "STACK_TRAIN": []
+    }
+  },
+  "residualMarket": {
+    "30": {
+      "CALIBRATION": [],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.25,
+          "gap": 0.20636365629344605,
+          "lower": 0.4,
+          "meanConfidence": 0.45636365629344605,
+          "rows": 8,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.11121972683777565,
+          "lower": 0.5,
+          "meanConfidence": 0.5397911554092042,
+          "rows": 14,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4166666666666667,
+          "gap": 0.22216200448961404,
+          "lower": 0.6,
+          "meanConfidence": 0.6388286711562807,
+          "rows": 12,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.6363636363636364,
+          "gap": 0.1133351635851273,
+          "lower": 0.7,
+          "meanConfidence": 0.7496987999487637,
+          "rows": 11,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.45454545454545453,
+          "gap": 0.39029483085184863,
+          "lower": 0.8,
+          "meanConfidence": 0.8448402853973032,
+          "rows": 11,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.9410078587214222,
+          "lower": 0.9,
+          "meanConfidence": 0.9410078587214222,
+          "rows": 7,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": []
+    },
+    "5": {
+      "CALIBRATION": [],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.2857142857142857,
+          "gap": 0.1692348804022028,
+          "lower": 0.4,
+          "meanConfidence": 0.4549491661164885,
+          "rows": 7,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.35714285714285715,
+          "gap": 0.1784122902046849,
+          "lower": 0.5,
+          "meanConfidence": 0.5355551473475421,
+          "rows": 14,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.46153846153846156,
+          "gap": 0.1753660295028071,
+          "lower": 0.6,
+          "meanConfidence": 0.6369044910412687,
+          "rows": 13,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.6363636363636364,
+          "gap": 0.11741726947158326,
+          "lower": 0.7,
+          "meanConfidence": 0.7537809058352196,
+          "rows": 11,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.4,
+          "gap": 0.44535547047437074,
+          "lower": 0.8,
+          "meanConfidence": 0.8453554704743708,
+          "rows": 10,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.125,
+          "gap": 0.8118737443593489,
+          "lower": 0.9,
+          "meanConfidence": 0.9368737443593489,
+          "rows": 8,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": []
+    },
+    "90": {
+      "CALIBRATION": [],
+      "EVALUATION": [],
+      "STACK_TRAIN": []
+    }
+  },
+  "stacked": {
+    "30": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.3333333333333333,
+          "gap": 0.0484879118188461,
+          "lower": 0.3,
+          "meanConfidence": 0.3818212451521794,
+          "rows": 6,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.2857142857142857,
+          "gap": 0.16134658948414288,
+          "lower": 0.4,
+          "meanConfidence": 0.4470608751984286,
+          "rows": 21,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.6428571428571429,
+          "gap": -0.08470071898726261,
+          "lower": 0.5,
+          "meanConfidence": 0.5581564238698803,
+          "rows": 14,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.8,
+          "gap": -0.15480572065175402,
+          "lower": 0.6,
+          "meanConfidence": 0.645194279348246,
+          "rows": 5,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.6666666666666666,
+          "gap": 0.09219659055941987,
+          "lower": 0.7,
+          "meanConfidence": 0.7588632572260865,
+          "rows": 12,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.14023922120616295,
+          "lower": 0.8,
+          "meanConfidence": 0.859760778793837,
+          "rows": 4,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.9088851174238691,
+          "lower": 0.9,
+          "meanConfidence": 0.9088851174238691,
+          "rows": 1,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.5472021130160528,
+          "lower": 0.4,
+          "meanConfidence": 0.4527978869839472,
+          "rows": 1,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.10424628258110452,
+          "lower": 0.5,
+          "meanConfidence": 0.5328177111525331,
+          "rows": 7,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.2857142857142857,
+          "gap": 0.3722576840553604,
+          "lower": 0.6,
+          "meanConfidence": 0.6579719697696461,
+          "rows": 14,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.5384615384615384,
+          "gap": 0.2244794717726598,
+          "lower": 0.7,
+          "meanConfidence": 0.7629410102341982,
+          "rows": 13,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.5,
+          "gap": 0.3534411511900839,
+          "lower": 0.8,
+          "meanConfidence": 0.8534411511900839,
+          "rows": 18,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.16666666666666666,
+          "gap": 0.7959339162543848,
+          "lower": 0.9,
+          "meanConfidence": 0.9626005829210514,
+          "rows": 12,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.38095238095238093,
+          "gap": -0.003586801105590731,
+          "lower": 0.3,
+          "meanConfidence": 0.3773655798467902,
+          "rows": 21,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.417910447761194,
+          "gap": 0.028565167511916068,
+          "lower": 0.4,
+          "meanConfidence": 0.4464756152731101,
+          "rows": 67,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.5555555555555556,
+          "gap": -0.010827433411337961,
+          "lower": 0.5,
+          "meanConfidence": 0.5447281221442176,
+          "rows": 45,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.7241379310344828,
+          "gap": -0.08537091051662271,
+          "lower": 0.6,
+          "meanConfidence": 0.63876702051786,
+          "rows": 29,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.7142857142857143,
+          "gap": 0.033076563298328754,
+          "lower": 0.7,
+          "meanConfidence": 0.747362277584043,
+          "rows": 21,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.875,
+          "gap": -0.03873153189490519,
+          "lower": 0.8,
+          "meanConfidence": 0.8362684681050948,
+          "rows": 8,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    },
+    "5": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.5,
+          "gap": -0.11767494313568166,
+          "lower": 0.3,
+          "meanConfidence": 0.38232505686431834,
+          "rows": 6,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.3,
+          "gap": 0.14534754503623842,
+          "lower": 0.4,
+          "meanConfidence": 0.4453475450362384,
+          "rows": 20,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.625,
+          "gap": -0.06541812400742819,
+          "lower": 0.5,
+          "meanConfidence": 0.5595818759925718,
+          "rows": 16,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.75,
+          "gap": -0.09036559006167277,
+          "lower": 0.6,
+          "meanConfidence": 0.6596344099383272,
+          "rows": 4,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.6363636363636364,
+          "gap": 0.12121178257053122,
+          "lower": 0.7,
+          "meanConfidence": 0.7575754189341676,
+          "rows": 11,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.15035399788057668,
+          "lower": 0.8,
+          "meanConfidence": 0.8496460021194233,
+          "rows": 5,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.9101900908107241,
+          "lower": 0.9,
+          "meanConfidence": 0.9101900908107241,
+          "rows": 1,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.5432885256325322,
+          "lower": 0.4,
+          "meanConfidence": 0.4567114743674679,
+          "rows": 1,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.42857142857142855,
+          "gap": 0.1105006676493529,
+          "lower": 0.5,
+          "meanConfidence": 0.5390720962207814,
+          "rows": 7,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.23076923076923078,
+          "gap": 0.4298427849784046,
+          "lower": 0.6,
+          "meanConfidence": 0.6606120157476354,
+          "rows": 13,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.5714285714285714,
+          "gap": 0.1915078473990337,
+          "lower": 0.7,
+          "meanConfidence": 0.7629364188276051,
+          "rows": 14,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.47058823529411764,
+          "gap": 0.3816442752654965,
+          "lower": 0.8,
+          "meanConfidence": 0.8522325105596141,
+          "rows": 17,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.23076923076923078,
+          "gap": 0.7293827144257246,
+          "lower": 0.9,
+          "meanConfidence": 0.9601519451949554,
+          "rows": 13,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4,
+          "gap": -0.023212383231729916,
+          "lower": 0.3,
+          "meanConfidence": 0.3767876167682701,
+          "rows": 20,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4117647058823529,
+          "gap": 0.0352351895693207,
+          "lower": 0.4,
+          "meanConfidence": 0.4469998954516736,
+          "rows": 68,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.5681818181818182,
+          "gap": -0.024347876595242623,
+          "lower": 0.5,
+          "meanConfidence": 0.5438339415865756,
+          "rows": 44,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.7,
+          "gap": -0.061280922814248795,
+          "lower": 0.6,
+          "meanConfidence": 0.6387190771857512,
+          "rows": 30,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.7142857142857143,
+          "gap": 0.03262121997885403,
+          "lower": 0.7,
+          "meanConfidence": 0.7469069342645683,
+          "rows": 21,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.875,
+          "gap": -0.03707533102833338,
+          "lower": 0.8,
+          "meanConfidence": 0.8379246689716666,
+          "rows": 8,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    },
+    "90": {
+      "CALIBRATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.6239222219071376,
+          "lower": 0.3,
+          "meanConfidence": 0.3760777780928623,
+          "rows": 2,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.35714285714285715,
+          "gap": 0.09581033733745048,
+          "lower": 0.4,
+          "meanConfidence": 0.45295319448030763,
+          "rows": 14,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.36363636363636365,
+          "gap": 0.18481508686618175,
+          "lower": 0.5,
+          "meanConfidence": 0.5484514505025454,
+          "rows": 11,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.2857142857142857,
+          "gap": 0.3648282814851892,
+          "lower": 0.6,
+          "meanConfidence": 0.6505425671994749,
+          "rows": 7,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": 0.01768495750807564,
+          "lower": 0.7,
+          "meanConfidence": 0.7449576847808029,
+          "rows": 11,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.8333333333333334,
+          "gap": 0.021009152135282982,
+          "lower": 0.8,
+          "meanConfidence": 0.8543424854686164,
+          "rows": 12,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.5,
+          "gap": 0.43176007106800773,
+          "lower": 0.9,
+          "meanConfidence": 0.9317600710680077,
+          "rows": 6,
+          "upper": 1.0
+        }
+      ],
+      "EVALUATION": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.3,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 1.0,
+          "gap": -0.5551381848661866,
+          "lower": 0.4,
+          "meanConfidence": 0.4448618151338134,
+          "rows": 2,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.5349191017022208,
+          "lower": 0.5,
+          "meanConfidence": 0.5349191017022208,
+          "rows": 2,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.4,
+          "gap": 0.2550120928589411,
+          "lower": 0.6,
+          "meanConfidence": 0.6550120928589411,
+          "rows": 10,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.3684210526315789,
+          "gap": 0.38981873120630245,
+          "lower": 0.7,
+          "meanConfidence": 0.7582397838378814,
+          "rows": 19,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.4482758620689655,
+          "gap": 0.39160176258207335,
+          "lower": 0.8,
+          "meanConfidence": 0.8398776246510389,
+          "rows": 29,
+          "upper": 0.9
+        },
+        {
+          "accuracy": 0.0,
+          "gap": 0.9063121241640809,
+          "lower": 0.9,
+          "meanConfidence": 0.9063121241640809,
+          "rows": 3,
+          "upper": 1.0
+        }
+      ],
+      "STACK_TRAIN": [
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.0,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.1
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.1,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.2
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.2,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 0.3
+        },
+        {
+          "accuracy": 0.4090909090909091,
+          "gap": -0.03273767940795086,
+          "lower": 0.3,
+          "meanConfidence": 0.37635322968295826,
+          "rows": 22,
+          "upper": 0.4
+        },
+        {
+          "accuracy": 0.4057971014492754,
+          "gap": 0.04126646287852659,
+          "lower": 0.4,
+          "meanConfidence": 0.447063564327802,
+          "rows": 69,
+          "upper": 0.5
+        },
+        {
+          "accuracy": 0.5681818181818182,
+          "gap": -0.018693009440405084,
+          "lower": 0.5,
+          "meanConfidence": 0.5494888087414131,
+          "rows": 44,
+          "upper": 0.6
+        },
+        {
+          "accuracy": 0.7407407407407407,
+          "gap": -0.10205329972557675,
+          "lower": 0.6,
+          "meanConfidence": 0.638687441015164,
+          "rows": 27,
+          "upper": 0.7
+        },
+        {
+          "accuracy": 0.7272727272727273,
+          "gap": 0.02324076139714426,
+          "lower": 0.7,
+          "meanConfidence": 0.7505134886698716,
+          "rows": 22,
+          "upper": 0.8
+        },
+        {
+          "accuracy": 0.8571428571428571,
+          "gap": -0.01965530874637922,
+          "lower": 0.8,
+          "meanConfidence": 0.8374875483964779,
+          "rows": 7,
+          "upper": 0.9
+        },
+        {
+          "accuracy": null,
+          "gap": null,
+          "lower": 0.9,
+          "meanConfidence": null,
+          "rows": 0,
+          "upper": 1.0
+        }
+      ]
+    }
+  }
+}

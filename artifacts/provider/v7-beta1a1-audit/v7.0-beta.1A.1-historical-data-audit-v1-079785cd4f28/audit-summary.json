@@ -1,0 +1,170 @@
+{
+  "auditVersion": "v7.0-beta.1A.1-historical-data-audit-v1",
+  "policyVersion": "timestamp-lineage-audit-no-backfill-v1",
+  "replayRunPayloadHash": "cda30efe820eaa81d8bfec6c039ea468ef504372f737c7ccef1a46928780546d",
+  "summary": {
+    "replay": {
+      "runId": 1,
+      "dateFrom": "2022-01-01T00:00:00.000Z",
+      "dateTo": "2024-12-31T23:59:59.000Z",
+      "fixtures": 188,
+      "replayPredictions": 171
+    },
+    "odds": {
+      "snapshots": 0,
+      "fixturesWithAnyOdds": 0,
+      "fixturesWithT90Odds": 0,
+      "snapshotsUsableT90": 0,
+      "t90FixtureCoverage": 0,
+      "buckets": [
+        {
+          "bucket": "PRE_T180",
+          "snapshots": 0,
+          "fixtures": 0
+        },
+        {
+          "bucket": "T180_TO_T90",
+          "snapshots": 0,
+          "fixtures": 0
+        },
+        {
+          "bucket": "T90_TO_T30",
+          "snapshots": 0,
+          "fixtures": 0
+        },
+        {
+          "bucket": "T30_TO_T5",
+          "snapshots": 0,
+          "fixtures": 0
+        },
+        {
+          "bucket": "T5_TO_KICKOFF",
+          "snapshots": 0,
+          "fixtures": 0
+        },
+        {
+          "bucket": "POST_KICKOFF",
+          "snapshots": 0,
+          "fixtures": 0
+        }
+      ],
+      "capturedMinutesFromKickoff": {
+        "minimum": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "maximum": null
+      }
+    },
+    "rawMetrics": {
+      "snapshotRows": 0,
+      "currentRows": 0,
+      "referencedSourceFixtures": 179,
+      "referencedSourceFixturesWithMetrics": 0,
+      "referencedSourceFixtureCoverage": 0
+    },
+    "fundamentals": {
+      "referencedIds": 342,
+      "resolvedRows": 342,
+      "metricCoverage10": {
+        "mean": 0,
+        "median": 0,
+        "minimum": 0,
+        "maximum": 0
+      },
+      "dataQualityScore": {
+        "mean": 0.359502923976608,
+        "median": 0.375
+      },
+      "pitViolations": 0
+    },
+    "features": {
+      "rows": 171,
+      "rowsWithFundamentalLineage": 171,
+      "fundamentalLineageCoverage": 1,
+      "rowsWithMarketLineage": 171,
+      "marketLineagePitViolations": 0,
+      "marketAvailableRows": 0
+    },
+    "safety": {
+      "pitViolations": 0,
+      "historicalTimestampMutation": false,
+      "fabricatedBackfill": false,
+      "liveApiCalled": false,
+      "freshShadowRowsWritten": 0,
+      "productionModelChanged": false
+    }
+  },
+  "findings": [
+    {
+      "category": "RAW_TEAM_METRICS",
+      "severity": "CRITICAL",
+      "code": "NO_RAW_TEAM_METRIC_SOURCE",
+      "message": "Neither snapshot nor current historical team metric tables contain raw metric rows.",
+      "evidence": {
+        "rawMetricSnapshotCount": 0,
+        "currentMetricCount": 0
+      }
+    },
+    {
+      "category": "FUNDAMENTALS_LINEAGE",
+      "severity": "INFO",
+      "code": "FEATURE_FUNDAMENTAL_LINEAGE_COMPLETE",
+      "message": "Every replay feature row contains explicit home/away fundamental and Dixon-Coles source identifiers.",
+      "evidence": {
+        "featureRows": 171,
+        "featureRowsWithLineage": 171,
+        "referencedFundamentalSnapshots": 342,
+        "resolvedFundamentalSnapshots": 342
+      }
+    },
+    {
+      "category": "PIT_SAFETY",
+      "severity": "INFO",
+      "code": "DERIVED_LINEAGE_PIT_SAFE",
+      "message": "No PIT violation was found in resolved fundamental latest-source timestamps or feature market observedTo timestamps.",
+      "evidence": {
+        "fundamentalPitViolations": 0,
+        "featureMarketLineagePitViolations": 0
+      }
+    },
+    {
+      "category": "API_REQUIREMENTS",
+      "severity": "WARNING",
+      "code": "NEXT_PROVIDER_REQUIREMENTS",
+      "message": "Audit recommendation: REQUIRE_TIMESTAMPED_ODDS_AND_STATS.",
+      "evidence": {
+        "reasons": [
+          "Historical T-90 odds coverage is insufficient.",
+          "Raw FixtureTeamMetricSnapshot coverage is absent while derived fundamentals exist.",
+          "A live provider should support both timestamped odds and timestamped team statistics."
+        ],
+        "requiredCapabilities": [
+          "historical odds with source timestamps",
+          "live odds polling",
+          "historical team statistics",
+          "live team statistics",
+          "fixtures/results",
+          "2025-2026 backfill"
+        ]
+      }
+    }
+  ],
+  "recommendation": {
+    "status": "REQUIRE_TIMESTAMPED_ODDS_AND_STATS",
+    "reasons": [
+      "Historical T-90 odds coverage is insufficient.",
+      "Raw FixtureTeamMetricSnapshot coverage is absent while derived fundamentals exist.",
+      "A live provider should support both timestamped odds and timestamped team statistics."
+    ],
+    "requiredCapabilities": [
+      "historical odds with source timestamps",
+      "live odds polling",
+      "historical team statistics",
+      "live team statistics",
+      "fixtures/results",
+      "2025-2026 backfill"
+    ]
+  },
+  "payloadHash": "079785cd4f2889fe9d326ba03ade9de2c6a2b8114876e84231ffe81571b0b518"
+}

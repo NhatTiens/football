@@ -23,8 +23,8 @@ describe('v7.0-beta.1B API-Football contract', () => {
     expect(API_FOOTBALL_PREMATCH_HISTORY_DAYS).toBe(7);
   });
 
-  it('supports total-goals 1.5, 2.5 and 3.5 only', () => {
-    expect([...API_FOOTBALL_SUPPORTED_TOTAL_LINES]).toEqual([1.5, 2.5, 3.5]);
+  it('supports total-goals 1.5, 2.0, 2.5, 3.0 and 3.5', () => {
+    expect([...API_FOOTBALL_SUPPORTED_TOTAL_LINES]).toEqual([1.5, 2, 2.5, 3, 3.5]);
   });
 
   it('classifies Match Winner', () => {
@@ -100,6 +100,20 @@ describe('v7.0-beta.1B API-Football contract', () => {
     });
   });
 
+  it('parses OVER 2.0', () => {
+    expect(parseApiFootballSelection('TOTAL_GOALS', 'Over 2.0')).toEqual({
+      selection: 'OVER',
+      lineValue: 2,
+    });
+  });
+
+  it('parses UNDER 3.0', () => {
+    expect(parseApiFootballSelection('TOTAL_GOALS', 'Under 3.0')).toEqual({
+      selection: 'UNDER',
+      lineValue: 3,
+    });
+  });
+
   it('parses OVER 3.5', () => {
     expect(parseApiFootballSelection('TOTAL_GOALS', 'Over 3.5')).toEqual({
       selection: 'OVER',
@@ -115,7 +129,7 @@ describe('v7.0-beta.1B API-Football contract', () => {
     expect(parseApiFootballSelection('TOTAL_GOALS', 'Over')).toBeNull();
   });
 
-  it('normalizes one pre-match response into seven target selections', () => {
+  it('normalizes one pre-match response across all supported selections', () => {
     const payload = {
       response: [
         {
@@ -148,8 +162,12 @@ describe('v7.0-beta.1B API-Football contract', () => {
                   values: [
                     { value: 'Over 1.5', odd: '1.30' },
                     { value: 'Under 1.5', odd: '3.30' },
+                    { value: 'Over 2.0', odd: '1.55' },
+                    { value: 'Under 2.0', odd: '2.35' },
                     { value: 'Over 2.5', odd: '1.90' },
                     { value: 'Under 2.5', odd: '1.90' },
+                    { value: 'Over 3.0', odd: '2.40' },
+                    { value: 'Under 3.0', odd: '1.62' },
                     { value: 'Over 3.5', odd: '3.10' },
                     { value: 'Under 3.5', odd: '1.35' },
                   ],
@@ -171,7 +189,7 @@ describe('v7.0-beta.1B API-Football contract', () => {
 
     expect(
       normalizeApiFootballPrematchOdds(payload, new Date('2026-07-25T12:05:00Z')),
-    ).toHaveLength(11);
+    ).toHaveLength(15);
   });
 
   it('marks fresh pre-kickoff odds PIT usable', () => {

@@ -1,0 +1,557 @@
+{
+  "version": "v7.0-beta.1A.3-scientific-multi-market-replay-v1",
+  "policy": "historical-t90-multi-market-non-promotional-v1",
+  "evidenceClass": "HISTORICAL_REPLAY_DIAGNOSTIC_ONLY",
+  "promotional": false,
+  "replaySource": {
+    "runId": 1,
+    "payloadHash": "cda30efe820eaa81d8bfec6c039ea468ef504372f737c7ccef1a46928780546d",
+    "dateFrom": "2022-01-01T00:00:00.000Z",
+    "dateTo": "2024-12-31T23:59:59.000Z",
+    "requestedHorizonMinutes": 90
+  },
+  "coverage": {
+    "replayPredictions": 171,
+    "fixtureResultsResolved": 171,
+    "featureLineageResolved": 171,
+    "dixonSnapshotsResolved": 171,
+    "evaluationFixtures": 171,
+    "evaluationRows": 855,
+    "missingFixtureResults": 0,
+    "missingFeatureLineage": 0,
+    "missingDixonSnapshots": 0,
+    "actualClassMismatches": 0,
+    "pitViolations": 0
+  },
+  "equivalence": {
+    "tolerance": 1e-9,
+    "dixonStoredProbabilityViolations": 0,
+    "maximumDixonStoredProbabilityAbsDiff": 4.440892098500626e-16,
+    "frozenHdaReplayMetricViolations": 0,
+    "maximumFrozenHdaReplayMetricAbsDiff": 4.440892098500626e-16
+  },
+  "metrics": {
+    "MATCH_WINNER": {
+      "rows": 171,
+      "classCount": 3,
+      "accuracy": 0.47953216374269003,
+      "brier": 0.6226676942776199,
+      "logLoss": 1.0363698357955642,
+      "ece": 0.025757603238431338,
+      "brierSkillVsUniform": 0.06599845858357012,
+      "logLossSkillVsUniform": 0.056655522166063066,
+      "positiveRate": null,
+      "calibration": [
+        {
+          "lowerInclusive": 0,
+          "upperExclusive": 0.1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.1,
+          "upperExclusive": 0.2,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.2,
+          "upperExclusive": 0.3,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.3,
+          "upperExclusive": 0.4,
+          "rows": 32,
+          "meanConfidence": 0.3843379728407138,
+          "accuracy": 0.375,
+          "absoluteGap": 0.009337972840713804
+        },
+        {
+          "lowerInclusive": 0.4,
+          "upperExclusive": 0.5,
+          "rows": 78,
+          "meanConfidence": 0.4424149913925588,
+          "accuracy": 0.46153846153846156,
+          "absoluteGap": 0.019123470145902766
+        },
+        {
+          "lowerInclusive": 0.5,
+          "upperExclusive": 0.6,
+          "rows": 39,
+          "meanConfidence": 0.5435373379650175,
+          "accuracy": 0.5128205128205128,
+          "absoluteGap": 0.03071682514450469
+        },
+        {
+          "lowerInclusive": 0.6,
+          "upperExclusive": 0.7,
+          "rows": 17,
+          "meanConfidence": 0.6503303502126516,
+          "accuracy": 0.5882352941176471,
+          "absoluteGap": 0.06209505609500454
+        },
+        {
+          "lowerInclusive": 0.7,
+          "upperExclusive": 0.8,
+          "rows": 5,
+          "meanConfidence": 0.7278935565524518,
+          "accuracy": 0.8,
+          "absoluteGap": 0.07210644344754824
+        },
+        {
+          "lowerInclusive": 0.8,
+          "upperExclusive": 0.9,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.9,
+          "upperExclusive": 1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        }
+      ],
+      "source": "FROZEN_ALPHA8_CANDIDATE"
+    },
+    "TOTAL_GOALS_1_5": {
+      "rows": 171,
+      "classCount": 2,
+      "accuracy": 0.8245614035087719,
+      "brier": 0.14828045616376853,
+      "logLoss": 0.47320629086669985,
+      "ece": 0.032342450199079394,
+      "brierSkillVsUniform": 0.4068781753449259,
+      "logLossSkillVsUniform": 0.3173076308491517,
+      "positiveRate": 0.8245614035087719,
+      "calibration": [
+        {
+          "lowerInclusive": 0,
+          "upperExclusive": 0.1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.1,
+          "upperExclusive": 0.2,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.2,
+          "upperExclusive": 0.3,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.3,
+          "upperExclusive": 0.4,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.4,
+          "upperExclusive": 0.5,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.5,
+          "upperExclusive": 0.6,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.6,
+          "upperExclusive": 0.7,
+          "rows": 7,
+          "meanConfidence": 0.6538138219141694,
+          "accuracy": 0.8571428571428571,
+          "absoluteGap": 0.20332903522868773
+        },
+        {
+          "lowerInclusive": 0.7,
+          "upperExclusive": 0.8,
+          "rows": 84,
+          "meanConfidence": 0.7682921219831916,
+          "accuracy": 0.8095238095238095,
+          "absoluteGap": 0.0412316875406179
+        },
+        {
+          "lowerInclusive": 0.8,
+          "upperExclusive": 0.9,
+          "rows": 80,
+          "meanConfidence": 0.8294525751996268,
+          "accuracy": 0.8375,
+          "absoluteGap": 0.008047424800373237
+        },
+        {
+          "lowerInclusive": 0.9,
+          "upperExclusive": 1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        }
+      ],
+      "source": "DYNAMIC_DIXON_COLES_SCORE_GRID",
+      "positiveSelection": "OVER",
+      "lineValue": 1.5
+    },
+    "TOTAL_GOALS_2_5": {
+      "rows": 171,
+      "classCount": 2,
+      "accuracy": 0.5614035087719298,
+      "brier": 0.24453050083892777,
+      "logLoss": 0.6818141470861677,
+      "ece": 0.0119109903940093,
+      "brierSkillVsUniform": 0.02187799664428891,
+      "logLossSkillVsUniform": 0.016350111190847505,
+      "positiveRate": 0.5964912280701754,
+      "calibration": [
+        {
+          "lowerInclusive": 0,
+          "upperExclusive": 0.1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.1,
+          "upperExclusive": 0.2,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.2,
+          "upperExclusive": 0.3,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.3,
+          "upperExclusive": 0.4,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.4,
+          "upperExclusive": 0.5,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.5,
+          "upperExclusive": 0.6,
+          "rows": 136,
+          "meanConfidence": 0.548841841127658,
+          "accuracy": 0.5514705882352942,
+          "absoluteGap": 0.0026287471076361646
+        },
+        {
+          "lowerInclusive": 0.6,
+          "upperExclusive": 0.7,
+          "rows": 34,
+          "meanConfidence": 0.6288806850066192,
+          "accuracy": 0.5882352941176471,
+          "absoluteGap": 0.04064539088897212
+        },
+        {
+          "lowerInclusive": 0.7,
+          "upperExclusive": 0.8,
+          "rows": 1,
+          "meanConfidence": 0.70267353948798,
+          "accuracy": 1,
+          "absoluteGap": 0.29732646051202005
+        },
+        {
+          "lowerInclusive": 0.8,
+          "upperExclusive": 0.9,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.9,
+          "upperExclusive": 1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        }
+      ],
+      "source": "DYNAMIC_DIXON_COLES_SCORE_GRID",
+      "positiveSelection": "OVER",
+      "lineValue": 2.5
+    },
+    "TOTAL_GOALS_3_5": {
+      "rows": 171,
+      "classCount": 2,
+      "accuracy": 0.6374269005847953,
+      "brier": 0.2369316316702255,
+      "logLoss": 0.6699101332244795,
+      "ece": 0.05774319387364675,
+      "brierSkillVsUniform": 0.05227347331909804,
+      "logLossSkillVsUniform": 0.03352397295577869,
+      "positiveRate": 0.36257309941520466,
+      "calibration": [
+        {
+          "lowerInclusive": 0,
+          "upperExclusive": 0.1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.1,
+          "upperExclusive": 0.2,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.2,
+          "upperExclusive": 0.3,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.3,
+          "upperExclusive": 0.4,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.4,
+          "upperExclusive": 0.5,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.5,
+          "upperExclusive": 0.6,
+          "rows": 13,
+          "meanConfidence": 0.5608782310937148,
+          "accuracy": 0.6153846153846154,
+          "absoluteGap": 0.0545063842909006
+        },
+        {
+          "lowerInclusive": 0.6,
+          "upperExclusive": 0.7,
+          "rows": 104,
+          "meanConfidence": 0.654680318412918,
+          "accuracy": 0.6634615384615384,
+          "absoluteGap": 0.008781220048620475
+        },
+        {
+          "lowerInclusive": 0.7,
+          "upperExclusive": 0.8,
+          "rows": 50,
+          "meanConfidence": 0.7387245760591735,
+          "accuracy": 0.62,
+          "absoluteGap": 0.11872457605917353
+        },
+        {
+          "lowerInclusive": 0.8,
+          "upperExclusive": 0.9,
+          "rows": 4,
+          "meanConfidence": 0.8290068671491704,
+          "accuracy": 0.25,
+          "absoluteGap": 0.5790068671491704
+        },
+        {
+          "lowerInclusive": 0.9,
+          "upperExclusive": 1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        }
+      ],
+      "source": "DYNAMIC_DIXON_COLES_SCORE_GRID",
+      "positiveSelection": "OVER",
+      "lineValue": 3.5
+    },
+    "BTTS": {
+      "rows": 171,
+      "classCount": 2,
+      "accuracy": 0.5906432748538012,
+      "brier": 0.2383789800417464,
+      "logLoss": 0.6695899955072389,
+      "ece": 0.021332235496651957,
+      "brierSkillVsUniform": 0.04648407983301439,
+      "logLossSkillVsUniform": 0.03398583405284317,
+      "positiveRate": 0.6198830409356725,
+      "calibration": [
+        {
+          "lowerInclusive": 0,
+          "upperExclusive": 0.1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.1,
+          "upperExclusive": 0.2,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.2,
+          "upperExclusive": 0.3,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.3,
+          "upperExclusive": 0.4,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.4,
+          "upperExclusive": 0.5,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.5,
+          "upperExclusive": 0.6,
+          "rows": 105,
+          "meanConfidence": 0.5624654876018002,
+          "accuracy": 0.580952380952381,
+          "absoluteGap": 0.018486893350580846
+        },
+        {
+          "lowerInclusive": 0.6,
+          "upperExclusive": 0.7,
+          "rows": 66,
+          "meanConfidence": 0.6319195222441893,
+          "accuracy": 0.6060606060606061,
+          "absoluteGap": 0.02585891618358327
+        },
+        {
+          "lowerInclusive": 0.7,
+          "upperExclusive": 0.8,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.8,
+          "upperExclusive": 0.9,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        },
+        {
+          "lowerInclusive": 0.9,
+          "upperExclusive": 1,
+          "rows": 0,
+          "meanConfidence": null,
+          "accuracy": null,
+          "absoluteGap": null
+        }
+      ],
+      "source": "DYNAMIC_DIXON_COLES_SCORE_GRID",
+      "positiveSelection": "YES"
+    }
+  },
+  "binaryMarketRanking": {
+    "byBrier": [
+      "TOTAL_GOALS_1_5",
+      "TOTAL_GOALS_3_5",
+      "BTTS",
+      "TOTAL_GOALS_2_5"
+    ],
+    "byLogLoss": [
+      "TOTAL_GOALS_1_5",
+      "BTTS",
+      "TOTAL_GOALS_3_5",
+      "TOTAL_GOALS_2_5"
+    ],
+    "byEce": [
+      "TOTAL_GOALS_2_5",
+      "BTTS",
+      "TOTAL_GOALS_1_5",
+      "TOTAL_GOALS_3_5"
+    ],
+    "byAccuracy": [
+      "TOTAL_GOALS_1_5",
+      "TOTAL_GOALS_3_5",
+      "BTTS",
+      "TOTAL_GOALS_2_5"
+    ]
+  },
+  "interpretationRules": {
+    "compareHdaDirectlyWithBinaryMetrics": false,
+    "reason": "MATCH_WINNER is a 3-class task while totals and BTTS are binary; raw accuracy/Brier scales are not directly comparable across those task types.",
+    "oddsUsed": false,
+    "roiCalculated": false,
+    "bestBetSelected": false
+  },
+  "safety": {
+    "historicalDataRewritten": false,
+    "oddsRequired": false,
+    "liveApiCalled": false,
+    "bestBetPolicyActivated": false,
+    "freshShadowRowsWritten": 0,
+    "productionModelChanged": false,
+    "automaticPromotion": false
+  },
+  "nextStage": "v7.0-beta.1A.4",
+  "artifactDirectory": "artifacts/provider/v7-beta1a3/v7.0-beta.1A.3-scientific-multi-market-replay-v1-f8faa30b0f05",
+  "payloadHash": "f8faa30b0f05093649ea154760ecfcd7003e277a32836a6be5afca668d9fccaa"
+}

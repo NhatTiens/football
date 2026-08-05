@@ -48,12 +48,12 @@ describe('paper O/U strategy audit propagation', () => {
       predictionSelection: 'OVER',
       predictionLineValue: 2.5,
       recommendedSelection: 'UNDER',
-      recommendedLineValue: 3.5,
+      recommendedLineValue: 3,
       predictionProbability: 0.62,
       paperOnly: true,
     });
-    expect(result.selected?.reasonCodes).toContain('OU_OPPOSITE_PROTECTED_LINE_APPLIED');
-    expect(result.selected?.reasonCodes).toContain('OU_LINE_SHIFTED_ONE_GOAL');
+    expect(result.selected?.reasonCodes).toContain('OU_OPPOSITE_PROTECTED_HALF_GOAL_APPLIED');
+    expect(result.selected?.reasonCodes).toContain('OU_LINE_SHIFTED_HALF_GOAL');
     expect(result.paperOnly).toBe(true);
     expect(result.realMoneyExecution).toBe(false);
   });

@@ -33,9 +33,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm run security:scan
       - run: npm ci
       - run: npm run db:generate
       - run: npm run db:push
       - run: npm run typecheck
       - run: npm test
+      - run: npm run lint
       - run: npm run build

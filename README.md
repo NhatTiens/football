@@ -124,16 +124,16 @@ ROI = Profit / Total Stake
 
 ## Kiểm tra source
 
-```bash
-npm run verify
-```
+    npm run verify:champion
 
-Kết quả bàn giao:
+Điều kiện đóng băng CURRENT_CHAMPION:
 
-- TypeScript workspace: PASS
-- Vitest: 6/6 PASS
-- ESLint: PASS
-- Next.js production build: PASS
+* Secret scan: PASS.
+* Stage 0 repository audit: PASS.
+* TypeScript, Vitest, ESLint và Next.js production build: PASS.
+* GitHub Actions trên commit đóng băng: PASS.
+
+Xem checklist tại `docs/STAGE0_CURRENT_CHAMPION.md`.
 
 ## Cấu trúc
 

@@ -26,7 +26,10 @@
     "verify": "npm run typecheck && npm test && npm run lint && npm run build",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File ./scripts/windows-clean-install.ps1",
     "dev:raw": "concurrently -n api,worker,web,science -c auto \"npm run dev -w @football-ai/api\" \"node scripts/dev-worker-with-science.mjs\" \"npm run dev -w @football-ai/web\" \"npm run dev:autopilot -w @football-ai/sync\"",
-    "dev:autopilot": "node scripts/run-with-env.mjs npm run dev:autopilot -w @football-ai/sync"
+    "dev:autopilot": "node scripts/run-with-env.mjs npm run dev:autopilot -w @football-ai/sync",
+    "security:scan": "node scripts/security/scan-tracked-secrets.mjs",
+    "stage0:audit": "node scripts/stage0-baseline-audit.mjs",
+    "verify:champion": "npm run security:scan && npm run stage0:audit && npm run typecheck && npm test && npm run lint && npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",

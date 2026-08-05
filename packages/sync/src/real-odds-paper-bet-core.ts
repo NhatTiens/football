@@ -417,74 +417,130 @@ export function buildLivePaperBetCandidates(input: {
       let candidateCount = 0;
       let completeBookmakers = 0;
 
-      for (const sourceSelection of ['OVER', 'UNDER'] as const) {
+      // Không đọc xác suất O/U khi không có odds đích liên quan.
+      // Benchmark HDA-only cố ý dùng NaN cho các market không được benchmark.
+      const possibleTargetOuLines = (['OVER', 'UNDER'] as const).map(
+        (predictionSelection) =>
+          mapPaperOuPredictionToOppositeLine({
+            predictionSelection,
+            predictionLineValue: definition.lineValue,
+          }).recommendedLineValue,
+      );
+
+      const hasRelevantOuOdds = latest.some(
+        (row) =>
+          row.marketType === definition.providerMarket &&
+          possibleTargetOuLines.some((lineValue) =>
+            sameLine(row.lineValue, lineValue),
+          ),
+      );
+
+      if (!hasRelevantOuOdds) {
+        marketCoverage.push({
+          market: definition.market,
+          completeBookmakers: 0,
+          candidates: 0,
+        });
+        continue;
+      }
+
+      const overProbability = modelProbability(
+        input.modelProbabilities,
+        definition.market,
+        'OVER',
+      );
+      const underProbability = modelProbability(
+        input.modelProbabilities,
+        definition.market,
+        'UNDER',
+      );
+
+      const sourceSelection: 'OVER' | 'UNDER' | null =
+        overProbability > underProbability
+          ? 'OVER'
+          : underProbability > overProbability
+            ? 'UNDER'
+            : null;
+
+      // Chỉ tạo PAPER candidate khi mô hình nghiêng rõ về một cửa.
+      // Nếu xác suất hai cửa bằng nhau thì không tự ý lựa chọn.
+      if (sourceSelection) {
         const mapping = mapPaperOuPredictionToOppositeLine({
           predictionSelection: sourceSelection,
           predictionLineValue: definition.lineValue,
         });
+
         const targetDefinition: MarketDefinition = {
           ...definition,
           lineValue: mapping.recommendedLineValue,
           selections: ['OVER', 'UNDER'],
         };
-        const targetConsensus = consensusForDefinition(latest, targetDefinition);
 
-        if (!targetConsensus) {
-          continue;
-        }
-
-        completeBookmakers = Math.max(
-          completeBookmakers,
-          targetConsensus.completeBookmakers,
-        );
-        const bestOdds = bestOddsForSelection(
+        const targetConsensus = consensusForDefinition(
           latest,
           targetDefinition,
-          mapping.recommendedSelection,
         );
-        const fair = targetConsensus.fair[mapping.recommendedSelection];
 
-        if (!bestOdds || fair == null) {
-          continue;
+        if (targetConsensus) {
+          completeBookmakers = targetConsensus.completeBookmakers;
+
+          const bestOdds = bestOddsForSelection(
+            latest,
+            targetDefinition,
+            mapping.recommendedSelection,
+          );
+
+          const fair =
+            targetConsensus.fair[mapping.recommendedSelection];
+
+          if (bestOdds && fair != null) {
+            const sourceProbability =
+              sourceSelection === 'OVER'
+                ? overProbability
+                : underProbability;
+
+            const targetProbabilities =
+              derivePaperOuTargetProbabilities({
+                mapping,
+                underProbabilities,
+                decimalOdds: bestOdds.decimalOdds,
+              });
+
+            const gate = input.reliability[definition.market];
+
+            candidates.push({
+              providerFixtureId: input.providerFixtureId,
+              marketType: toPolicyMarket(definition.market),
+              selection: mapping.recommendedSelection,
+              lineValue: mapping.recommendedLineValue,
+              decimalOdds: bestOdds.decimalOdds,
+              bookmakerId: bestOdds.bookmakerId,
+              bookmakerName: bestOdds.bookmakerName,
+              modelProbability:
+                targetProbabilities.effectiveProbability,
+              fairMarketProbability: fair,
+              reliabilityStatus: gate.status,
+              reliabilityEligible: gate.eligible,
+              sourceOddsSnapshotId: bestOdds.id,
+              sourceOddsUpdatedAt: bestOdds.sourceUpdatedAt,
+              sourceOddsObservedAt: bestOdds.observedAt,
+              ouOppositeLineStrategy: {
+                ...mapping,
+                predictionProbability: sourceProbability,
+                targetWinProbability:
+                  targetProbabilities.winProbability,
+                targetPushProbability:
+                  targetProbabilities.pushProbability,
+                targetLossProbability:
+                  targetProbabilities.lossProbability,
+                targetEffectiveProbability:
+                  targetProbabilities.effectiveProbability,
+              },
+            });
+
+            candidateCount = 1;
+          }
         }
-
-        const sourceProbability = modelProbability(
-          input.modelProbabilities,
-          definition.market,
-          sourceSelection,
-        );
-        const targetProbabilities = derivePaperOuTargetProbabilities({
-          mapping,
-          underProbabilities,
-          decimalOdds: bestOdds.decimalOdds,
-        });
-        const gate = input.reliability[definition.market];
-
-        candidates.push({
-          providerFixtureId: input.providerFixtureId,
-          marketType: toPolicyMarket(definition.market),
-          selection: mapping.recommendedSelection,
-          lineValue: mapping.recommendedLineValue,
-          decimalOdds: bestOdds.decimalOdds,
-          bookmakerId: bestOdds.bookmakerId,
-          bookmakerName: bestOdds.bookmakerName,
-          modelProbability: targetProbabilities.effectiveProbability,
-          fairMarketProbability: fair,
-          reliabilityStatus: gate.status,
-          reliabilityEligible: gate.eligible,
-          sourceOddsSnapshotId: bestOdds.id,
-          sourceOddsUpdatedAt: bestOdds.sourceUpdatedAt,
-          sourceOddsObservedAt: bestOdds.observedAt,
-          ouOppositeLineStrategy: {
-            ...mapping,
-            predictionProbability: sourceProbability,
-            targetWinProbability: targetProbabilities.winProbability,
-            targetPushProbability: targetProbabilities.pushProbability,
-            targetLossProbability: targetProbabilities.lossProbability,
-            targetEffectiveProbability: targetProbabilities.effectiveProbability,
-          },
-        });
-        candidateCount += 1;
       }
 
       marketCoverage.push({

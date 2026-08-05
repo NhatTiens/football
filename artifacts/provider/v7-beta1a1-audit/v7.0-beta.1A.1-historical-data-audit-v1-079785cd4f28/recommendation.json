@@ -1,0 +1,16 @@
+{
+  "status": "REQUIRE_TIMESTAMPED_ODDS_AND_STATS",
+  "reasons": [
+    "Historical T-90 odds coverage is insufficient.",
+    "Raw FixtureTeamMetricSnapshot coverage is absent while derived fundamentals exist.",
+    "A live provider should support both timestamped odds and timestamped team statistics."
+  ],
+  "requiredCapabilities": [
+    "historical odds with source timestamps",
+    "live odds polling",
+    "historical team statistics",
+    "live team statistics",
+    "fixtures/results",
+    "2025-2026 backfill"
+  ]
+}

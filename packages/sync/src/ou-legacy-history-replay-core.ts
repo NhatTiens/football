@@ -1,6 +1,7 @@
 import {
   isPaperOuMarketType,
   isPaperOuSourceLine,
+  isPaperOuSupportedLine,
   mapPaperOuPredictionToOppositeLine,
   paperOuLineForMarket,
   paperOuMarketForLine,
@@ -10,7 +11,7 @@ import {
 } from './paper-ou-opposite-line-core.js';
 
 export const OU_LEGACY_HISTORY_REPLAY_VERSION =
-  'v7.0-ou-legacy-history-pit-replay-v1';
+  'v7.0-ou-legacy-history-pit-replay-v3-market-alias';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -42,7 +43,9 @@ function normalizedSelection(value: unknown): PaperOuSelection | null {
 }
 
 function supportedLine(value: number | null): PaperOuLine | null {
-  return value === 1.5 || value === 2.5 || value === 3.5 ? value : null;
+  return value === 1.5 || value === 2 || value === 2.5 || value === 3 || value === 3.5
+    ? value
+    : null;
 }
 
 function normalizedOuIdentity(value: UnknownRecord): {
@@ -86,6 +89,26 @@ function sameOuIdentity(
   );
 }
 
+function sameOuSelectionAndLine(
+  value: UnknownRecord,
+  expected: {
+    lineValue: PaperOuLine;
+    selection: PaperOuSelection;
+  },
+): boolean {
+  const normalized = normalizedOuIdentity(value);
+  return (
+    normalized != null &&
+    normalized.lineValue === expected.lineValue &&
+    normalized.selection === expected.selection
+  );
+}
+
+function hasUsableOdds(value: UnknownRecord): boolean {
+  const odds = finiteNumber(value.decimalOdds, value.odds);
+  return odds != null && odds > 1;
+}
+
 /**
  * Reconstructs the historical paper O/U view from the immutable PIT snapshot.
  * It never writes to the database and never invents a quote. Replay succeeds only
@@ -115,17 +138,23 @@ export function replayLegacyOuHistorySelection(input: {
 
   const sourceCandidate =
     candidates.find((candidate) => sameOuIdentity(candidate, source)) ?? null;
+  const targetIdentity = {
+    marketType: mapping.recommendedMarketType,
+    selection: mapping.recommendedSelection,
+    lineValue: mapping.recommendedLineValue,
+  };
   const target =
-    candidates.find((candidate) =>
-      sameOuIdentity(candidate, {
-        marketType: mapping.recommendedMarketType,
-        selection: mapping.recommendedSelection,
-        lineValue: mapping.recommendedLineValue,
-      }),
-    ) ?? null;
+    candidates.find(
+      (candidate) => sameOuIdentity(candidate, targetIdentity) && hasUsableOdds(candidate),
+    ) ??
+    candidates.find(
+      (candidate) =>
+        sameOuSelectionAndLine(candidate, targetIdentity) && hasUsableOdds(candidate),
+    ) ??
+    null;
 
   if (target == null) return null;
-
+  const observedTargetIdentity = normalizedOuIdentity(target);
   const targetOdds = finiteNumber(target.decimalOdds, target.odds);
   if (targetOdds == null || targetOdds <= 1) return null;
 
@@ -169,6 +198,11 @@ export function replayLegacyOuHistorySelection(input: {
       source: 'ScientificCurrentSignalSnapshot.analysis.candidates',
       sourceSnapshotOnly: true,
       exactTargetCandidateRequired: true,
+      exactSelectionAndLineRequired: true,
+      observedTargetMarketType: observedTargetIdentity?.marketType ?? null,
+      marketAliasFallbackUsed:
+        observedTargetIdentity != null &&
+        observedTargetIdentity.marketType !== mapping.recommendedMarketType,
       originalSnapshotMutated: false,
       databaseWritten: false,
     },

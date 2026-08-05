@@ -1,30 +1,28 @@
-node_modules
-.next
-dist
-coverage
-.env
-.env.local
-.env.*.local
+# Dependencies and generated builds
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
 *.log
 .DS_Store
-packages/database/prisma/dev.db
 
-.prediction-v6-backup/
-football-prediction-ai-v6.2.3/
-.prediction-v62-backup/
-.prediction-v621-backup/
-.prediction-v622-backup/
-.prediction-v623-backup/
-*.tsbuildinfo
-.prediction-v612-backup/
-.venv-alpha6/
-artifacts/ml/
-__pycache__/
-*.py[cod]
-.venv-alpha7/
-artifacts/evaluation/
-artifacts/diagnostics/
-.venv-alpha71/
-artifacts/shadow/
-artifacts/provider/
-artifacts/provider/v7-beta1a1-audit/
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local databases
+packages/database/prisma/dev.db
+*.db-journal
+
+# Local patch, payload, backup and audit output
+payload/
+football-v7-*/
+**/*-backup-*/
+**/.*backup*/
+**/.*broken*/
+package.json.before-*
+*.zip
+.stage0/

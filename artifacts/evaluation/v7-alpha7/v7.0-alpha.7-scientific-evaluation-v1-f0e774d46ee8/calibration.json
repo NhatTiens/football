@@ -1,0 +1,6 @@
+{
+  "calibrationLogLoss": 0.9779702308205432,
+  "calibrationRows": 189,
+  "method": "temperature-scaling",
+  "temperature": 1.4939999999999998
+}
