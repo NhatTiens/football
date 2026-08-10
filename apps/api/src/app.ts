@@ -33,6 +33,7 @@ import {
 import { env } from './env.js';
 import { authRouter } from './auth-routes.js';
 import { resolveAuthContext, roleCanAccessIntent } from './auth.js';
+import { consumeUsage, getFeatureForChatIntent } from './auth-usage.js';
 import { openApiDocument } from './openapi.js'; import { getScientificDashboard } from './scientific-dashboard.js';
 import { scientificRouter } from './scientific-routes.js';
 import { fixtureSummary, recommendationDto } from './serializers.js';
@@ -888,6 +889,10 @@ app.post(
       response.status(401).json({ error: 'Please sign in to use the chatbot.' });
       return;
     }
+    if (auth.user.status !== 'ACTIVE') {
+      response.status(403).json({ error: 'Email verification required.' });
+      return;
+    }
 
     const message =
       typeof request.body?.message === 'string' ? request.body.message.trim() : '';
@@ -902,24 +907,33 @@ app.post(
     }
 
     const intent = detectAdvancedPredictionChatIntent(message);
-    if (!roleCanAccessIntent(auth.user.role, intent)) {
+    if (!roleCanAccessIntent(auth.user.role, intent, auth.user.plan, auth.user.proExpiresAt ? new Date(auth.user.proExpiresAt) : null)) {
       response.status(403).json({
-        error: 'ANALYST role required for this question.',
-        requiredRole: 'ANALYST',
+        error: 'This question requires a PRO account.',
+        requiredRole: 'PRO',
         role: auth.user.role,
         intent,
       });
       return;
     }
 
-    response.json(
-      await answerAdvancedPredictionChat({
-        message,
-        context: request.body?.context,
-        days: 14,
-        limit: 300,
-      }),
-    );
+    const result = await answerAdvancedPredictionChat({
+      message,
+      context: request.body?.context,
+      days: 14,
+      limit: 300,
+    });
+
+    const usage = await consumeUsage({
+      userId: auth.user.id,
+      plan: auth.user.plan,
+      feature: getFeatureForChatIntent(intent),
+    });
+
+    response.json({
+      ...result,
+      quota: usage.usage,
+    });
   }),
 );
 

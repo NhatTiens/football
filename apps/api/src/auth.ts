@@ -7,12 +7,20 @@ import { prisma } from '@football-ai/database';
 import { env } from './env.js';
 
 export type AuthRole = 'USER' | 'ANALYST' | 'ADMIN';
+export type AuthPlan = 'FREE' | 'PRO';
+export type AuthUserStatus = 'PENDING_VERIFICATION' | 'ACTIVE' | 'DISABLED';
+export type AuthCodePurpose = 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
 
 export interface AuthUserDto {
   id: number;
   email: string;
   name: string;
   role: AuthRole;
+  status: AuthUserStatus;
+  plan: AuthPlan;
+  emailVerifiedAt: string | null;
+  proExpiresAt: string | null;
+  forcePasswordChange: boolean;
   failedLoginCount: number;
   lockedUntil: string | null;
   lastLoginAt: string | null;
@@ -56,7 +64,7 @@ const ROLE_ORDER: Record<AuthRole, number> = {
   ADMIN: 2,
 };
 
-const ANALYST_INTENTS = new Set(['EXPLANATION', 'HISTORY', 'RELIABILITY']);
+const BASIC_CHAT_INTENTS = new Set(['PREDICTION', 'DISCOVERY']);
 
 function cookieName(): string {
   return env.AUTH_SESSION_COOKIE_NAME;
@@ -109,21 +117,50 @@ export function normalizeRole(value: string): AuthRole | null {
   return role === 'USER' || role === 'ANALYST' || role === 'ADMIN' ? role : null;
 }
 
-export function roleCanAccessIntent(role: AuthRole, intent: string): boolean {
-  if (ROLE_ORDER[role] >= ROLE_ORDER.ADMIN) return true;
-  if (ROLE_ORDER[role] >= ROLE_ORDER.ANALYST) return true;
-  return !ANALYST_INTENTS.has(intent);
+export function normalizePlan(value: string): AuthPlan | null {
+  const plan = value.toUpperCase();
+  return plan === 'FREE' || plan === 'PRO' ? plan : null;
+}
+
+export function normalizeUserStatus(value: string): AuthUserStatus | null {
+  const status = value.toUpperCase();
+  return status === 'PENDING_VERIFICATION' || status === 'ACTIVE' || status === 'DISABLED'
+    ? status
+    : null;
+}
+
+export function isPlanActive(plan: AuthPlan, proExpiresAt: Date | null): boolean {
+  return plan === 'PRO' && (proExpiresAt == null || proExpiresAt.getTime() > Date.now());
+}
+
+export function canUseAdvancedChat(user: { role: AuthRole; plan: AuthPlan; proExpiresAt: Date | null }): boolean {
+  return user.role === 'ADMIN' || isPlanActive(user.plan, user.proExpiresAt);
+}
+
+export function roleCanAccessIntent(
+  role: AuthRole,
+  intent: string,
+  plan: AuthPlan = 'FREE',
+  proExpiresAt: Date | null = null,
+): boolean {
+  if (role === 'ADMIN') return true;
+  if (BASIC_CHAT_INTENTS.has(intent)) return true;
+  return canUseAdvancedChat({ role, plan, proExpiresAt });
 }
 
 export function roleCanManageRoles(role: AuthRole): boolean {
   return role === 'ADMIN';
 }
 
-export function buildAuthPermissions(role: AuthRole): AuthPermissionsDto {
+export function buildAuthPermissions(input: {
+  role: AuthRole;
+  plan: AuthPlan;
+  proExpiresAt: Date | null;
+}): AuthPermissionsDto {
   return {
     chat: true,
-    advancedChat: role !== 'USER',
-    roleManagement: role === 'ADMIN',
+    advancedChat: canUseAdvancedChat(input),
+    roleManagement: input.role === 'ADMIN',
   };
 }
 
@@ -182,6 +219,11 @@ function userDto(user: {
   email: string;
   name: string;
   role: string;
+  status: string;
+  plan: string;
+  emailVerifiedAt: Date | null;
+  proExpiresAt: Date | null;
+  forcePasswordChange: boolean;
   failedLoginCount: number;
   lockedUntil: Date | null;
   lastLoginAt: Date | null;
@@ -194,12 +236,25 @@ function userDto(user: {
   if (!role) {
     throw new Error(`Unsupported auth role: ${user.role}`);
   }
+  const status = normalizeUserStatus(user.status);
+  if (!status) {
+    throw new Error(`Unsupported auth status: ${user.status}`);
+  }
+  const plan = normalizePlan(user.plan);
+  if (!plan) {
+    throw new Error(`Unsupported auth plan: ${user.plan}`);
+  }
 
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     role,
+    status,
+    plan,
+    emailVerifiedAt: toIso(user.emailVerifiedAt),
+    proExpiresAt: toIso(user.proExpiresAt),
+    forcePasswordChange: user.forcePasswordChange,
     failedLoginCount: user.failedLoginCount,
     lockedUntil: toIso(user.lockedUntil),
     lastLoginAt: toIso(user.lastLoginAt),
@@ -232,7 +287,11 @@ export function serializeAuthContext(input: {
     authenticated: true,
     user: input.user,
     session: input.session,
-    permissions: buildAuthPermissions(input.user.role),
+    permissions: buildAuthPermissions({
+      role: input.user.role,
+      plan: input.user.plan,
+      proExpiresAt: input.user.proExpiresAt ? new Date(input.user.proExpiresAt) : null,
+    }),
   };
 }
 
@@ -275,6 +334,14 @@ export async function resolveAuthContext(request: Request): Promise<AuthContextD
     .catch(() => undefined);
 
   const user = userDto(session.user);
+  if (user.status === 'DISABLED') {
+    return {
+      authenticated: false,
+      user: null,
+      session: null,
+      permissions: { chat: false, advancedChat: false, roleManagement: false },
+    };
+  }
   return serializeAuthContext({
     user,
     session: sessionDto({
@@ -367,6 +434,11 @@ export async function loadAuthUserByEmail(email: string): Promise<{
   email: string;
   name: string;
   role: string;
+  status: string;
+  plan: string;
+  emailVerifiedAt: Date | null;
+  proExpiresAt: Date | null;
+  forcePasswordChange: boolean;
   passwordHash: string;
   failedLoginCount: number;
   lockedUntil: Date | null;
@@ -390,6 +462,11 @@ export function serializeUser(user: {
   email: string;
   name: string;
   role: string;
+  status: string;
+  plan: string;
+  emailVerifiedAt: Date | null;
+  proExpiresAt: Date | null;
+  forcePasswordChange: boolean;
   failedLoginCount: number;
   lockedUntil: Date | null;
   lastLoginAt: Date | null;
@@ -408,6 +485,18 @@ export function serializeSession(session: {
   createdAt: Date;
 }): AuthSessionDto {
   return sessionDto(session);
+}
+
+export function isUserActive(user: { status: AuthUserStatus }): boolean {
+  return user.status === 'ACTIVE';
+}
+
+export function isUserVerified(user: { emailVerifiedAt: string | null }): boolean {
+  return user.emailVerifiedAt != null;
+}
+
+export function isUserAllowedToLogin(user: { status: AuthUserStatus; emailVerifiedAt: Date | null }): boolean {
+  return user.status === 'ACTIVE' && user.emailVerifiedAt != null;
 }
 
 export function withAuthContext(

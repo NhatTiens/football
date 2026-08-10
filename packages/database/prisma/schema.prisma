@@ -48,22 +48,47 @@ enum AuthRole {
   ADMIN
 }
 
+enum AuthUserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  DISABLED
+}
+
+enum AuthPlan {
+  FREE
+  PRO
+}
+
+enum AuthCodePurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 model AuthUser {
-  id               Int           @id @default(autoincrement())
-  email            String        @unique
-  name             String
-  passwordHash     String
-  role             AuthRole      @default(USER)
-  failedLoginCount  Int           @default(0)
-  lockedUntil      DateTime?
-  lastLoginAt      DateTime?
-  lastLoginIp      String?       @db.VarChar(64)
-  lastLoginUserAgent String?     @db.VarChar(255)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  sessions         AuthSession[]
+  id                 Int                 @id @default(autoincrement())
+  email              String              @unique
+  name               String
+  passwordHash       String
+  role               AuthRole            @default(USER)
+  status             AuthUserStatus      @default(PENDING_VERIFICATION)
+  plan               AuthPlan            @default(FREE)
+  emailVerifiedAt    DateTime?
+  proExpiresAt       DateTime?
+  forcePasswordChange Boolean             @default(false)
+  failedLoginCount   Int                 @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?             @db.VarChar(64)
+  lastLoginUserAgent String?             @db.VarChar(255)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  sessions           AuthSession[]
+  verificationCodes  AuthVerificationCode[]
+  usageEntries       AuthUsageDaily[]
 
   @@index([role])
+  @@index([status])
+  @@index([plan])
   @@index([lockedUntil])
 }
 
@@ -81,6 +106,48 @@ model AuthSession {
 
   @@index([userId, expiresAt])
   @@index([expiresAt, revokedAt])
+}
+
+model AuthVerificationCode {
+  id            Int              @id @default(autoincrement())
+  userId        Int
+  purpose       AuthCodePurpose
+  codeHash      String           @db.VarChar(128)
+  expiresAt     DateTime
+  usedAt        DateTime?
+  supersededAt  DateTime?
+  createdAt     DateTime         @default(now())
+  user          AuthUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@index([purpose, expiresAt])
+}
+
+model AuthUsageDaily {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  featureKey String   @db.VarChar(64)
+  usageDate  DateTime @db.Date
+  used       Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, featureKey, usageDate])
+  @@index([featureKey, usageDate])
+}
+
+model AdminAuditLog {
+  id          Int      @id @default(autoincrement())
+  adminUserId Int
+  action      String   @db.VarChar(64)
+  targetType  String   @db.VarChar(64)
+  targetId    String?  @db.VarChar(64)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId, createdAt])
+  @@index([targetType, targetId])
 }
 
 model League {

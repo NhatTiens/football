@@ -4695,6 +4695,56 @@ td {
   color: #dff2cf;
 }
 
+.header-logout {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.account-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.account-sidebar {
+  position: sticky;
+  top: 92px;
+  align-self: start;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.account-sidebar nav {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.account-sidebar nav a {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.account-content {
+  min-width: 0;
+}
+
+.admin-pre {
+  overflow: auto;
+  max-height: 60vh;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
 @media (max-width: 720px) {
   .auth-card {
     padding: 22px;
@@ -4702,5 +4752,13 @@ td {
 
   .auth-admin-row {
     grid-template-columns: 1fr;
+  }
+
+  .account-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .account-sidebar {
+    position: static;
   }
 }

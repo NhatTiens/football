@@ -100,10 +100,18 @@ export function AuthPanel() {
         <p>{me.user.email}</p>
         <div className="auth-meta">
           <span>Role: {me.user.role}</span>
+          <span>Plan: {me.user.plan}</span>
+          <span>Status: {me.user.status}</span>
+          <span>Verified: {me.user.emailVerifiedAt ? 'Yes' : 'No'}</span>
           <span>Session: {timeLabel(me.session?.expiresAt ?? null)}</span>
           <span>Last login: {timeLabel(me.user.lastLoginAt)}</span>
         </div>
         <div className="auth-actions">
+          <Link className="button secondary" href="/account/profile">Profile</Link>
+          <Link className="button secondary" href="/account/security">Security</Link>
+          <Link className="button secondary" href="/account/sessions">Sessions</Link>
+          <Link className="button secondary" href="/account/subscription">Subscription</Link>
+          <Link className="button secondary" href="/account/usage">Usage</Link>
           <button className="button primary" type="button" onClick={handleLogout}>
             Sign out
           </button>

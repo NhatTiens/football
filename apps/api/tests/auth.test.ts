@@ -21,7 +21,7 @@ describe('auth helpers', () => {
   it('restricts analyst intents to elevated roles', () => {
     expect(auth.roleCanAccessIntent('USER', 'PREDICTION')).toBe(true);
     expect(auth.roleCanAccessIntent('USER', 'EXPLANATION')).toBe(false);
-    expect(auth.roleCanAccessIntent('ANALYST', 'HISTORY')).toBe(true);
+    expect(auth.roleCanAccessIntent('ANALYST', 'HISTORY', 'PRO', new Date(Date.now() + 60_000))).toBe(true);
     expect(auth.roleCanManageRoles('ADMIN')).toBe(true);
   });
 });

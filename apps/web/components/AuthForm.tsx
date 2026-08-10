@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 
-import { loginAuth, registerAuth } from '../lib/auth';
+import { loginAuth, registerAuth, type RegisterResponse } from '../lib/auth';
 
 type AuthMode = 'login' | 'register';
 
@@ -29,12 +29,13 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
       if (mode === 'login') {
         await loginAuth({ email, password });
+        router.push('/account');
+        router.refresh();
       } else {
-        await registerAuth({ name, email, password });
+        const result: RegisterResponse = await registerAuth({ name, email, password });
+        router.push(`/verify-email?email=${encodeURIComponent(result.email)}`);
+        router.refresh();
       }
-
-      router.push('/predictions');
-      router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Authentication failed.');
     } finally {
@@ -97,6 +98,8 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           {mode === 'login' ? (
             <>
               New here? <Link href="/register">Create an account</Link>
+              {' · '}
+              <Link href="/forgot-password">Forgot password?</Link>
             </>
           ) : (
             <>
