@@ -33,3 +33,9 @@ football-v8-stage1-*/
 
 # Stage exports are append-only locally; force-add only the certified run.
 artifacts/hybrid/v8-data-foundation/*/
+artifacts/hybrid/v8-stage2-bayesian-team-strength/*/
+artifacts/hybrid/v8-stage3-bayesian-predictive-markets/*/
+artifacts/hybrid/v8-stage4-hybrid-model/*/
+artifacts/hybrid/v8-stage5-calibration-uncertainty/*/
+artifacts/hybrid/v8-stage6-multi-horizon-decisions/*/
+artifacts/hybrid/v8-stage7-champion-challenger/*/

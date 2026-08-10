@@ -12,11 +12,13 @@ const oddsCron = repeatedOddsEnabled
 const enabled = (process.env.WORKER_SCHEDULER_ENABLED ?? 'true').toLowerCase() === 'true';
 const scienceOwnsProviderSync =
   (process.env.DEV_SCIENCE_OWNS_PROVIDER_SYNC ?? 'false').toLowerCase() === 'true';
+const v8PaperRuntimeEnabled =
+  (process.env.V8_PAPER_RUNTIME_ENABLED ?? 'false').toLowerCase() === 'true';
 
 if (!enabled) {
   console.log('[worker] scheduler disabled; process will stay alive for manual inspection.');
 } else {
-  const schedules = scienceOwnsProviderSync
+  const baseSchedules = scienceOwnsProviderSync
     ? ([
         [process.env.RECOMMENDATION_CRON ?? '*/15 * * * *', 'generate'],
         [
@@ -38,6 +40,12 @@ if (!enabled) {
         ],
         [process.env.SETTLEMENT_CRON ?? '10 */1 * * *', 'settle'],
       ] as const);
+  const schedules: ReadonlyArray<readonly [string, import('./jobs.js').WorkerCommand]> = [
+    ...baseSchedules,
+    ...(v8PaperRuntimeEnabled
+      ? ([[process.env.V8_PAPER_RUNTIME_CRON ?? '* * * * *', 'v8-paper-runtime-cycle']] as const)
+      : []),
+  ];
 
   if (scienceOwnsProviderSync) {
     console.log(

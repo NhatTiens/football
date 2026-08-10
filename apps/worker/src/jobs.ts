@@ -56,6 +56,8 @@ import {
   syncScientificStatistics,
   syncRepeatedFixtureContext,
   trainScientificModel,
+  runV8PaperRuntimeCycle,
+  getV8PaperRuntimeCoverage,
 } from '@football-ai/sync';
 
 export type WorkerCommand =
@@ -94,6 +96,8 @@ export type WorkerCommand =
   | 'paper-bet-operations-cycle'
   | 'paper-bet-ledger-settle'
   | 'paper-bet-ledger-coverage'
+  | 'v8-paper-runtime-cycle'
+  | 'v8-paper-runtime-coverage'
   | 'api-football-coverage'
   | 'api-football-league-profile-discover'
   | 'api-football-vn-schedule'
@@ -199,6 +203,8 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
     else if (command === 'paper-bet-ledger-coverage')
       result = await getScientificPaperBetLedgerCoverage();
     else if (command === 'paper-bet-ledger-settle') result = await settleOpenScientificPaperBets();
+    else if (command === 'v8-paper-runtime-cycle') result = await runV8PaperRuntimeCycle();
+    else if (command === 'v8-paper-runtime-coverage') result = await getV8PaperRuntimeCoverage();
     else if (command === 'sync-lineups') result = await syncLineups();
     else if (command === 'sync-lineups-history') {
       result = await syncLineups({ includeHistory: true });

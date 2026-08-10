@@ -9,10 +9,19 @@ import {
   buildVietnamHorizonSchedule,
   parseApiFootballLeagueProfile,
   type ShadowSettlementRow,
+  getV8MonitoringDashboard,
 } from '@football-ai/sync';
 import { replayOuBetHistoryRows } from './ou-history-replay.js';
 
 export const scientificRouter = Router();
+
+scientificRouter.get('/v8-monitoring', async (_request, response, next) => {
+  try {
+    response.json(await getV8MonitoringDashboard());
+  } catch (error) {
+    next(error);
+  }
+});
 
 function positiveInteger(value: unknown, fallback: number, maximum: number): number {
   const parsed = Number(value);

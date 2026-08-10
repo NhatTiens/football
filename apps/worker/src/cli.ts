@@ -38,6 +38,8 @@ const supported: WorkerCommand[] = [
   'scientific-best-bet-reliability-report',
   'paper-bet-ledger-settle',
   'paper-bet-ledger-coverage',
+  'v8-paper-runtime-cycle',
+  'v8-paper-runtime-coverage',
   'api-football-coverage',
   'api-football-league-profile-discover',
   'api-football-vn-schedule',
