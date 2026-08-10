@@ -74,6 +74,7 @@ button {
 }
 .navigation {
   display: flex;
+  flex-wrap: wrap;
   gap: 22px;
   color: var(--muted);
 }
@@ -4562,6 +4563,144 @@ td {
 
 @media (max-width: 680px) {
   .pcr-selection-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+.auth-shell {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+}
+
+.auth-card {
+  width: min(720px, 100%);
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(12, 26, 20, 0.96), rgba(10, 19, 16, 0.98));
+  box-shadow: var(--shadow);
+}
+
+.auth-card h1 {
+  margin: 10px 0 8px;
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.auth-card p {
+  color: var(--muted);
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.auth-form input,
+.auth-admin-row select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.auth-message {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 139, 120, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 139, 120, 0.08);
+  color: #f6cbc4;
+}
+
+.auth-switch {
+  margin-top: 16px;
+}
+
+.auth-switch a,
+.prediction-chatbot-session a {
+  color: var(--accent);
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.auth-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.auth-admin {
+  margin-top: 28px;
+}
+
+.auth-admin-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.auth-admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.auth-admin-row small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.prediction-chatbot-session {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.prediction-chatbot-auth-banner {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(156, 242, 99, 0.25);
+  border-radius: 14px;
+  background: rgba(156, 242, 99, 0.08);
+  color: #dff2cf;
+}
+
+@media (max-width: 720px) {
+  .auth-card {
+    padding: 22px;
+  }
+
+  .auth-admin-row {
     grid-template-columns: 1fr;
   }
 }

@@ -41,7 +41,7 @@ export const predictionChatCapabilities = {
   clvAndReliability: true,
   persistentUserChatHistory: false,
   generativeExternalLlm: false,
-  authenticationRequired: false,
+  authenticationRequired: true,
   paidPlansEnabled: false,
   paperOnly: true,
   realMoneyExecution: false,

@@ -42,6 +42,47 @@ enum BacktestStatus {
   FAILED
 }
 
+enum AuthRole {
+  USER
+  ANALYST
+  ADMIN
+}
+
+model AuthUser {
+  id               Int           @id @default(autoincrement())
+  email            String        @unique
+  name             String
+  passwordHash     String
+  role             AuthRole      @default(USER)
+  failedLoginCount  Int           @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  lastLoginIp      String?       @db.VarChar(64)
+  lastLoginUserAgent String?     @db.VarChar(255)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  sessions         AuthSession[]
+
+  @@index([role])
+  @@index([lockedUntil])
+}
+
+model AuthSession {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  lastSeenAt  DateTime?
+  revokedAt   DateTime?
+  ipAddress   String?   @db.VarChar(64)
+  userAgent   String?   @db.VarChar(255)
+  createdAt   DateTime  @default(now())
+  user        AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, revokedAt])
+}
+
 model League {
   id           Int           @id @default(autoincrement())
   apiLeagueId  Int

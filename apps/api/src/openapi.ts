@@ -17,6 +17,103 @@ export const openApiDocument = {
         responses: { '200': { description: 'Statistics' } },
       },
     },
+    '/auth/me': {
+      get: {
+        summary: 'Current authenticated user and session state',
+        responses: { '200': { description: 'Auth session summary' } },
+      },
+    },
+    '/auth/register': {
+      post: {
+        summary: 'Register a USER account and create an HttpOnly session',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name', 'email', 'password'],
+                properties: {
+                  name: { type: 'string' },
+                  email: { type: 'string', format: 'email' },
+                  password: { type: 'string', minLength: 8 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'Registered and signed in' },
+          '409': { description: 'Email already exists' },
+        },
+      },
+    },
+    '/auth/login': {
+      post: {
+        summary: 'Sign in and issue an HttpOnly session cookie',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email', 'password'],
+                properties: {
+                  email: { type: 'string', format: 'email' },
+                  password: { type: 'string', minLength: 8 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Signed in' },
+          '401': { description: 'Invalid credentials' },
+          '423': { description: 'Temporarily locked after failed logins' },
+        },
+      },
+    },
+    '/auth/logout': {
+      post: {
+        summary: 'Revoke the current session cookie',
+        responses: { '200': { description: 'Signed out' } },
+      },
+    },
+    '/auth/admin/users': {
+      get: {
+        summary: 'List users for ADMIN role management',
+        responses: {
+          '200': { description: 'User list' },
+          '401': { description: 'Authentication required' },
+          '403': { description: 'Admin role required' },
+        },
+      },
+    },
+    '/auth/admin/users/{id}/role': {
+      patch: {
+        summary: 'Update a user role as ADMIN',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['role'],
+                properties: {
+                  role: { type: 'string', enum: ['USER', 'ANALYST', 'ADMIN'] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Updated user role' },
+          '401': { description: 'Authentication required' },
+          '403': { description: 'Admin role required' },
+        },
+      },
+    },
     '/leagues': {
       get: { summary: 'List configured leagues', responses: { '200': { description: 'Leagues' } } },
     },

@@ -19,6 +19,9 @@ export function Header() {
           <Link href="/matches">Trận đấu</Link>
           <Link href="/bet-history">Lịch sử</Link>
           <Link href="/v8-monitoring">v8 Monitor</Link>
+          <Link href="/account">Account</Link>
+          <Link href="/login">Login</Link>
+          <Link href="/register">Register</Link>
         </nav>
       </div>
     </header>

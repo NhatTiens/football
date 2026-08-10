@@ -1,6 +1,13 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
+import Link from 'next/link';
+import { type FormEvent, type MouseEvent, useEffect, useState } from 'react';
+
+import {
+  getAuthMe,
+  logoutAuth,
+  type AuthMeResponse,
+} from '../lib/auth';
 import {
   PredictionChatbotAdvancedPanels,
   type PredictionChatbotAdvancedData,
@@ -17,6 +24,7 @@ type ChatIntent =
   | 'DISCOVERY'
   | 'HISTORY'
   | 'RELIABILITY';
+
 type Selection = 'HOME' | 'DRAW' | 'AWAY' | 'OVER' | 'UNDER' | 'YES' | 'NO';
 
 interface ChatSuggestion {
@@ -106,12 +114,45 @@ interface ChatMessage {
   response?: ChatResponse;
 }
 
+const EMPTY_AUTH: AuthMeResponse = {
+  authenticated: false,
+  user: null,
+  session: null,
+  permissions: { chat: false, advancedChat: false, roleManagement: false },
+};
+
+const EMPTY_CHAT_CONTEXT: ChatContext = {
+  activeProviderFixtureId: null,
+  activeHomeTeamName: null,
+  activeAwayTeamName: null,
+  lastIntent: null,
+  turnCount: 0,
+};
+
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  text: 'Sign in to ask about a fixture, O/U angle, best bet, paper history, or reliability.',
+};
+
+const QUICK_PROMPTS = [
+  'Danh sach BEST BET toi nay',
+  'Du doan Arsenal vs Chelsea',
+  'Tai sao lai chon keo nay?',
+  'Cho xem lich su dung sai va CLV',
+  'Do tin cay hien tai the nao?',
+];
+
+function boundedMessages(rows: ChatMessage[]): ChatMessage[] {
+  return rows.slice(-24);
+}
+
 function pct(value: number | null, digits = 1): string {
-  return value == null || !Number.isFinite(value) ? '—' : `${(value * 100).toFixed(digits)}%`;
+  return value == null || !Number.isFinite(value) ? '--' : `${(value * 100).toFixed(digits)}%`;
 }
 
 function signedPct(value: number | null): string {
-  if (value == null || !Number.isFinite(value)) return '—';
+  if (value == null || !Number.isFinite(value)) return '--';
   return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
 }
 
@@ -130,18 +171,18 @@ function selectionLabel(
 ): string {
   if (selection === 'HOME') return fixture.homeTeamName;
   if (selection === 'AWAY') return fixture.awayTeamName;
-  if (selection === 'DRAW') return 'Hòa';
+  if (selection === 'DRAW') return 'Hoa';
   if (selection === 'OVER') return `Over ${lineValue ?? ''}`.trim();
   if (selection === 'UNDER') return `Under ${lineValue ?? ''}`.trim();
-  if (selection === 'YES') return 'Có — hai đội ghi bàn';
-  if (selection === 'NO') return 'Không — hai đội ghi bàn';
-  return 'Chưa có';
+  if (selection === 'YES') return 'Both teams score';
+  if (selection === 'NO') return 'No BTTS';
+  return 'No pick';
 }
 
 function recommendationLabel(
   status: NonNullable<ChatResponse['answer']>['recommendation']['status'],
 ): string {
-  if (status === 'BEST_BET') return 'BEST BET · PAPER';
+  if (status === 'BEST_BET') return 'BEST BET';
   if (status === 'PAPER_SHADOW') return 'PAPER SHADOW';
   if (status === 'CURRENT_SHADOW') return 'CURRENT SHADOW';
   if (status === 'DIAGNOSTIC_SHADOW') return 'DIAGNOSTIC SHADOW';
@@ -149,14 +190,14 @@ function recommendationLabel(
 }
 
 function intentLabel(intent: ChatIntent): string {
-  if (intent === 'BEST_BET') return 'Tìm BEST BET';
-  if (intent === 'TOTAL_GOALS') return 'Phân tích O/U';
-  if (intent === 'BTTS') return 'Phân tích BTTS';
-  if (intent === 'EXPLANATION') return 'Giải thích khoa học';
-  if (intent === 'DISCOVERY') return 'Danh sách trận';
-  if (intent === 'HISTORY') return 'Lịch sử paper';
+  if (intent === 'BEST_BET') return 'Best bet';
+  if (intent === 'TOTAL_GOALS') return 'Total goals';
+  if (intent === 'BTTS') return 'BTTS';
+  if (intent === 'EXPLANATION') return 'Deep explanation';
+  if (intent === 'DISCOVERY') return 'Fixture discovery';
+  if (intent === 'HISTORY') return 'Paper history';
   if (intent === 'RELIABILITY') return 'Reliability';
-  return 'Dự đoán trận';
+  return 'Prediction';
 }
 
 function AssistantDetails({ response }: { response: ChatResponse }) {
@@ -184,7 +225,7 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
               <strong>{pct(answer.hda.homeProbability)}</strong>
             </div>
             <div>
-              <span>Hòa</span>
+              <span>Draw</span>
               <strong>{pct(answer.hda.drawProbability)}</strong>
             </div>
             <div>
@@ -192,14 +233,6 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
               <strong>{pct(answer.hda.awayProbability)}</strong>
             </div>
           </div>
-          <small className="prediction-chatbot-source">
-            Nguồn HDA:{' '}
-            {answer.hda.source === 'SCIENTIFIC_DECISION'
-              ? 'mô hình khoa học nội bộ'
-              : answer.hda.source === 'API_FOOTBALL'
-                ? 'tham khảo API-Football, không gắn nhãn mô hình khoa học'
-                : 'chưa có'}
-          </small>
 
           <div
             className={`prediction-chatbot-recommendation recommendation-${answer.recommendation.status.toLowerCase()}`}
@@ -227,16 +260,13 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
 
           {answer.markets.length > 0 ? (
             <details className="prediction-chatbot-markets">
-              <summary>Xem hướng dự đoán từng market ({answer.markets.length})</summary>
+              <summary>Market view ({answer.markets.length})</summary>
               <div>
                 {answer.markets.map((market) => (
                   <span key={`${market.marketType}-${market.predictedSelection}`}>
                     <b>{market.label}</b>
-                    {selectionLabel(
-                      market.predictedSelection,
-                      answer.fixture,
-                      market.lineValue,
-                    )} · {pct(market.modelProbability)}
+                    {selectionLabel(market.predictedSelection, answer.fixture, market.lineValue)} ·{' '}
+                    {pct(market.modelProbability)}
                   </span>
                 ))}
               </div>
@@ -244,7 +274,7 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
           ) : null}
 
           <div className="prediction-chatbot-audit">
-            <span>Odds snapshot: {answer.dataQuality.oddsSnapshots}</span>
+            <span>Odds snapshots: {answer.dataQuality.oddsSnapshots}</span>
             <span>PIT usable: {answer.dataQuality.pitUsableOdds}</span>
             <span>Status: {answer.dataQuality.currentRecommendationStatus}</span>
           </div>
@@ -253,7 +283,7 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
 
       {response.suggestions.length > 0 ? (
         <div className="prediction-chatbot-suggestions">
-          <span>Chọn trận:</span>
+          <span>Quick picks:</span>
           {response.suggestions.map((suggestion) => (
             <button
               key={suggestion.providerFixtureId}
@@ -272,59 +302,53 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
       <PredictionChatbotAdvancedPanels response={response} />
 
       <small className="prediction-chatbot-safety">
-        Read-only · PIT-safe · PAPER-only · không đặt cược tiền thật · không tự tạo xác suất
+        Read-only · PIT-safe · paper-only · no real-money execution
       </small>
     </div>
   );
 }
 
-const EMPTY_CHAT_CONTEXT: ChatContext = {
-  activeProviderFixtureId: null,
-  activeHomeTeamName: null,
-  activeAwayTeamName: null,
-  lastIntent: null,
-  turnCount: 0,
-};
-
-const WELCOME_MESSAGE: ChatMessage = {
-  id: 'welcome',
-  role: 'assistant',
-  text: 'Bạn có thể hỏi một trận, hỏi tiếp về O/U hoặc lý do, xem danh sách trận, lịch sử paper và reliability.',
-};
-
-const QUICK_PROMPTS = [
-  'Tối nay có trận nào?',
-  'Danh sách BEST BET tối nay',
-  'Cho xem lịch sử đúng sai và CLV',
-  'Độ tin cậy hiện tại thế nào?',
-  'Tại sao lại chọn kèo này?',
-];
-
-function boundedMessages(rows: ChatMessage[]): ChatMessage[] {
-  return rows.slice(-24);
-}
-
 export function PredictionChatbot() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: 'Bạn muốn xem trận nào? Ví dụ: “Dự đoán Arsenal vs Chelsea”, “Kèo O/U trận Liverpool” hoặc “Trận này có BEST BET không?”.',
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [context, setContext] = useState<ChatContext>(EMPTY_CHAT_CONTEXT);
+  const [auth, setAuth] = useState<AuthMeResponse>(EMPTY_AUTH);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadAuth(): Promise<void> {
+      try {
+        const payload = await getAuthMe();
+        if (active) setAuth(payload);
+      } catch {
+        if (active) setAuth(EMPTY_AUTH);
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    }
+    void loadAuth();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const canChat = auth.authenticated && auth.permissions.chat;
 
   async function sendMessage(rawMessage: string): Promise<void> {
     const message = rawMessage.trim();
-    if (!message || loading) return;
+    if (!message || loading || !canChat) return;
+
     const requestId = `${Date.now()}-${messages.length}`;
     setMessages((current) =>
       boundedMessages([...current, { id: `${requestId}-user`, role: 'user', text: message }]),
     );
     setInput('');
     setLoading(true);
+    setAuthMessage(null);
+
     try {
       const response = await fetch(`${apiUrl}/personal/prediction-chat`, {
         method: 'POST',
@@ -332,12 +356,19 @@ export function PredictionChatbot() {
           accept: 'application/json',
           'content-type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ message, context }),
       });
+
+      if (response.status === 401) {
+        setAuth(EMPTY_AUTH);
+      }
+
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(payload?.error ?? `API ${response.status}`);
       }
+
       const payload = (await response.json()) as ChatResponse;
       setContext(payload.context);
       setMessages((current) =>
@@ -358,7 +389,7 @@ export function PredictionChatbot() {
           {
             id: `${requestId}-error`,
             role: 'assistant',
-            text: `Không kết nối được API chatbot: ${error instanceof Error ? error.message : String(error)}`,
+            text: `Chatbot error: ${error instanceof Error ? error.message : String(error)}`,
           },
         ]),
       );
@@ -367,16 +398,25 @@ export function PredictionChatbot() {
     }
   }
 
+  async function handleLogout(): Promise<void> {
+    await logoutAuth().catch(() => undefined);
+    setAuth(EMPTY_AUTH);
+    setAuthMessage('Signed out.');
+    setMessages([WELCOME_MESSAGE]);
+    setContext(EMPTY_CHAT_CONTEXT);
+    setInput('');
+  }
+
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     void sendMessage(input);
   }
 
-  function handleSuggestionClick(event: React.MouseEvent<HTMLDivElement>): void {
+  function handleSuggestionClick(event: MouseEvent<HTMLDivElement>): void {
     const target = event.target as HTMLElement;
     const button = target.closest<HTMLButtonElement>('button[data-chat-prompt]');
     const prompt = button?.dataset.chatPrompt;
-    if (prompt) void sendMessage(prompt);
+    if (prompt && canChat) void sendMessage(prompt);
   }
 
   function clearConversation(): void {
@@ -389,30 +429,62 @@ export function PredictionChatbot() {
     <section className="prediction-chatbot" aria-labelledby="prediction-chatbot-title">
       <header>
         <div>
-          <span className="prediction-chatbot-kicker">BETA · INTERNAL PREDICTION CHAT</span>
-          <h2 id="prediction-chatbot-title">Hỏi chatbot về một trận đấu</h2>
-          <p>Tìm fixture trong DB và giải thích đúng kết quả mà engine hiện có.</p>
+          <span className="prediction-chatbot-kicker">BETA · AUTHENTICATED CHATBOT</span>
+          <h2 id="prediction-chatbot-title">Ask the chatbot about one fixture</h2>
+          <p>Sign in with USER, ANALYST, or ADMIN access to use the production-ready session flow.</p>
+          <div className="prediction-chatbot-session">
+            {authLoading ? (
+              <span>Checking account...</span>
+            ) : auth.authenticated && auth.user ? (
+              <>
+                <span>{auth.user.name}</span>
+                <span>{auth.user.role}</span>
+                <span>{auth.permissions.advancedChat ? 'Advanced research on' : 'Basic mode'}</span>
+                <button
+                  type="button"
+                  className="prediction-chatbot-clear"
+                  onClick={() => void handleLogout()}
+                  disabled={loading}
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <span>Guest</span>
+                <Link href="/login">Sign in</Link>
+                <Link href="/register">Create account</Link>
+              </>
+            )}
+          </div>
         </div>
         <div className="prediction-chatbot-badges">
-          <span>Không LLM trả phí</span>
-          <span>Không ghi DB</span>
+          <span>Argon2id</span>
+          <span>HttpOnly session</span>
           <button
             type="button"
             className="prediction-chatbot-clear"
             onClick={clearConversation}
             disabled={loading}
           >
-            Xóa hội thoại
+            Clear
           </button>
         </div>
       </header>
 
+      {!authLoading && !auth.authenticated ? (
+        <div className="prediction-chatbot-auth-banner">
+          Sign in to use the chatbot. USER can access basic predictions; ANALYST unlocks deep explanation,
+          paper history, and reliability.
+        </div>
+      ) : null}
+
+      {authMessage ? <div className="prediction-chatbot-auth-banner">{authMessage}</div> : null}
+
       <div className="prediction-chatbot-log" aria-live="polite" onClick={handleSuggestionClick}>
         {messages.map((message) => (
           <article key={message.id} className={`prediction-chatbot-message is-${message.role}`}>
-            <div className="prediction-chatbot-avatar">
-              {message.role === 'assistant' ? 'AI' : 'BẠN'}
-            </div>
+            <div className="prediction-chatbot-avatar">{message.role === 'assistant' ? 'AI' : 'YOU'}</div>
             <div className="prediction-chatbot-bubble">
               {message.response ? <span>{intentLabel(message.response.intent)}</span> : null}
               <p>{message.text}</p>
@@ -423,38 +495,37 @@ export function PredictionChatbot() {
         {loading ? (
           <article className="prediction-chatbot-message is-assistant">
             <div className="prediction-chatbot-avatar">AI</div>
-            <div className="prediction-chatbot-bubble is-loading">
-              Đang đọc dữ liệu trận và tín hiệu hiện có…
-            </div>
+            <div className="prediction-chatbot-bubble is-loading">Loading fixture evidence...</div>
           </article>
         ) : null}
       </div>
 
       <div className="prediction-chatbot-quick-prompts" onClick={handleSuggestionClick}>
         {QUICK_PROMPTS.map((prompt) => (
-          <button key={prompt} type="button" data-chat-prompt={prompt} disabled={loading}>
+          <button key={prompt} type="button" data-chat-prompt={prompt} disabled={loading || !canChat}>
             {prompt}
           </button>
         ))}
       </div>
+
       <form className="prediction-chatbot-form" onSubmit={submit}>
-        <label htmlFor="prediction-chatbot-input">Câu hỏi</label>
+        <label htmlFor="prediction-chatbot-input">Question</label>
         <div>
           <input
             id="prediction-chatbot-input"
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Ví dụ: Việt Nam vs Thái Lan có kèo O/U nào?"
+            placeholder="Example: Du doan Arsenal vs Chelsea"
             maxLength={240}
-            disabled={loading}
+            disabled={loading || !canChat}
           />
-          <button type="submit" disabled={loading || input.trim().length === 0}>
-            {loading ? 'Đang xem…' : 'Hỏi trận này'}
+          <button type="submit" disabled={loading || input.trim().length === 0 || !canChat}>
+            {loading ? 'Loading...' : canChat ? 'Ask now' : 'Sign in first'}
           </button>
         </div>
         <small>
-          Bot chỉ tìm trong các trận sắp tới đã đồng bộ. Không có dữ liệu thì sẽ trả NO BET/chờ dữ
-          liệu.
+          The bot only reads already-synced fixtures. If the intent needs ANALYST access, USER accounts will get a
+          role error instead of hidden data.
         </small>
       </form>
     </section>

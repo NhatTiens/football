@@ -25,11 +25,14 @@ import {
 } from '@football-ai/sync';
 import {
   answerAdvancedPredictionChat,
+  detectAdvancedPredictionChatIntent,
   predictionChatCapabilities,
   getPersonalUpcomingAnalysis,
   refreshPersonalUpcomingAnalysis,
 } from '@football-ai/sync';
 import { env } from './env.js';
+import { authRouter } from './auth-routes.js';
+import { resolveAuthContext, roleCanAccessIntent } from './auth.js';
 import { openApiDocument } from './openapi.js'; import { getScientificDashboard } from './scientific-dashboard.js';
 import { scientificRouter } from './scientific-routes.js';
 import { fixtureSummary, recommendationDto } from './serializers.js';
@@ -38,7 +41,19 @@ export const app = express();
 
 app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: env.CORS_ORIGIN.split(',').map((value) => value.trim()) }));
+const allowedOrigins = env.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean);
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
+    credentials: true,
+  }),
+);
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp());
 app.use(
@@ -71,6 +86,8 @@ function requireAdmin(request: Request, response: Response, next: NextFunction):
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+app.use('/api/auth', authRouter);
 
 app.get(
   '/api/stats',
@@ -866,6 +883,12 @@ app.post(
     message: { error: 'Quá nhiều câu hỏi chatbot. Vui lòng thử lại sau một phút.' },
   }),
   asyncRoute(async (request, response) => {
+    const auth = await resolveAuthContext(request);
+    if (!auth.authenticated || !auth.user) {
+      response.status(401).json({ error: 'Please sign in to use the chatbot.' });
+      return;
+    }
+
     const message =
       typeof request.body?.message === 'string' ? request.body.message.trim() : '';
 
@@ -875,6 +898,17 @@ app.post(
     }
     if (message.length > 240) {
       response.status(400).json({ error: 'Câu hỏi tối đa 240 ký tự.' });
+      return;
+    }
+
+    const intent = detectAdvancedPredictionChatIntent(message);
+    if (!roleCanAccessIntent(auth.user.role, intent)) {
+      response.status(403).json({
+        error: 'ANALYST role required for this question.',
+        requiredRole: 'ANALYST',
+        role: auth.user.role,
+        intent,
+      });
       return;
     }
 
