@@ -185,7 +185,7 @@ async function readStoredPrediction(input: {
         lte: input.predictionAsOf,
       },
       trainedThrough: {
-        lte: input.predictionAsOf,
+        lt: input.predictionAsOf,
       },
     },
     select: {
@@ -842,7 +842,7 @@ export async function getFundamentalsCoverage(): Promise<{
 
   const leakageViolations = violations.filter(
     (row: { trainedThrough: Date; predictionAsOf: Date }) =>
-      row.trainedThrough.getTime() > row.predictionAsOf.getTime(),
+      row.trainedThrough.getTime() >= row.predictionAsOf.getTime(),
   ).length;
 
   const fixtureGroups = await prisma.dixonColesPredictionSnapshot.groupBy({

@@ -89,10 +89,12 @@ function settlementLabel(result: string): string {
 
 export default async function BetHistoryPage() {
   const betsResponse = await apiFetch<{
+    generatedAt: string;
     summary: PaperHistorySummary;
     data: BetRow[];
   }>('/scientific/bets?limit=150');
   const paper = betsResponse.summary;
+  const reportAsOf = new Date(betsResponse.generatedAt).getTime();
 
   return (
     <>
@@ -253,7 +255,7 @@ export default async function BetHistoryPage() {
                          <span className="science-muted">Thiếu dấu vết dự đoán gốc</span>
                        ) : bet.decisionType === 'NO_BET' ? (
                         <span className="science-muted">Không có lựa chọn</span>
-                      ) : new Date(bet.kickoffAt).getTime() > Date.now() ? (
+                      ) : new Date(bet.kickoffAt).getTime() > reportAsOf ? (
                         <span className="science-muted">Chờ trận đấu kết thúc</span>
                       ) : (
                         <span className="science-muted">Chờ đồng bộ kết quả</span>

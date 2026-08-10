@@ -26,3 +26,10 @@ football-v7-*/
 package.json.before-*
 *.zip
 .stage0/
+
+# Local v8 Stage 1 delivery kits and safety backups.
+football-v8-stage1-*/
+*.stage1-*.bak
+
+# Stage exports are append-only locally; force-add only the certified run.
+artifacts/hybrid/v8-data-foundation/*/

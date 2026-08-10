@@ -525,7 +525,7 @@ export function fitDynamicDixonColes(input: {
   const eligible = input.matches
     .filter(
       (match) =>
-        match.availableAt.getTime() <= input.predictionAsOf.getTime() &&
+        match.availableAt.getTime() < input.predictionAsOf.getTime() &&
         match.kickoffAt.getTime() < input.predictionAsOf.getTime(),
     )
     .sort(

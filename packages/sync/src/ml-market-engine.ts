@@ -581,11 +581,13 @@ export async function backfillMlFeatures(): Promise<SyncSummary> {
     let inserted = 0;
     let skippedExisting = 0;
     let skippedIncomplete = 0;
+    let skippedPitUnsafe = 0;
     let marketAvailable = 0;
 
     for (const dixon of dixonRows) {
-      if (dixon.trainedThrough.getTime() > dixon.predictionAsOf.getTime()) {
-        throw new Error(`Dixon-Coles leakage detected for fixture ${dixon.fixtureId}.`);
+      if (dixon.trainedThrough.getTime() >= dixon.predictionAsOf.getTime()) {
+        skippedPitUnsafe += 1;
+        continue;
       }
 
       const fixture = fixtureMap.get(dixon.fixtureId);
@@ -715,6 +717,7 @@ export async function backfillMlFeatures(): Promise<SyncSummary> {
         horizons,
         skippedExisting,
         skippedIncomplete,
+        skippedPitUnsafe,
         marketAvailable,
         featureContractHash: ML_MARKET_FEATURE_CONTRACT_HASH,
         apiCalled: false,

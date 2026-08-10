@@ -114,7 +114,11 @@
     "test:paper-shadow-recommendation": "vitest run tests/paper-shadow-recommendation-core.test.ts tests/paper-shadow-model-source-reliability.test.ts",
     "paper-shadow:preview": "node ../../scripts/run-with-env.mjs node --import ./scripts/tsx-windows-userinfo-bootstrap.mjs --import tsx packages/sync/src/paper-shadow-recommendation-cli.ts",
     "test:daily-outcome-report": "vitest run tests/daily-outcome-report-core.test.ts",
-    "daily-outcome:report": "node ../../scripts/run-with-env.mjs node --import ./scripts/tsx-windows-userinfo-bootstrap.mjs --import tsx packages/sync/src/daily-outcome-report-cli.ts"
+    "daily-outcome:report": "node ../../scripts/run-with-env.mjs node --import ./scripts/tsx-windows-userinfo-bootstrap.mjs --import tsx packages/sync/src/daily-outcome-report-cli.ts",
+    "test:hybrid-data-foundation": "vitest run tests/hybrid-data-foundation.test.ts",
+    "hybrid-data:coverage": "tsx src/hybrid-data-foundation-cli.ts coverage",
+    "hybrid-data:audit": "tsx src/hybrid-data-foundation-cli.ts audit",
+    "hybrid-data:export": "tsx src/hybrid-data-foundation-cli.ts export"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",
