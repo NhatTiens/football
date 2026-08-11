@@ -35,6 +35,7 @@ import {
 import { env } from './env.js';
 import { sendAuthMail } from './auth-mail.js';
 import { readUsage } from './auth-usage.js';
+import { getAccountPaymentsData, getAccountSubscriptionData } from './billing.js';
 
 const router = express.Router();
 
@@ -694,25 +695,12 @@ router.get(
   asyncRoute(async (request, response) => {
     const auth = await requireAuth(request, response);
     if (!auth) return;
-    const user = (await loadUserById(auth.user.id)) as UserRecord | null;
-    if (!user) {
+    const data = await getAccountSubscriptionData(auth.user.id);
+    if (!data) {
       response.status(404).json({ error: 'User not found.' });
       return;
     }
-    const fresh = await ensurePlanFresh(user);
-    response.json({
-      role: fresh.role,
-      status: fresh.status,
-      plan: fresh.plan,
-      emailVerifiedAt: fresh.emailVerifiedAt ? fresh.emailVerifiedAt.toISOString() : null,
-      proExpiresAt: fresh.proExpiresAt ? fresh.proExpiresAt.toISOString() : null,
-      forcePasswordChange: fresh.forcePasswordChange,
-      canAccessAdvancedChat: canUseAdvancedChat({
-        role: fresh.role,
-        plan: fresh.plan,
-        proExpiresAt: fresh.proExpiresAt,
-      }),
-    });
+    response.json(data);
   }),
 );
 
@@ -757,7 +745,11 @@ router.get(
   asyncRoute(async (request, response) => {
     const auth = await requireAuth(request, response);
     if (!auth) return;
-    response.json({ payments: [], billingAvailable: false });
+    const requestedLimit = Number(request.query.limit ?? 50);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(100, Math.max(1, Math.floor(requestedLimit)))
+      : 50;
+    response.json(await getAccountPaymentsData(auth.user.id, limit));
   }),
 );
 

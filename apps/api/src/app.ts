@@ -32,6 +32,7 @@ import {
 } from '@football-ai/sync';
 import { env } from './env.js';
 import { authRouter } from './auth-routes.js';
+import { accountBillingRouter, billingRouter } from './billing-routes.js';
 import { resolveAuthContext, roleCanAccessIntent } from './auth.js';
 import { consumeUsage, getFeatureForChatIntent } from './auth-usage.js';
 import { openApiDocument } from './openapi.js'; import { getScientificDashboard } from './scientific-dashboard.js';
@@ -89,6 +90,8 @@ app.get('/api/health', (_request, response) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/billing', billingRouter);
+app.use('/api/account', accountBillingRouter);
 
 app.get(
   '/api/stats',
