@@ -35,6 +35,21 @@ import {
 import { env } from './env.js';
 import { sendAuthMail } from './auth-mail.js';
 import { readUsage } from './auth-usage.js';
+import {
+  AdminUserManagementError,
+  createAdminManagedUser,
+  deleteAdminManagedUser,
+} from './admin-user-management.js';
+import {
+  listAdminPayments,
+  listAdminSubscriptions,
+  listAdminWebhooks,
+  loadAdminDashboard,
+} from './admin-service.js';
+import {
+  grantManualProEntitlement,
+  revokeProEntitlement,
+} from './subscription.js';
 import { getAccountPaymentsData, getAccountSubscriptionData } from './billing.js';
 
 const router = express.Router();
@@ -94,9 +109,15 @@ const statusSchema = z.object({
 });
 
 const planSchema = z.object({
-  plan: z.enum(['FREE', 'PRO']),
+  plan: z.literal('PRO'),
   days: z.coerce.number().int().positive().optional(),
 });
+const adminCreateUserSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  email: z.string().trim().email().max(255),
+  temporaryPassword: z.string().min(12).max(128),
+});
+
 
 type SessionRecord = {
   id: number;
@@ -761,11 +782,14 @@ router.get(
     const query = typeof request.query.q === 'string' ? request.query.q.trim() : '';
     const limit = Math.min(100, Math.max(1, Number(request.query.limit ?? 50)));
     const users = (await prisma.authUser.findMany({
-      where: query
-        ? {
-            OR: [{ email: { contains: query } }, { name: { contains: query } }],
-          }
-        : undefined,
+      where: {
+        NOT: { email: { endsWith: '@deleted.invalid' } },
+        ...(query
+          ? {
+              OR: [{ email: { contains: query } }, { name: { contains: query } }],
+            }
+          : {}),
+      },
       orderBy: [{ createdAt: 'desc' }],
       take: limit,
       include: { _count: { select: { sessions: true, verificationCodes: true } } },
@@ -773,6 +797,81 @@ router.get(
     response.json({
       users: users.map((user) => ({ ...serializeUser(user), sessionCount: user._count.sessions })),
     });
+  }),
+);
+
+router.post(
+  '/admin/users',
+  asyncRoute(async (request, response) => {
+    const auth = await requireAdmin(request, response);
+    if (!auth) return;
+    if (!allowWriteOrigin(request, response)) return;
+
+    const parsed = adminCreateUserSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      response.status(400).json({ error: 'Invalid admin create-user payload.' });
+      return;
+    }
+
+    try {
+      const created = (await createAdminManagedUser({
+        adminUserId: auth.user.id,
+        name: parsed.data.name,
+        email: parsed.data.email,
+        temporaryPassword: parsed.data.temporaryPassword,
+      })) as UserRecord;
+
+      response.status(201).json({
+        user: serializeUser(created),
+      });
+    } catch (error) {
+      if (error instanceof AdminUserManagementError) {
+        response.status(error.httpStatus).json({
+          error: error.message,
+          code: error.code,
+        });
+        return;
+      }
+      throw error;
+    }
+  }),
+);
+
+router.delete(
+  '/admin/users/:id',
+  asyncRoute(async (request, response) => {
+    const auth = await requireAdmin(request, response);
+    if (!auth) return;
+    if (!allowWriteOrigin(request, response)) return;
+
+    const id = Number(request.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      response.status(400).json({ error: 'Invalid user id.' });
+      return;
+    }
+
+    try {
+      const deleted = await deleteAdminManagedUser({
+        adminUserId: auth.user.id,
+        userId: id,
+      });
+
+      response.json({
+        ok: true,
+        deletedUserId: deleted.userId,
+        mode: deleted.mode,
+        revokedSubscriptions: deleted.revokedSubscriptions,
+      });
+    } catch (error) {
+      if (error instanceof AdminUserManagementError) {
+        response.status(error.httpStatus).json({
+          error: error.message,
+          code: error.code,
+        });
+        return;
+      }
+      throw error;
+    }
   }),
 );
 
@@ -821,10 +920,51 @@ router.patch(
       response.status(400).json({ error: 'Invalid status payload.' });
       return;
     }
-    const updated = (await prisma.authUser.update({
-      where: { id },
-      data: { status: parsed.data.status },
+    if (id === auth.user.id && parsed.data.status === 'DISABLED') {
+      response.status(409).json({ error: 'Admin cannot disable the current admin session account.' });
+      return;
+    }
+
+    const before = (await loadUserById(id)) as UserRecord | null;
+    if (!before) {
+      response.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    if (before.role === 'ADMIN' && id !== auth.user.id) {
+      response.status(409).json({ error: 'ADMIN account status cannot be changed from user management.' });
+      return;
+    }
+
+    const updated = (await prisma.$transaction(async (tx: any) => {
+      const changed = (await tx.authUser.update({
+        where: { id },
+        data: { status: parsed.data.status },
+      })) as UserRecord;
+
+      if (parsed.data.status === 'DISABLED') {
+        await tx.authSession.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+
+      await tx.adminAuditLog.create({
+        data: {
+          adminUserId: auth.user.id,
+          action: 'SET_USER_STATUS',
+          targetType: 'AuthUser',
+          targetId: String(id),
+          metadata: {
+            before: before.status,
+            after: parsed.data.status,
+          },
+        },
+      });
+
+      return changed;
     })) as UserRecord;
+
     response.json({ user: serializeUser(updated) });
   }),
 );
@@ -835,74 +975,117 @@ router.post(
     const auth = await requireAdmin(request, response);
     if (!auth) return;
     if (!allowWriteOrigin(request, response)) return;
+
     const id = Number(request.params.id);
     if (!Number.isInteger(id) || id <= 0) {
       response.status(400).json({ error: 'Invalid user id.' });
       return;
     }
+
     const parsed = planSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       response.status(400).json({ error: 'Invalid plan payload.' });
       return;
     }
+
     const days = parsed.data.days ?? env.PRO_PLAN_DAYS;
     const current = (await loadUserById(id)) as UserRecord | null;
     if (!current) {
       response.status(404).json({ error: 'User not found.' });
       return;
     }
-    const nextExpiresAt =
-      current.proExpiresAt && current.proExpiresAt > new Date() && parsed.data.plan === 'PRO'
-        ? new Date(current.proExpiresAt.getTime() + days * 86_400_000)
-        : new Date(Date.now() + days * 86_400_000);
-    const updated = (await prisma.authUser.update({
-      where: { id },
-      data: {
-        plan: 'PRO',
-        proExpiresAt: nextExpiresAt,
-        status: current.status === 'DISABLED' ? 'DISABLED' : 'ACTIVE',
-      },
-    })) as UserRecord;
-    await prisma.adminAuditLog.create({
-      data: {
-        adminUserId: auth.user.id,
-        action: 'GRANT_PRO',
-        targetType: 'AuthUser',
-        targetId: String(id),
-        metadata: { days, expiresAt: nextExpiresAt.toISOString() },
+
+    const entitlement = await prisma.$transaction(async (tx: any) => {
+      const granted = await grantManualProEntitlement(
+        {
+          userId: id,
+          days,
+          adminUserId: auth.user.id,
+          reason: 'ADMIN_GRANT_PRO',
+        },
+        tx as any,
+      );
+
+      await tx.adminAuditLog.create({
+        data: {
+          adminUserId: auth.user.id,
+          action: 'GRANT_PRO',
+          targetType: 'AuthUser',
+          targetId: String(id),
+          metadata: {
+            days,
+            subscriptionId: granted.subscriptionId,
+            startsAt: granted.startsAt.toISOString(),
+            expiresAt: granted.expiresAt.toISOString(),
+          },
+        },
+      });
+
+      return granted;
+    });
+
+    const updated = (await loadUserById(id)) as UserRecord;
+    response.json({
+      user: serializeUser(updated),
+      entitlement: {
+        subscriptionId: entitlement.subscriptionId,
+        startsAt: entitlement.startsAt.toISOString(),
+        expiresAt: entitlement.expiresAt.toISOString(),
       },
     });
-    response.json({ user: serializeUser(updated) });
   }),
 );
-
 router.post(
   '/admin/users/:id/revoke-pro',
   asyncRoute(async (request, response) => {
     const auth = await requireAdmin(request, response);
     if (!auth) return;
     if (!allowWriteOrigin(request, response)) return;
+
     const id = Number(request.params.id);
     if (!Number.isInteger(id) || id <= 0) {
       response.status(400).json({ error: 'Invalid user id.' });
       return;
     }
-    const updated = (await prisma.authUser.update({
-      where: { id },
-      data: { plan: 'FREE', proExpiresAt: null },
-    })) as UserRecord;
-    await prisma.adminAuditLog.create({
-      data: {
-        adminUserId: auth.user.id,
-        action: 'REVOKE_PRO',
-        targetType: 'AuthUser',
-        targetId: String(id),
-      },
+
+    const current = (await loadUserById(id)) as UserRecord | null;
+    if (!current) {
+      response.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    const revoked = await prisma.$transaction(async (tx: any) => {
+      const result = await revokeProEntitlement(
+        {
+          userId: id,
+          reason: 'ADMIN_REVOKE_PRO',
+          revokedBy: String(auth.user.id),
+        },
+        tx as any,
+      );
+
+      await tx.adminAuditLog.create({
+        data: {
+          adminUserId: auth.user.id,
+          action: 'REVOKE_PRO',
+          targetType: 'AuthUser',
+          targetId: String(id),
+          metadata: {
+            revokedSubscriptions: result.revokedSubscriptions,
+          },
+        },
+      });
+
+      return result;
     });
-    response.json({ user: serializeUser(updated) });
+
+    const updated = (await loadUserById(id)) as UserRecord;
+    response.json({
+      user: serializeUser(updated),
+      revokedSubscriptions: revoked.revokedSubscriptions,
+    });
   }),
 );
-
 router.post(
   '/admin/users/:id/revoke-sessions',
   asyncRoute(async (request, response) => {
@@ -931,6 +1114,68 @@ router.post(
 );
 
 router.get(
+  '/admin/payments',
+  asyncRoute(async (request, response) => {
+    const auth = await requireAdmin(request, response);
+    if (!auth) return;
+
+    const status = z
+      .enum(['PENDING', 'PAID', 'EXPIRED', 'CANCELLED'])
+      .optional()
+      .safeParse(typeof request.query.status === 'string' ? request.query.status : undefined);
+    if (!status.success) {
+      response.status(400).json({ error: 'Invalid payment status.' });
+      return;
+    }
+
+    const limit = Math.min(100, Math.max(1, Number(request.query.limit ?? 50)));
+    response.json({
+      payments: await listAdminPayments({ status: status.data, limit }),
+    });
+  }),
+);
+
+router.get(
+  '/admin/subscriptions',
+  asyncRoute(async (request, response) => {
+    const auth = await requireAdmin(request, response);
+    if (!auth) return;
+
+    const status = z
+      .enum(['ACTIVE', 'EXPIRED', 'REVOKED'])
+      .optional()
+      .safeParse(typeof request.query.status === 'string' ? request.query.status : undefined);
+    if (!status.success) {
+      response.status(400).json({ error: 'Invalid subscription status.' });
+      return;
+    }
+
+    const limit = Math.min(100, Math.max(1, Number(request.query.limit ?? 50)));
+    response.json({
+      subscriptions: await listAdminSubscriptions({ status: status.data, limit }),
+    });
+  }),
+);
+
+router.get(
+  '/admin/webhooks',
+  asyncRoute(async (request, response) => {
+    const auth = await requireAdmin(request, response);
+    if (!auth) return;
+
+    const processingStatus =
+      typeof request.query.processingStatus === 'string'
+        ? request.query.processingStatus.trim().slice(0, 64)
+        : undefined;
+    const limit = Math.min(100, Math.max(1, Number(request.query.limit ?? 50)));
+
+    response.json({
+      webhooks: await listAdminWebhooks({ processingStatus, limit }),
+    });
+  }),
+);
+
+router.get(
   '/admin/audit',
   asyncRoute(async (request, response) => {
     const auth = await requireAdmin(request, response);
@@ -948,44 +1193,7 @@ router.get(
   asyncRoute(async (request, response) => {
     const auth = await requireAdmin(request, response);
     if (!auth) return;
-    const now = new Date();
-    const since1d = new Date(now.getTime() - 86_400_000);
-    const since7d = new Date(now.getTime() - 7 * 86_400_000);
-    const [totalUsers, verifiedUsers, freeUsers, proUsers, activeProUsers, newToday, new7d] =
-      await Promise.all([
-        prisma.authUser.count(),
-        prisma.authUser.count({ where: { emailVerifiedAt: { not: null } } }),
-        prisma.authUser.count({ where: { plan: 'FREE' } }),
-        prisma.authUser.count({ where: { plan: 'PRO' } }),
-        prisma.authUser.count({
-          where: { plan: 'PRO', proExpiresAt: { gt: now } },
-        }),
-        prisma.authUser.count({ where: { createdAt: { gte: since1d } } }),
-        prisma.authUser.count({ where: { createdAt: { gte: since7d } } }),
-      ]);
-    response.json({
-      totalUsers,
-      verifiedUsers,
-      freeUsers,
-      proUsers,
-      activeProUsers,
-      newUsersToday: newToday,
-      newUsers7d: new7d,
-      revenueToday: null,
-      revenue7d: null,
-      revenue30d: null,
-      paidOrders: 0,
-      pendingOrders: 0,
-      expiredOrders: 0,
-      failedWebhookCount: 0,
-      recentPayments: [],
-      recentUsers: await prisma.authUser.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: { id: true, email: true, name: true, plan: true, status: true, createdAt: true },
-      }),
-      systemHealth: { api: 'ok', db: 'ok' },
-    });
+    response.json(await loadAdminDashboard());
   }),
 );
 

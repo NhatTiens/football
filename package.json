@@ -21,7 +21,7 @@
     "db:deploy": "node scripts/run-with-env.mjs npx prisma migrate deploy --schema packages/database/prisma/schema.prisma",
     "db:seed": "node scripts/run-with-env.mjs npx tsx packages/database/prisma/seed.ts",
     "db:studio": "node scripts/run-with-env.mjs npx prisma studio --schema packages/database/prisma/schema.prisma",
-    "admin:bootstrap": "node scripts/admin-bootstrap.mjs",
+    "admin:bootstrap": "node scripts/run-with-env.mjs npx tsx scripts/admin-bootstrap.ts",
     "worker": "node scripts/run-with-env.mjs npm run cli -w @football-ai/worker --",
     "format": "prettier --write .",
     "verify": "npm run typecheck && npm test && npm run lint && npm run build",

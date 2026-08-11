@@ -31,6 +31,7 @@ import {
   refreshPersonalUpcomingAnalysis,
 } from '@football-ai/sync';
 import { env } from './env.js';
+import { constantTimeSecretEquals, sensitiveNoStore } from './security.js';
 import { authRouter } from './auth-routes.js';
 import { accountBillingRouter, billingRouter } from './billing-routes.js';
 import { resolveAuthContext, roleCanAccessIntent } from './auth.js';
@@ -78,7 +79,7 @@ function asyncRoute(
 
 function requireAdmin(request: Request, response: Response, next: NextFunction): void {
   const token = request.header('x-admin-token');
-  if (token !== env.ADMIN_API_TOKEN) {
+  if (!constantTimeSecretEquals(token, env.ADMIN_API_TOKEN)) {
     response.status(401).json({ error: 'Invalid admin token.' });
     return;
   }
@@ -89,9 +90,13 @@ app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.use(['/api/auth', '/api/account', '/api/admin', '/api/billing'], sensitiveNoStore);
 app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/account', accountBillingRouter);
+// Keep billing-specific /api/account routes first; authRouter supplies
+// /api/account/usage, profile/sessions and /api/admin/* compatibility paths.
+app.use('/api', authRouter);
 
 app.get(
   '/api/stats',

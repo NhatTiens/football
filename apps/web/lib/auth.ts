@@ -88,6 +88,18 @@ export interface AccountUsageResponse {
   };
 }
 
+export type AccountSubscriptionHistoryStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+
+export interface AccountSubscriptionHistoryItem {
+  id: number;
+  planCode: string;
+  status: AccountSubscriptionHistoryStatus;
+  startsAt: string | null;
+  expiresAt: string | null;
+  sourcePaymentOrderId: number | null;
+  createdAt: string | null;
+}
+
 export interface AccountSubscriptionResponse {
   role: AuthRole;
   status: AuthUserStatus;
@@ -96,6 +108,7 @@ export interface AccountSubscriptionResponse {
   proExpiresAt: string | null;
   forcePasswordChange: boolean;
   canAccessAdvancedChat: boolean;
+  subscriptions: AccountSubscriptionHistoryItem[];
 }
 
 export interface AdminAuthUser extends PublicAuthUser {

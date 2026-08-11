@@ -13,7 +13,6 @@ function remainingText(expiresAt: string | null, now: number): string {
   if (!expiresAt) return 'Không xác định';
   const remaining = new Date(expiresAt).getTime() - now;
   if (remaining <= 0) return 'Đã hết hạn';
-
   const totalSeconds = Math.floor(remaining / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -27,6 +26,7 @@ function statusLabel(status: string): string {
   return 'CHỜ THANH TOÁN';
 }
 
+// USER_UI_FINAL_V1
 export function BillingCheckout({ orderCode }: { orderCode: string }) {
   const [payload, setPayload] = useState<BillingOrderResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +48,9 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
         }
       } catch (reason) {
         if (active) {
-          setError(reason instanceof Error ? reason.message : 'Không tải được đơn hàng.');
+          setError(
+            reason instanceof Error ? reason.message : 'Không tải được đơn hàng.',
+          );
         }
       }
     }
@@ -114,11 +116,13 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
           <span className="eyebrow">CHECKOUT</span>
           <h1>Thanh toán gói {order.planCode}</h1>
           <p>
-            Quét VietQR hoặc chuyển khoản thủ công. Vui lòng giữ nguyên chính xác
-            số tiền và nội dung chuyển khoản.
+            Quét VietQR hoặc chuyển khoản thủ công. Giữ nguyên chính xác số tiền
+            và nội dung chuyển khoản.
           </p>
         </div>
-        <div className={`checkout-status checkout-status-${order.status.toLowerCase()}`}>
+        <div
+          className={`checkout-status checkout-status-${order.status.toLowerCase()}`}
+        >
           <span>{statusLabel(order.status)}</span>
           <strong>{order.status === 'PENDING' ? countdown : order.status}</strong>
         </div>
@@ -126,8 +130,16 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
 
       {order.status === 'PAID' ? (
         <div className="billing-alert billing-alert-success">
-          <strong>Thanh toán đã được xác nhận.</strong> Quyền PRO sẽ được hiển thị
-          trong tài khoản sau khi payment processor hoàn tất.
+          <strong>Thanh toán đã được xác nhận.</strong> SePay webhook đã xử lý
+          PaymentOrder và entitlement PRO. Bạn có thể kiểm tra ngay trong tài khoản.
+          <div className="hero-actions">
+            <Link href="/account/subscription" className="button primary">
+              Xem quyền PRO
+            </Link>
+            <Link href="/account/usage" className="button secondary">
+              Xem quota
+            </Link>
+          </div>
         </div>
       ) : null}
 
@@ -160,7 +172,6 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
             <span>Số tiền</span>
             <strong>{formatVnd(order.amountVnd)}</strong>
           </div>
-
           <dl className="checkout-details">
             <div>
               <dt>Ngân hàng</dt>
@@ -215,8 +226,9 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
           </dl>
 
           <div className="checkout-note">
-            <strong>Lưu ý:</strong> BILLING-3 chỉ hiển thị VietQR và polling trạng thái.
-            Việc tự động xác nhận từ ngân hàng sẽ được nối ở bước SePay webhook.
+            <strong>Tự động xác nhận:</strong> checkout polling trạng thái
+            PaymentOrder. Khi SePay webhook xác nhận đúng tài khoản, số tiền và
+            orderCode, backend chuyển đơn sang PAID và cập nhật PRO.
           </div>
 
           <div className="hero-actions">

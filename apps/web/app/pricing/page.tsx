@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   createProPaymentOrder,
@@ -10,34 +10,53 @@ import {
   getBillingPlans,
   type BillingPlan,
 } from '../../lib/billing';
+import {
+  getAccountSubscription,
+  type AccountSubscriptionResponse,
+} from '../../lib/auth';
+import {
+  formatAccountDate,
+  remainingEntitlementText,
+} from '../../lib/commercial-account';
 
+// USER_UI_FINAL_V1
 export default function PricingPage() {
   const router = useRouter();
   const [plans, setPlans] = useState<BillingPlan[]>([]);
+  const [account, setAccount] = useState<AccountSubscriptionResponse | null>(null);
+  const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-    void getBillingPlans()
-      .then((payload) => {
-        if (active) setPlans(payload.plans);
-      })
-      .catch((reason: unknown) => {
-        if (active) {
-          setError(reason instanceof Error ? reason.message : 'Không tải được bảng giá.');
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    try {
+      const plansPayload = await getBillingPlans();
+      setPlans(plansPayload.plans);
 
-    return () => {
-      active = false;
-    };
+      try {
+        const entitlement = await getAccountSubscription();
+        setAccount(entitlement);
+        setAuthenticated(true);
+      } catch {
+        setAccount(null);
+        setAuthenticated(false);
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : 'Không tải được bảng giá.',
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function buyPro(): Promise<void> {
     setCreating(true);
@@ -47,31 +66,61 @@ export default function PricingPage() {
       const payload = await createProPaymentOrder();
       router.push(`/checkout/${encodeURIComponent(payload.order.orderCode)}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Không thể tạo đơn thanh toán.');
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Không thể tạo đơn thanh toán.',
+      );
       setCreating(false);
     }
   }
 
   const free = plans.find((plan) => plan.code === 'FREE');
   const pro = plans.find((plan) => plan.code === 'PRO');
+  const activePro = account?.plan === 'PRO';
 
   return (
-    <section className="billing-shell">
+    <section className="billing-shell commercial-pricing-shell">
       <div className="page-heading billing-heading">
         <span className="eyebrow">PRICING</span>
         <h1>Chọn gói Football AI</h1>
         <p>
-          Giá và thời hạn PRO được xác định ở máy chủ. Thanh toán qua chuyển khoản
-          ngân hàng bằng VietQR.
+          Giá và thời hạn PRO luôn lấy từ máy chủ. Client không gửi số tiền
+          thanh toán lên backend.
         </p>
       </div>
+
+      {account ? (
+        <div className="commercial-current-plan">
+          <div>
+            <span>Gói hiện tại</span>
+            <strong>{account.plan}</strong>
+          </div>
+          <div>
+            <span>Thời hạn PRO</span>
+            <strong>
+              {account.plan === 'PRO'
+                ? remainingEntitlementText(account.proExpiresAt)
+                : 'Chưa kích hoạt'}
+            </strong>
+            {account.proExpiresAt ? (
+              <small>Đến {formatAccountDate(account.proExpiresAt)}</small>
+            ) : null}
+          </div>
+          <Link href="/account/subscription">Chi tiết quyền sử dụng →</Link>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="billing-alert billing-alert-error">
           <strong>Không thể tiếp tục:</strong> {error}{' '}
-          {error.toLowerCase().includes('authentication') ? (
-            <Link href="/login">Đăng nhập</Link>
-          ) : null}
+          <button
+            type="button"
+            className="commercial-link-button"
+            onClick={() => void load()}
+          >
+            Thử lại
+          </button>
         </div>
       ) : null}
 
@@ -82,10 +131,10 @@ export default function PricingPage() {
           <strong className="pricing-price">
             {loading ? '...' : formatVnd(free?.priceVnd ?? 0)}
           </strong>
-          <p>Dùng các tính năng cơ bản và quota miễn phí của hệ thống.</p>
+          <p>Dùng các tính năng cơ bản với quota FREE của hệ thống.</p>
           <ul>
             <li>Tài khoản và lịch sử cá nhân</li>
-            <li>Quota phân tích cơ bản</li>
+            <li>Chat/phân tích cơ bản theo quota FREE</li>
             <li>Không yêu cầu thanh toán</li>
           </ul>
           <Link href="/account" className="button secondary billing-action">
@@ -101,22 +150,34 @@ export default function PricingPage() {
           </strong>
           <p>
             {pro?.durationDays
-              ? `Kích hoạt PRO trong ${pro.durationDays} ngày sau khi thanh toán được xác nhận.`
+              ? `${pro.durationDays} ngày cho mỗi lần thanh toán được xác nhận.`
               : 'Gói PRO của Football AI.'}
           </p>
           <ul>
-            <li>Quota PRO cao hơn</li>
-            <li>Advanced analysis/chat theo entitlement</li>
-            <li>Thanh toán VietQR bằng đúng số tiền và nội dung đơn hàng</li>
+            <li>Quota PRO cao hơn theo cấu hình máy chủ</li>
+            <li>Advanced chat/analysis theo entitlement PRO</li>
+            <li>Gia hạn nối tiếp nếu PRO hiện tại vẫn còn hạn</li>
+            <li>Thanh toán VietQR với số tiền và nội dung do server tạo</li>
           </ul>
-          <button
-            type="button"
-            className="button primary billing-action"
-            disabled={creating || loading || !pro}
-            onClick={() => void buyPro()}
-          >
-            {creating ? 'Đang tạo đơn...' : 'Nâng cấp PRO'}
-          </button>
+
+          {!authenticated ? (
+            <Link href="/login" className="button primary billing-action">
+              Đăng nhập để nâng cấp
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className="button primary billing-action"
+              disabled={creating || loading || !pro}
+              onClick={() => void buyPro()}
+            >
+              {creating
+                ? 'Đang tạo đơn...'
+                : activePro
+                  ? 'Gia hạn PRO'
+                  : 'Nâng cấp PRO'}
+            </button>
+          )}
         </article>
       </div>
     </section>

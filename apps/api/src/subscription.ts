@@ -158,6 +158,84 @@ export async function applyPaidProEntitlement(
   };
 }
 
+export async function grantManualProEntitlement(
+  input: {
+    userId: number;
+    days: number;
+    adminUserId: number;
+    reason: string;
+    now?: Date;
+  },
+  db: SubscriptionDb = prisma as unknown as SubscriptionDb,
+): Promise<AppliedProEntitlement> {
+  const now = input.now ?? new Date();
+
+  if (!Number.isInteger(input.days) || input.days <= 0 || input.days > 3650) {
+    throw new Error('Manual PRO grant days must be an integer between 1 and 3650.');
+  }
+
+  await reconcileSubscriptionLifecycle(input.userId, db, now);
+
+  const user = await db.authUser.findUnique({
+    where: { id: input.userId },
+  });
+
+  if (!user) {
+    throw new Error(`Cannot grant PRO entitlement: user ${input.userId} not found.`);
+  }
+
+  const currentExpiry =
+    user.proExpiresAt instanceof Date
+      ? user.proExpiresAt
+      : user.proExpiresAt
+        ? new Date(user.proExpiresAt)
+        : null;
+
+  const activeExpiry =
+    user.plan === 'PRO' &&
+    currentExpiry &&
+    currentExpiry.getTime() > now.getTime()
+      ? currentExpiry
+      : null;
+
+  const startsAt = activeExpiry ?? now;
+  const expiresAt = addDays(startsAt, input.days);
+
+  const subscription = await db.subscription.create({
+    data: {
+      userId: user.id,
+      planCode: 'PRO',
+      status: 'ACTIVE',
+      startsAt,
+      expiresAt,
+      sourcePaymentOrderId: null,
+      metadata: {
+        source: 'ADMIN_GRANT',
+        adminUserId: input.adminUserId,
+        days: input.days,
+        reason: input.reason,
+      },
+    },
+  });
+
+  await db.authUser.update({
+    where: { id: user.id },
+    data: {
+      plan: 'PRO',
+      proExpiresAt: expiresAt,
+    },
+  });
+
+  return {
+    userId: user.id,
+    startsAt,
+    expiresAt,
+    subscriptionId: subscription.id,
+    previousPlan: user.plan,
+    previousProExpiresAt: currentExpiry,
+  };
+}
+
 export async function revokeProEntitlement(
   input: {
     userId: number;
