@@ -64,6 +64,19 @@ enum AuthCodePurpose {
   PASSWORD_RESET
 }
 
+enum PaymentOrderStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
 model AuthUser {
   id                 Int                 @id @default(autoincrement())
   email              String              @unique
@@ -85,6 +98,8 @@ model AuthUser {
   sessions           AuthSession[]
   verificationCodes  AuthVerificationCode[]
   usageEntries       AuthUsageDaily[]
+  paymentOrders      PaymentOrder[]
+  subscriptions      Subscription[]
 
   @@index([role])
   @@index([status])
@@ -148,6 +163,67 @@ model AdminAuditLog {
 
   @@index([adminUserId, createdAt])
   @@index([targetType, targetId])
+}
+
+model PaymentOrder {
+  id                    Int                @id @default(autoincrement())
+  userId                Int
+  orderCode             String             @unique @db.VarChar(64)
+  planCode              String             @db.VarChar(32)
+  amountVnd             Int
+  status                PaymentOrderStatus @default(PENDING)
+  provider              String             @db.VarChar(32)
+  transferContent       String             @db.VarChar(128)
+  qrUrl                 String?            @db.Text
+  expiresAt             DateTime
+  paidAt                DateTime?
+  providerTransactionId String?            @db.VarChar(128)
+  metadata              Json?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  user                  AuthUser           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptions         Subscription[]
+  webhookEvents         PaymentWebhookEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@index([provider, providerTransactionId])
+}
+
+model Subscription {
+  id                   Int                @id @default(autoincrement())
+  userId               Int
+  planCode             String             @db.VarChar(32)
+  status               SubscriptionStatus @default(ACTIVE)
+  startsAt             DateTime
+  expiresAt            DateTime
+  sourcePaymentOrderId Int?
+  metadata             Json?
+  createdAt            DateTime           @default(now())
+  user                 AuthUser           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourcePaymentOrder   PaymentOrder?      @relation(fields: [sourcePaymentOrderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@index([sourcePaymentOrderId])
+}
+
+model PaymentWebhookEvent {
+  id               Int       @id @default(autoincrement())
+  provider         String    @db.VarChar(32)
+  externalId       String    @db.VarChar(128)
+  payloadHash      String    @db.VarChar(64)
+  receivedAt       DateTime  @default(now())
+  processingStatus String    @db.VarChar(32)
+  orderId          Int?
+  errorReason      String?   @db.Text
+  rawPayload       Json?
+  createdAt        DateTime  @default(now())
+  order            PaymentOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalId])
+  @@index([processingStatus, receivedAt])
+  @@index([orderId, receivedAt])
 }
 
 model League {
