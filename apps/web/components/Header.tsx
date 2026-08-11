@@ -41,6 +41,10 @@ export function Header() {
 
   const isAdmin = Boolean(auth.authenticated && auth.user?.role === 'ADMIN');
   const isPro = Boolean(auth.authenticated && auth.user?.plan === 'PRO');
+const canAccessBacktest = Boolean(
+  auth.authenticated &&
+    (auth.user?.role === 'ANALYST' || auth.user?.role === 'ADMIN'),
+);
 
   return (
     <header className="site-header pcr-header">
@@ -56,7 +60,7 @@ export function Header() {
         <nav className="navigation pcr-navigation" aria-label="Điều hướng chính">
           <Link href="/">Tổng quan</Link>
           <Link href="/predictions">Dự đoán & BEST BET</Link>
-          <Link href="/backtest">Backtest</Link>
+          {canAccessBacktest ? <Link href="/backtest">Backtest</Link> : null}
           <Link href="/matches">Trận đấu</Link>
           <Link href="/bet-history">Lịch sử</Link>
           <Link href="/pricing">Pricing</Link>

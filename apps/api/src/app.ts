@@ -32,6 +32,12 @@ import {
 } from '@football-ai/sync';
 import { env } from './env.js';
 import { constantTimeSecretEquals, sensitiveNoStore } from './security.js';
+import {
+  globalMarketScopeMiddleware,
+  isExplicitMatchWinnerQuestion,
+  isMatchWinnerMarket,
+  sanitizeGlobalMarketPayload,
+} from './global-market-scope.js';
 import { authRouter } from './auth-routes.js';
 import { accountBillingRouter, billingRouter } from './billing-routes.js';
 import { resolveAuthContext, roleCanAccessIntent } from './auth.js';
@@ -86,6 +92,39 @@ function requireAdmin(request: Request, response: Response, next: NextFunction):
   next();
 }
 
+async function requireBacktestResearchAccess(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  const auth = await resolveAuthContext(request);
+
+  if (!auth.authenticated || !auth.user) {
+    response.status(401).json({ error: 'Please sign in to access Backtest.' });
+    return;
+  }
+
+  if (auth.user.status !== 'ACTIVE') {
+    response.status(403).json({ error: 'Active verified account required.' });
+    return;
+  }
+
+  if (auth.user.role !== 'ANALYST' && auth.user.role !== 'ADMIN') {
+    response.status(403).json({
+      error: 'Backtest is restricted to internal research roles.',
+      requiredRole: 'ANALYST_OR_ADMIN',
+      role: auth.user.role,
+      plan: auth.user.plan,
+    });
+    return;
+  }
+
+  next();
+}
+
+// GLOBAL_MATCH_WINNER_HIDDEN_V2
+app.use('/api', globalMarketScopeMiddleware);
+
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -98,6 +137,11 @@ app.use('/api/account', accountBillingRouter);
 // /api/account/usage, profile/sessions and /api/admin/* compatibility paths.
 app.use('/api', authRouter);
 
+// BACKTEST_INTERNAL_ACCESS_V1
+// PRO is a commercial plan; it never grants research Backtest access.
+app.use('/api/backtests', sensitiveNoStore, asyncRoute(requireBacktestResearchAccess));
+app.use('/api/backtest', sensitiveNoStore, asyncRoute(requireBacktestResearchAccess));
+
 app.get(
   '/api/stats',
   asyncRoute(async (_request, response) => {
@@ -108,7 +152,11 @@ app.get(
           where: { status: FixtureStatus.UPCOMING, kickoffAt: { gte: now } },
         }),
         prisma.recommendation.count({
-          where: { status: RecommendationStatus.ACTIVE, expiresAt: { gt: now } },
+          where: {
+            status: RecommendationStatus.ACTIVE,
+            expiresAt: { gt: now },
+            marketCode: { notIn: ['MATCH_WINNER', 'HDA', '1X2'] },
+          },
         }),
         prisma.recommendation.findMany({
           where: { status: RecommendationStatus.SETTLED },
@@ -914,6 +962,15 @@ app.post(
       return;
     }
 
+    // GLOBAL_MARKET_SCOPE_CHAT_BLOCK_V2
+    if (isExplicitMatchWinnerQuestion(message)) {
+      response.status(422).json({
+        error: 'Tính năng này đang tạm ẩn. Hệ thống hiện chỉ hiển thị BTTS và Over/Under.',
+        visibleMarkets: ['BTTS', 'O/U 1.5', 'O/U 2.5', 'O/U 3.5'],
+      });
+      return;
+    }
+
     const intent = detectAdvancedPredictionChatIntent(message);
     if (!roleCanAccessIntent(auth.user.role, intent, auth.user.plan, auth.user.proExpiresAt ? new Date(auth.user.proExpiresAt) : null)) {
       response.status(403).json({
@@ -932,6 +989,11 @@ app.post(
       limit: 300,
     });
 
+    const hiddenRecommendation =
+      result?.answer?.recommendation?.marketType != null &&
+      isMatchWinnerMarket(result.answer.recommendation.marketType);
+    const globallyScopedResult = sanitizeGlobalMarketPayload(result) as typeof result;
+
     const usage = await consumeUsage({
       userId: auth.user.id,
       plan: auth.user.plan,
@@ -939,7 +1001,11 @@ app.post(
     });
 
     response.json({
-      ...result,
+      ...globallyScopedResult,
+      message:
+        intent === 'PREDICTION' || hiddenRecommendation
+          ? 'Hệ thống hiện chỉ hiển thị phân tích BTTS và Over/Under cho trận này.'
+          : globallyScopedResult.message,
       quota: usage.usage,
     });
   }),

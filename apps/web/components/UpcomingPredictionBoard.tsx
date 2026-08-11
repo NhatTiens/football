@@ -72,11 +72,11 @@ function hdaSelectionName(
 }
 
 function scientificPredictedName(row: PersonalUpcomingFixtureDto): string {
-  return hdaSelectionName(row, row.scientificHda.predictedSelection);
+  return hdaSelectionName(row, row.scientificHda?.predictedSelection);
 }
 
 function providerPredictedName(row: PersonalUpcomingFixtureDto): string {
-  return hdaSelectionName(row, row.providerHda.predictedSelection);
+  return hdaSelectionName(row, row.providerHda?.predictedSelection);
 }
 
 function decisionSelectionName(row: PersonalUpcomingFixtureDto): string {
@@ -982,39 +982,39 @@ export function UpcomingPredictionBoard({
                       <b>Quyết định khoa học theo horizon</b>
                     </div>
                     <em>
-                      {row.scientificHda.available
-                        ? `T-${row.scientificHda.horizonMinutes ?? '—'}`
+                      {row.scientificHda?.available
+                        ? `T-${row.scientificHda?.horizonMinutes ?? '—'}`
                         : 'CHỜ SCIENTIFIC DECISION'}
                     </em>
                   </div>
-                  {row.scientificHda.available ? (
+                  {row.scientificHda?.available ? (
                     <>
                       <div className="pcr-probability-grid">
                         <div>
                           <div>
                             <span>Chủ</span>
-                            <b>{pct(row.scientificHda.homeProbability)}</b>
+                            <b>{pct(row.scientificHda?.homeProbability)}</b>
                           </div>
                           <i
-                            style={{ width: probabilityWidth(row.scientificHda.homeProbability) }}
+                            style={{ width: probabilityWidth(row.scientificHda?.homeProbability) }}
                           />
                         </div>
                         <div>
                           <div>
                             <span>Hòa</span>
-                            <b>{pct(row.scientificHda.drawProbability)}</b>
+                            <b>{pct(row.scientificHda?.drawProbability)}</b>
                           </div>
                           <i
-                            style={{ width: probabilityWidth(row.scientificHda.drawProbability) }}
+                            style={{ width: probabilityWidth(row.scientificHda?.drawProbability) }}
                           />
                         </div>
                         <div>
                           <div>
                             <span>Khách</span>
-                            <b>{pct(row.scientificHda.awayProbability)}</b>
+                            <b>{pct(row.scientificHda?.awayProbability)}</b>
                           </div>
                           <i
-                            style={{ width: probabilityWidth(row.scientificHda.awayProbability) }}
+                            style={{ width: probabilityWidth(row.scientificHda?.awayProbability) }}
                           />
                         </div>
                       </div>
@@ -1042,31 +1042,31 @@ export function UpcomingPredictionBoard({
                       <span>API-FOOTBALL · THAM KHẢO</span>
                       <b>Tín hiệu provider, không phải Scientific Model</b>
                     </div>
-                    <em>{row.providerHda.available ? 'REFERENCE' : 'CHƯA CÓ'}</em>
+                    <em>{row.providerHda?.available ? 'REFERENCE' : 'CHƯA CÓ'}</em>
                   </div>
-                  {row.providerHda.available ? (
+                  {row.providerHda?.available ? (
                     <>
                       <div className="pcr-probability-grid pcr-provider-probability-grid">
                         <div>
                           <div>
                             <span>Chủ</span>
-                            <b>{pct(row.providerHda.homeProbability)}</b>
+                            <b>{pct(row.providerHda?.homeProbability)}</b>
                           </div>
-                          <i style={{ width: probabilityWidth(row.providerHda.homeProbability) }} />
+                          <i style={{ width: probabilityWidth(row.providerHda?.homeProbability) }} />
                         </div>
                         <div>
                           <div>
                             <span>Hòa</span>
-                            <b>{pct(row.providerHda.drawProbability)}</b>
+                            <b>{pct(row.providerHda?.drawProbability)}</b>
                           </div>
-                          <i style={{ width: probabilityWidth(row.providerHda.drawProbability) }} />
+                          <i style={{ width: probabilityWidth(row.providerHda?.drawProbability) }} />
                         </div>
                         <div>
                           <div>
                             <span>Khách</span>
-                            <b>{pct(row.providerHda.awayProbability)}</b>
+                            <b>{pct(row.providerHda?.awayProbability)}</b>
                           </div>
-                          <i style={{ width: probabilityWidth(row.providerHda.awayProbability) }} />
+                          <i style={{ width: probabilityWidth(row.providerHda?.awayProbability) }} />
                         </div>
                       </div>
                       <div className="pcr-hda-summary">
@@ -1626,12 +1626,12 @@ export function UpcomingPredictionBoard({
                 <span>
                   Official Scientific HDA:{' '}
                   <b>
-                    {row.scientificHda.available ? scientificPredictedName(row) : 'CHỜ DECISION'}
+                    {row.scientificHda?.available ? scientificPredictedName(row) : 'CHỜ DECISION'}
                   </b>
                 </span>
                 <span>
                   API-Football:{' '}
-                  <b>{row.providerHda.available ? providerPredictedName(row) : '—'}</b>
+                  <b>{row.providerHda?.available ? providerPredictedName(row) : '—'}</b>
                 </span>
                 {row.nextCheckpoint ? (
                   <span>
