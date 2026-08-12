@@ -7,9 +7,10 @@ function git(args) {
   return (result.stdout ?? '').trim();
 }
 const files = git(['ls-files', '-z']).split('\0').filter(Boolean);
-const transient = files.filter((file) => {
+const presentFiles = files.filter((file) => fs.existsSync(file));
+const transient = presentFiles.filter((file) => {
   const value = file.replace(/\\/g, '/');
-  return value === 'payload' || value.startsWith('payload/') || /^football-v7-/i.test(value) || /\.tsbuildinfo$/i.test(value) || /(?:^|\/)\.[^/]*(?:backup|broken)/i.test(value) || /-backup-/i.test(value) || /^package\.json\.before-/i.test(value);
+  return value === 'payload' || value.startsWith('payload/') || /^football-v7-/i.test(value) || /\.tsbuildinfo$/i.test(value) || /(?:^|\/)\.[^/]*(?:backup|broken)/i.test(value) || /-backup-/i.test(value) || /(?:^|\/)[^/]+\.before-/i.test(value) || /\.bak(?:$|-)/i.test(value) || value === '{console.error(e)';
 });
 const required = [
   'packages/sync/src/paper-ou-opposite-line-core.ts',
@@ -27,7 +28,7 @@ console.log(JSON.stringify({
   stage: 0,
   branch: git(['branch', '--show-current']),
   head: git(['rev-parse', 'HEAD']),
-  trackedFiles: files.length,
+  trackedFiles: presentFiles.length,
   transientTrackedFiles: transient.length,
   missingRequiredFiles: missing,
   ouHalfGoalRuleContract: ruleContractOk,

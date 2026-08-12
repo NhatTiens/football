@@ -106,7 +106,7 @@ export * from './prediction-chatbot-engine.js';
 export * from './prediction-chatbot-conversation-core.js';
 export * from './prediction-chatbot-research-engine.js';
 export * from './prediction-chatbot-advanced-engine.js';
-export * from './prediction-chatbot-freshness.js';
+export * from './history-read-model.js';
 export * from './paper-hda-context-adjustment-core.js';
 export * from './paper-hda-context-adjustment-engine.js';
 export * from './shadow-settlement-core.js';

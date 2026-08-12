@@ -8,6 +8,7 @@ import {
   type ShadowSettlementRow,
 } from './shadow-settlement-core.js';
 import { buildShadowSettlementRuntimeReport } from './shadow-settlement-report-cli.js';
+import { selectCanonicalHistoryRows } from './history-read-model.js';
 
 export const PREDICTION_CHATBOT_RESEARCH_VERSION =
   'v7.0-chatbot.4-7-pit-research-outcome-reliability-v1';
@@ -138,12 +139,14 @@ export interface PredictionChatResearchReport {
   fixtureFilter: number | null;
   marketFilter: 'TOTAL_GOALS' | 'BTTS' | null;
   history: {
+    view: 'SUMMARY_CANONICAL';
     rows: PredictionChatHistoryEntry[];
     totalRows: number;
     settledRows: number;
     pendingRows: number;
   };
   reliability: {
+    sampleView: 'AUDIT_MULTI_HORIZON';
     overall: PredictionChatReliabilitySummary;
     byMarket: PredictionChatReliabilitySummaryWithKey[];
     byHorizon: PredictionChatReliabilitySummaryWithKey[];
@@ -464,10 +467,16 @@ export async function buildPredictionChatResearchReport(input: {
     profitUnits: row.hypotheticalProfitUnits,
     clv: row.clv,
   }));
-  const allHistory = [...ledgerHistory, ...shadowHistory].sort(
-    (left, right) =>
-      new Date(right.decisionAsOf).getTime() - new Date(left.decisionAsOf).getTime() ||
-      right.id.localeCompare(left.id),
+  const allHistory = selectCanonicalHistoryRows(
+    [...ledgerHistory, ...shadowHistory].map((row) => ({
+      row,
+      providerFixtureId: row.providerFixtureId,
+      source: row.source,
+      market: row.marketType,
+      lineValue: row.lineValue,
+      decisionAsOf: row.decisionAsOf,
+      settled: row.result !== 'PENDING',
+    })),
   );
   const reliability = aggregateShadowSettlements(shadowRows);
   const settledRows = reliability.overall.settled;
@@ -478,12 +487,14 @@ export async function buildPredictionChatResearchReport(input: {
     fixtureFilter: providerFixtureId,
     marketFilter,
     history: {
+      view: 'SUMMARY_CANONICAL',
       rows: allHistory.slice(0, limit),
       totalRows: allHistory.length,
       settledRows: allHistory.filter((row) => row.result !== 'PENDING').length,
       pendingRows: allHistory.filter((row) => row.result === 'PENDING').length,
     },
     reliability: {
+      sampleView: 'AUDIT_MULTI_HORIZON',
       overall: reliabilitySummary(reliability.overall),
       byMarket: reliability.byMarket.map(reliabilityGroup),
       byHorizon: reliability.byHorizon.map(reliabilityGroup),

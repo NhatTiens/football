@@ -21,6 +21,44 @@ export interface BillingPlanDto {
   priceVnd: number;
   durationDays: number | null;
   purchasable: boolean;
+  unavailableReason: string | null;
+}
+
+export type BillingAvailability =
+  | { available: true; priceVnd: number }
+  | {
+      available: false;
+      priceVnd: number;
+      reason: 'PRICE_CONFIRMATION_REQUIRED' | 'PAYMENT_CONFIGURATION_MISSING';
+    };
+
+export function getBillingAvailability(): BillingAvailability {
+  const priceVnd = env.PRO_PLAN_PRICE_VND ?? 0;
+
+  if (env.REQUIRES_PRODUCTION_PRICE_CONFIRMATION) {
+    return { available: false, priceVnd, reason: 'PRICE_CONFIRMATION_REQUIRED' };
+  }
+
+  const required = [
+    env.PRO_PLAN_PRICE_VND,
+    env.PAYMENT_BANK_ID,
+    env.PAYMENT_BANK_BIN,
+    env.PAYMENT_ACCOUNT_NO,
+    env.PAYMENT_ACCOUNT_NAME,
+  ];
+  if (required.some((value) => value == null || String(value).trim().length === 0)) {
+    return { available: false, priceVnd, reason: 'PAYMENT_CONFIGURATION_MISSING' };
+  }
+
+  return { available: true, priceVnd };
+}
+
+function requireBillingAvailability(): Extract<BillingAvailability, { available: true }> {
+  const availability = getBillingAvailability();
+  if (!availability.available) {
+    throw new Error(`BILLING_UNAVAILABLE:${availability.reason}`);
+  }
+  return availability;
 }
 
 function toIso(value: Date | string | null | undefined): string | null {
@@ -32,6 +70,7 @@ export function getBillingPlans(): {
   currency: 'VND';
   plans: BillingPlanDto[];
 } {
+  const availability = getBillingAvailability();
   return {
     currency: 'VND',
     plans: [
@@ -41,13 +80,15 @@ export function getBillingPlans(): {
         priceVnd: 0,
         durationDays: null,
         purchasable: false,
+        unavailableReason: null,
       },
       {
         code: 'PRO',
         name: 'PRO',
-        priceVnd: env.PRO_PLAN_PRICE_VND,
+        priceVnd: availability.priceVnd,
         durationDays: env.PRO_PLAN_DAYS,
-        purchasable: true,
+        purchasable: availability.available,
+        unavailableReason: availability.available ? null : availability.reason,
       },
     ],
   };
@@ -72,6 +113,7 @@ export function buildVietQrUrl(input: {
   amountVnd: number;
   transferContent: string;
 }): string {
+  requireBillingAvailability();
   const bankId = encodeURIComponent(env.PAYMENT_BANK_BIN || env.PAYMENT_BANK_ID);
   const accountNo = encodeURIComponent(env.PAYMENT_ACCOUNT_NO);
   const template = encodeURIComponent(env.PAYMENT_QR_TEMPLATE);
@@ -102,6 +144,7 @@ export function paymentInstructions(input: {
 }
 
 export function serializePaymentOrder(order: any) {
+  const availability = getBillingAvailability();
   return {
     id: order.id,
     orderCode: order.orderCode,
@@ -112,10 +155,12 @@ export function serializePaymentOrder(order: any) {
     transferContent: order.transferContent,
     qrUrl:
       order.qrUrl ??
-      buildVietQrUrl({
-        amountVnd: order.amountVnd,
-        transferContent: order.transferContent,
-      }),
+      (availability.available
+        ? buildVietQrUrl({
+            amountVnd: order.amountVnd,
+            transferContent: order.transferContent,
+          })
+        : null),
     expiresAt: toIso(order.expiresAt),
     paidAt: toIso(order.paidAt),
     providerTransactionId: order.providerTransactionId ?? null,
@@ -147,7 +192,7 @@ export async function expireStalePaymentOrders(
       expiresAt: { lte: now },
       ...(userId ? { userId } : {}),
     },
-    data: { status: 'EXPIRED' },
+    data: { status: 'EXPIRED', activeKey: null },
   });
   return Number(result.count ?? 0);
 }
@@ -162,13 +207,16 @@ export async function createPaymentOrderForUser(
     throw new Error('UNSUPPORTED_PLAN');
   }
 
+  const availability = requireBillingAvailability();
+  const activeKey = `${userId}:${PRO_PLAN_CODE}:${BILLING_PROVIDER}`;
+
   await expireStalePaymentOrders(userId, db, now);
 
   const existing = await db.paymentOrder.findFirst({
     where: {
       userId,
       planCode: PRO_PLAN_CODE,
-      amountVnd: env.PRO_PLAN_PRICE_VND,
+      amountVnd: availability.priceVnd,
       provider: BILLING_PROVIDER,
       status: 'PENDING',
       expiresAt: { gt: now },
@@ -177,6 +225,23 @@ export async function createPaymentOrderForUser(
   });
 
   if (existing) {
+    if (existing.activeKey !== activeKey) {
+      try {
+        const claimed = await db.paymentOrder.update({
+          where: { id: existing.id },
+          data: { activeKey },
+        });
+        return { order: claimed, reused: true };
+      } catch (error) {
+        const code =
+          error && typeof error === 'object' && 'code' in error
+            ? String((error as { code?: unknown }).code ?? '')
+            : '';
+        if (code !== 'P2002') throw error;
+        const winner = await db.paymentOrder.findUnique({ where: { activeKey } });
+        if (winner) return { order: winner, reused: true };
+      }
+    }
     return { order: existing, reused: true };
   }
 
@@ -190,9 +255,10 @@ export async function createPaymentOrderForUser(
           userId,
           orderCode,
           planCode: PRO_PLAN_CODE,
-          amountVnd: env.PRO_PLAN_PRICE_VND,
+          amountVnd: availability.priceVnd,
           status: 'PENDING',
           provider: BILLING_PROVIDER,
+          activeKey,
           transferContent: orderCode,
           qrUrl: null,
           expiresAt,
@@ -212,6 +278,8 @@ export async function createPaymentOrderForUser(
           ? String((error as { code?: unknown }).code ?? '')
           : '';
       if (code === 'P2002') {
+        const winner = await db.paymentOrder.findUnique({ where: { activeKey } });
+        if (winner) return { order: winner, reused: true };
         continue;
       }
       throw error;
@@ -291,6 +359,6 @@ export async function getAccountPaymentsData(
   const orders = await listPaymentOrdersForUser(userId, limit, db);
   return {
     payments: orders.map(serializePaymentOrder),
-    billingAvailable: true,
+    billingAvailable: getBillingAvailability().available,
   };
 }

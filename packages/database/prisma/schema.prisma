@@ -173,6 +173,7 @@ model PaymentOrder {
   amountVnd             Int
   status                PaymentOrderStatus @default(PENDING)
   provider              String             @db.VarChar(32)
+  activeKey             String?            @unique @db.VarChar(128)
   transferContent       String             @db.VarChar(128)
   qrUrl                 String?            @db.Text
   expiresAt             DateTime

@@ -79,6 +79,57 @@ export const openApiDocument = {
         responses: { '200': { description: 'Signed out' } },
       },
     },
+    '/personal/prediction-chat': {
+      post: {
+        summary: 'Read-only PIT prediction assistant with atomic daily quota enforcement',
+        responses: {
+          '200': { description: 'Prediction answer based only on already-synchronized data' },
+          '401': { description: 'Authentication required' },
+          '403': { description: 'Plan does not allow the requested intent' },
+          '429': { description: 'Daily chatbot quota exhausted' },
+        },
+      },
+    },
+    '/scientific/bets': {
+      get: {
+        summary: 'Canonical fixture-paginated paper history or append-only multi-horizon audit view',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          { name: 'pageSize', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 20 } },
+          { name: 'view', in: 'query', schema: { type: 'string', enum: ['summary', 'audit'] } },
+        ],
+        responses: { '200': { description: 'History grouped and paginated by fixture' } },
+      },
+    },
+    '/billing/plans': {
+      get: {
+        summary: 'Server-owned plans with fail-closed production purchasability',
+        responses: { '200': { description: 'Billing plans' } },
+      },
+    },
+    '/billing/orders': {
+      post: {
+        summary: 'Create or reuse the single active payment order for the authenticated user',
+        responses: {
+          '200': { description: 'Existing active order reused' },
+          '201': { description: 'Payment order created' },
+          '401': { description: 'Authentication required' },
+          '503': { description: 'Production price or payment configuration not confirmed' },
+        },
+      },
+    },
+    '/account/usage': {
+      get: {
+        summary: 'Authenticated daily quota usage',
+        responses: { '200': { description: 'Usage by feature' }, '401': { description: 'Authentication required' } },
+      },
+    },
+    '/account/subscription': {
+      get: {
+        summary: 'Authenticated entitlement and append-only subscription history',
+        responses: { '200': { description: 'Subscription state' }, '401': { description: 'Authentication required' } },
+      },
+    },
     '/auth/admin/users': {
       get: {
         summary: 'List users for ADMIN role management',

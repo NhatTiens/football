@@ -1,6 +1,6 @@
-# Football Value AI — Odds + Lineup Analysis + Point-in-time Backtest
+# Football Value AI — PIT research, paper history and commercial account platform
 
-MVP dùng **Next.js + React + Node.js/Express + MySQL/Prisma** để lưu odds, ước lượng xác suất, tính edge/EV và kiểm định recommendation bằng backtest không dùng dữ liệu tương lai.
+Nền tảng dùng **Next.js + React + Node.js/Express + MySQL/Prisma** để lưu snapshot append-only, phân tích xác suất đa thị trường, kiểm định point-in-time và vận hành paper-only. Chatbot chỉ đọc dữ liệu đã đồng bộ; worker sở hữu mọi chu trình thu thập/tính toán.
 
 > Đây là công cụ hỗ trợ nghiên cứu xác suất. Không bảo đảm lợi nhuận, không tự động đặt cược và không thay thế việc đánh giá pháp lý/dữ liệu tại thị trường vận hành.
 
@@ -46,7 +46,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\windows-clean-install.ps1
 
 docker compose up -d mysql
-npm run db:push
+npm run db:deploy
 npm run db:seed
 npm run worker -- generate
 npm run worker -- backtest
@@ -67,7 +67,7 @@ Mở:
 cp .env.example .env
 npm install
 npm run db:generate
-npm run db:push
+npm run db:deploy
 npm run db:seed
 npm run worker -- generate
 npm run worker -- backtest
@@ -126,6 +126,25 @@ ROI = Profit / Total Stake
 
     npm run verify:champion
 
+Kiểm tra đầy đủ gồm test API/Engine/Sync/Web/Worker, MySQL integration trong CI,
+dependency audit, production build và Playwright browser smoke.
+
+## History và chatbot
+
+- `/history` dùng canonical USER view: một fixture/card, một market+line/dòng, 20 fixture/trang.
+- `GET /api/scientific/bets?view=audit` giữ đủ checkpoint đa horizon để nghiên cứu.
+- Representative ưu tiên bản đã settlement, sau đó PAPER_LEDGER, sau đó decision mới nhất.
+- Chatbot không gọi provider, không chạy freshness cycle và không ghi database.
+- Quota được claim nguyên tử trước khi tính câu trả lời; hết quota trả HTTP `429`.
+
+## Mở thanh toán production
+
+Thanh toán mặc định bị khóa. Chỉ đặt
+`REQUIRES_PRODUCTION_PRICE_CONFIRMATION=false` sau khi đã xác nhận giá và cấu
+hình đầy đủ `PRO_PLAN_PRICE_VND`, `PAYMENT_BANK_ID`, `PAYMENT_BANK_BIN`,
+`PAYMENT_ACCOUNT_NO`, `PAYMENT_ACCOUNT_NAME`. Thiếu bất kỳ giá trị nào, API
+plans trả `purchasable=false` và tạo order trả `503`.
+
 Điều kiện đóng băng CURRENT_CHAMPION:
 
 * Secret scan: PASS.
@@ -152,6 +171,6 @@ packages/
 ## Giới hạn
 
 - Demo seed chỉ dùng kiểm thử luồng phần mềm.
-- Poisson baseline chưa dùng xG, lineup, injuries, Elo và tactical matchup.
+- Chất lượng mô hình vẫn phụ thuộc coverage PIT thực tế của từng giải và horizon.
 - API-Football coverage khác nhau theo giải, mùa và gói tài khoản.
 - Trước khi thương mại hóa cần kiểm tra quyền dùng odds, logo, dữ liệu và quy định betting.

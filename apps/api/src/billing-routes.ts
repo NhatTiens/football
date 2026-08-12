@@ -9,6 +9,7 @@ import {
   getAccountPaymentsData,
   getAccountSubscriptionData,
   getBillingPlans,
+  getBillingAvailability,
   paymentInstructions,
   serializePaymentOrder,
 } from './billing.js';
@@ -133,6 +134,15 @@ billingRouter.post(
       return;
     }
 
+    const availability = getBillingAvailability();
+    if (!availability.available) {
+      response.status(503).json({
+        error: 'Billing is not available until production pricing is confirmed.',
+        reason: availability.reason,
+      });
+      return;
+    }
+
     const result = await createPaymentOrderForUser(auth.user.id, parsed.data.planCode);
     const order = serializePaymentOrder(result.order);
 
@@ -159,6 +169,15 @@ billingRouter.get(
 billingRouter.get(
   '/orders/:orderCode',
   asyncRoute(async (request, response) => {
+    const availability = getBillingAvailability();
+    if (!availability.available) {
+      response.status(503).json({
+        error: 'Billing is not available until production pricing is confirmed.',
+        reason: availability.reason,
+      });
+      return;
+    }
+
     const auth = await requireAuth(request, response);
     if (!auth) return;
 

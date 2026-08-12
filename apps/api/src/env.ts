@@ -15,13 +15,17 @@ const schema = z.object({
   AUTH_PRO_CHAT_DAILY_LIMIT: z.coerce.number().int().positive().default(250),
   AUTH_DISABLE_PENDING_LOGIN: z.coerce.boolean().default(true),
   PRO_PLAN_DAYS: z.coerce.number().int().positive().default(30),
-  PRO_PLAN_PRICE_VND: z.coerce.number().int().positive().default(199000),
+  PRO_PLAN_PRICE_VND: z.coerce.number().int().positive().optional(),
   PAYMENT_ORDER_EXPIRE_MINUTES: z.coerce.number().int().positive().default(15),
-  PAYMENT_BANK_ID: z.string().default('970422'),
-  PAYMENT_BANK_BIN: z.string().default('970422'),
-  PAYMENT_ACCOUNT_NO: z.string().default('0923398332'),
-  PAYMENT_ACCOUNT_NAME: z.string().default('BUI NGUYEN NHAT TIEN'),
+  PAYMENT_BANK_ID: z.string().default(''),
+  PAYMENT_BANK_BIN: z.string().default(''),
+  PAYMENT_ACCOUNT_NO: z.string().default(''),
+  PAYMENT_ACCOUNT_NAME: z.string().default(''),
   PAYMENT_QR_TEMPLATE: z.string().default('compact2'),
+  REQUIRES_PRODUCTION_PRICE_CONFIRMATION: z
+    .string()
+    .optional()
+    .transform((value) => value == null || value.trim().toLowerCase() !== 'false'),
   SEPAY_WEBHOOK_API_KEY: z.string().optional(),
   PAYMENT_WEBHOOK_SECRET: z.string().optional(),
   MAIL_SMTP_HOST: z.string().optional(),

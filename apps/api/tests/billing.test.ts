@@ -10,6 +10,7 @@ process.env.PAYMENT_BANK_BIN = '970422';
 process.env.PAYMENT_ACCOUNT_NO = '0923398332';
 process.env.PAYMENT_ACCOUNT_NAME = 'BUI NGUYEN NHAT TIEN';
 process.env.PAYMENT_QR_TEMPLATE = 'compact2';
+process.env.REQUIRES_PRODUCTION_PRICE_CONFIRMATION = 'false';
 
 const billing = await import('../src/billing.ts');
 
@@ -22,6 +23,7 @@ function row(overrides: Record<string, unknown> = {}) {
     amountVnd: 199000,
     status: 'PENDING',
     provider: 'SEPAY',
+    activeKey: '10:PRO:SEPAY',
     transferContent: 'FA260811ABCDEF',
     qrUrl: null,
     expiresAt: new Date('2026-08-11T06:00:00.000Z'),
@@ -108,6 +110,47 @@ describe('BILLING-2 plan and order core', () => {
 
     expect(result).toEqual({ order: existing, reused: true });
     expect(calls).toEqual(['expire', 'find']);
+  });
+
+  it('creates only one active order under concurrent checkout requests', async () => {
+    let active: ReturnType<typeof row> | null = null;
+    let nextId = 1;
+    const db = {
+      authUser: {},
+      subscription: {},
+      paymentOrder: {
+        updateMany: async () => ({ count: 0 }),
+        findFirst: async () => null,
+        findUnique: async ({ where }: any) =>
+          where.activeKey === active?.activeKey ? active : null,
+        create: async ({ data }: any) => {
+          await Promise.resolve();
+          if (active) {
+            throw Object.assign(new Error('duplicate active order'), {
+              code: 'P2002',
+            });
+          }
+          active = row({ id: nextId++, ...data });
+          return active;
+        },
+      },
+    };
+
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        billing.createPaymentOrderForUser(
+          10,
+          'PRO',
+          db as any,
+          new Date('2026-08-11T05:50:00.000Z'),
+        ),
+      ),
+    );
+
+    expect(new Set(results.map((result) => result.order.id))).toEqual(
+      new Set([1]),
+    );
+    expect(results.filter((result) => !result.reused)).toHaveLength(1);
   });
 
   it('rejects unsupported plan codes before DB writes', async () => {

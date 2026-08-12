@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -154,10 +155,13 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
         <article className="checkout-qr-card">
           <span className="pricing-badge">VIETQR</span>
           {payment.qrUrl ? (
-            <img
+            <Image
               src={payment.qrUrl}
               alt={`VietQR cho đơn ${order.orderCode}`}
               className="checkout-qr-image"
+              width={420}
+              height={420}
+              unoptimized
             />
           ) : (
             <div className="checkout-qr-placeholder">QR chưa khả dụng</div>

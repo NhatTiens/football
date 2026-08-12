@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   answerAdvancedPredictionChatFromAnalysis,
   buildPredictionChatCollectionFromAnalysis,
+  predictionChatCapabilities,
 } from '../src/prediction-chatbot-advanced-engine.js';
 
 function fixture(input: {
@@ -113,6 +114,14 @@ const analysis = {
 };
 
 describe('advanced prediction chatbot engine', () => {
+  it('delegates freshness to the worker and remains request read-only', () => {
+    expect(predictionChatCapabilities).toMatchObject({
+      freshnessCycleBeforeAnswer: false,
+      freshnessOwnedByWorker: true,
+      paperOnly: true,
+      realMoneyExecution: false,
+    });
+  });
   it('ranks official BEST BET above paper shadow without relabeling the shadow row', () => {
     const result = buildPredictionChatCollectionFromAnalysis({
       analysis,

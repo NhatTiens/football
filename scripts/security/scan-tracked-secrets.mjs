@@ -7,7 +7,7 @@ const result = spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8
 if (result.status !== 0) process.exit(result.status ?? 1);
 const files = (result.stdout ?? '').split('\0').filter(Boolean);
 const findings = [];
-const placeholder = /(test|example|placeholder|changeme|your[-_]|dummy|sample|redacted)/i;
+const placeholder = /(test|example|placeholder|changeme|your[-_]|dummy|sample|redacted|rotation[_-]?required)/i;
 
 for (const file of files) {
   const normalized = file.replace(/\\/g, '/');

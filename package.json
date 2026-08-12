@@ -14,6 +14,7 @@
     "build": "npm run build -w @football-ai/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:e2e": "playwright test",
     "lint": "npm run lint --workspaces --if-present",
     "db:generate": "node scripts/run-with-env.mjs npx prisma generate --schema packages/database/prisma/schema.prisma",
     "db:push": "node scripts/run-with-env.mjs npx prisma db push --schema packages/database/prisma/schema.prisma",
@@ -33,6 +34,7 @@
     "verify:champion": "npm run security:scan && npm run stage0:audit && npm run typecheck && npm test && npm run lint && npm run build"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "@types/node": "^22.15.30",
     "concurrently": "^9.2.1",
     "prettier": "^3.6.2",

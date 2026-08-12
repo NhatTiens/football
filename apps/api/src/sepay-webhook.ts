@@ -215,7 +215,7 @@ export async function processSepayWebhook(
       if (order.expiresAt.getTime() <= now.getTime()) {
         await tx.paymentOrder.updateMany({
           where: { id: order.id, status: 'PENDING' },
-          data: { status: 'EXPIRED' },
+          data: { status: 'EXPIRED', activeKey: null },
         });
         await recordRejected(tx, event.id, 'EXPIRED', order.id);
         return {
@@ -249,6 +249,7 @@ export async function processSepayWebhook(
         },
         data: {
           status: 'PAID',
+          activeKey: null,
           paidAt: now,
           providerTransactionId: externalId,
         },

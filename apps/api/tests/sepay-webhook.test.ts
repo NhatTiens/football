@@ -6,6 +6,7 @@ process.env.PRO_PLAN_DAYS = '30';
 process.env.PRO_PLAN_PRICE_VND = '199000';
 process.env.PAYMENT_ORDER_EXPIRE_MINUTES = '15';
 process.env.PAYMENT_ACCOUNT_NO = '0923398332';
+process.env.REQUIRES_PRODUCTION_PRICE_CONFIRMATION = 'false';
 process.env.SEPAY_WEBHOOK_API_KEY = 'test-sepay-api-key';
 
 const sepay = await import('../src/sepay-webhook.ts');

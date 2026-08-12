@@ -303,6 +303,7 @@ function selectedCandidateFromPayload(
 async function loadSnapshots(input: {
   hours: number;
   providerFixtureId: number | null;
+  providerFixtureIds?: number[];
   reportAsOf: Date;
   maximumSnapshots?: number;
 }): Promise<CurrentSignalSnapshotRow[]> {
@@ -311,7 +312,11 @@ async function loadSnapshots(input: {
   return (await prisma.scientificCurrentSignalSnapshot.findMany({
     where: {
       createdAt: { gte: since, lte: input.reportAsOf },
-      providerFixtureId: input.providerFixtureId ?? undefined,
+      providerFixtureId:
+        input.providerFixtureId ??
+        (input.providerFixtureIds?.length
+          ? { in: input.providerFixtureIds }
+          : undefined),
     },
     select: {
       id: true,
@@ -326,9 +331,9 @@ async function loadSnapshots(input: {
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take:
-      input.providerFixtureId == null
+      input.providerFixtureId == null && !input.providerFixtureIds?.length
         ? Math.max(1, Math.min(5000, Math.floor(input.maximumSnapshots ?? 5000)))
-        : Math.max(1, Math.min(100, Math.floor(input.maximumSnapshots ?? 100))),
+        : Math.max(1, Math.min(5000, Math.floor(input.maximumSnapshots ?? 5000))),
   })) as CurrentSignalSnapshotRow[];
 }
 
@@ -414,6 +419,7 @@ async function loadDecisionOddsObservedAt(
 export async function buildShadowSettlementRuntimeReport(input: {
   hours: number;
   providerFixtureId: number | null;
+  providerFixtureIds?: number[];
   reportAsOf: Date;
   maximumSnapshots?: number;
 }) {

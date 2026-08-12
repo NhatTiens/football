@@ -97,20 +97,6 @@ function normalizedMarket(value: string | null): string {
     .replaceAll(' ', '_');
 }
 
-function isHiddenWinnerMarket(value: string | null): boolean {
-  const market = normalizedMarket(value);
-
-  return (
-    market === 'MATCH_WINNER' ||
-    market === 'MATCHWINNER' ||
-    market === 'HDA' ||
-    market === '1X2' ||
-    market === 'HDA1X2' ||
-    market === 'MATCH_RESULT' ||
-    market === 'MATCHRESULT'
-  );
-}
-
 function marketLabel(row: BetRow): string {
   const market = normalizedMarket(row.market);
 
@@ -145,105 +131,6 @@ function selectionLabel(row: BetRow): string {
   return row.selection ?? '—';
 }
 
-function dedupeKey(row: BetRow): string {
-  const market = normalizedMarket(row.market);
-  const line = row.lineValue == null ? 'NONE' : row.lineValue.toFixed(2);
-
-  return `${market}|${line}`;
-}
-
-function representativeScore(row: BetRow): [number, number, number] {
-  return [
-    row.settlement ? 1 : 0,
-    row.source === 'PAPER_LEDGER' ? 1 : 0,
-    new Date(row.decisionAsOf).getTime(),
-  ];
-}
-
-function preferRepresentative(current: BetRow, candidate: BetRow): BetRow {
-  const [currentSettled, currentLedger, currentTime] =
-    representativeScore(current);
-  const [candidateSettled, candidateLedger, candidateTime] =
-    representativeScore(candidate);
-
-  if (candidateSettled !== currentSettled) {
-    return candidateSettled > currentSettled ? candidate : current;
-  }
-
-  if (candidateLedger !== currentLedger) {
-    return candidateLedger > currentLedger ? candidate : current;
-  }
-
-  if (candidateTime !== currentTime) {
-    return candidateTime > currentTime ? candidate : current;
-  }
-
-  return current;
-}
-
-function groupHistory(rows: BetRow[]): FixtureHistoryGroup[] {
-  const fixtures = new Map<number, BetRow[]>();
-
-  for (const row of rows) {
-    if (isHiddenWinnerMarket(row.market)) continue;
-
-    const existing = fixtures.get(row.providerFixtureId);
-    if (existing) existing.push(row);
-    else fixtures.set(row.providerFixtureId, [row]);
-  }
-
-  return [...fixtures.entries()]
-    .map(([providerFixtureId, fixtureRows]) => {
-      const representatives = new Map<string, BetRow>();
-
-      for (const row of fixtureRows) {
-        const key = dedupeKey(row);
-        const current = representatives.get(key);
-
-        representatives.set(
-          key,
-          current ? preferRepresentative(current, row) : row,
-        );
-      }
-
-      const rows = [...representatives.values()].sort((left, right) => {
-        const leftMarket = marketLabel(left);
-        const rightMarket = marketLabel(right);
-
-        if (leftMarket !== rightMarket) {
-          return leftMarket.localeCompare(rightMarket, 'vi');
-        }
-
-        return (left.lineValue ?? 0) - (right.lineValue ?? 0);
-      });
-
-      const fallbackIdentity = fixtureRows[0];
-
-      if (!fallbackIdentity) return null;
-
-      const fixtureIdentity =
-        fixtureRows.find((row) => row.homeTeamName && row.awayTeamName) ??
-        fallbackIdentity;
-
-      return {
-        providerFixtureId,
-        homeTeamName: fixtureIdentity.homeTeamName,
-        awayTeamName: fixtureIdentity.awayTeamName,
-        kickoffAt: fixtureIdentity.kickoffAt,
-        rows,
-      };
-    })
-    .filter(
-      (fixture): fixture is NonNullable<typeof fixture> =>
-        fixture !== null && fixture.rows.length > 0,
-    )
-    .sort(
-      (left, right) =>
-        new Date(right.kickoffAt).getTime() -
-        new Date(left.kickoffAt).getTime(),
-    );
-}
-
 function safePage(value: string | undefined): number {
   const parsed = Number(value);
 
@@ -263,23 +150,22 @@ export default async function HistoryPage({
   const betsResponse = await apiFetch<{
     generatedAt: string;
     summary: PaperHistorySummary;
+    fixtures: FixtureHistoryGroup[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      totalFixtures: number;
+      totalPages: number;
+      hasPrevious: boolean;
+      hasNext: boolean;
+    };
     data: BetRow[];
-  }>('/scientific/bets?limit=300');
+  }>(`/scientific/bets?page=${requestedPage}&pageSize=${FIXTURES_PER_PAGE}`);
 
   const paper = betsResponse.summary;
   const reportAsOf = new Date(betsResponse.generatedAt).getTime();
-  const fixtures = groupHistory(betsResponse.data);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(fixtures.length / FIXTURES_PER_PAGE),
-  );
-  const page = Math.min(requestedPage, totalPages);
-  const start = (page - 1) * FIXTURES_PER_PAGE;
-  const visibleFixtures = fixtures.slice(
-    start,
-    start + FIXTURES_PER_PAGE,
-  );
+  const visibleFixtures = betsResponse.fixtures;
+  const { page, totalPages, totalFixtures } = betsResponse.pagination;
 
   return (
     <>
@@ -330,7 +216,7 @@ export default async function HistoryPage({
           <div>
             <span className="science-kicker">THEO TỪNG TRẬN</span>
             <h2>
-              {fixtures.length} trận gần nhất · trang {page}/{totalPages}
+              {totalFixtures} trận · trang {page}/{totalPages}
             </h2>
           </div>
         </div>

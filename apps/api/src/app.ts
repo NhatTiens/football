@@ -41,7 +41,7 @@ import {
 import { authRouter } from './auth-routes.js';
 import { accountBillingRouter, billingRouter } from './billing-routes.js';
 import { resolveAuthContext, roleCanAccessIntent } from './auth.js';
-import { consumeUsage, getFeatureForChatIntent } from './auth-usage.js';
+import { consumeUsage, getFeatureForChatIntent, refundUsage } from './auth-usage.js';
 import { openApiDocument } from './openapi.js'; import { getScientificDashboard } from './scientific-dashboard.js';
 import { scientificRouter } from './scientific-routes.js';
 import { fixtureSummary, recommendationDto } from './serializers.js';
@@ -982,23 +982,41 @@ app.post(
       return;
     }
 
-    const result = await answerAdvancedPredictionChat({
-      message,
-      context: request.body?.context,
-      days: 14,
-      limit: 300,
+    const usageFeature = getFeatureForChatIntent(intent);
+    const usage = await consumeUsage({
+      userId: auth.user.id,
+      plan: auth.user.plan,
+      feature: usageFeature,
     });
+
+    if (!usage.allowed) {
+      response.status(429).json({
+        error: 'Bạn đã dùng hết hạn mức chatbot hôm nay.',
+        quota: usage.usage,
+      });
+      return;
+    }
+
+    let result;
+    try {
+      result = await answerAdvancedPredictionChat({
+        message,
+        context: request.body?.context,
+        days: 14,
+        limit: 300,
+      });
+    } catch (error) {
+      await refundUsage({
+        userId: auth.user.id,
+        feature: usageFeature,
+      });
+      throw error;
+    }
 
     const hiddenRecommendation =
       result?.answer?.recommendation?.marketType != null &&
       isMatchWinnerMarket(result.answer.recommendation.marketType);
     const globallyScopedResult = sanitizeGlobalMarketPayload(result) as typeof result;
-
-    const usage = await consumeUsage({
-      userId: auth.user.id,
-      plan: auth.user.plan,
-      feature: getFeatureForChatIntent(intent),
-    });
 
     response.json({
       ...globallyScopedResult,

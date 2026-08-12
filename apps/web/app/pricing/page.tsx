@@ -161,6 +161,11 @@ export default function PricingPage() {
               ? `${pro.durationDays} ngày cho mỗi lần thanh toán được xác nhận.`
               : 'Gói PRO của Football AI.'}
           </p>
+          {pro && !pro.purchasable ? (
+            <p className="billing-alert billing-alert-error">
+              Thanh toán PRO đang tạm khóa cho đến khi cấu hình production được xác nhận.
+            </p>
+          ) : null}
           <ul>
             <li>Quota PRO cao hơn theo cấu hình máy chủ</li>
             <li>Advanced chat/analysis theo entitlement PRO</li>
@@ -176,7 +181,7 @@ export default function PricingPage() {
             <button
               type="button"
               className="button primary billing-action"
-              disabled={creating || loading || !pro}
+              disabled={creating || loading || !pro?.purchasable}
               onClick={() => void buyPro()}
             >
               {creating

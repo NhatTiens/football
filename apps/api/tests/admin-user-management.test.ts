@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+process.env.NODE_ENV = 'test';
+process.env.ADMIN_API_TOKEN ??= 'test-admin-token';
+
 import {
   deletedManagedEmail,
   isDeletedManagedEmail,

@@ -26,7 +26,6 @@ import {
   type PredictionChatResearchReport,
 } from './prediction-chatbot-research-engine.js';
 import { getPersonalUpcomingAnalysis } from './personal-console-engine.js';
-import { refreshPredictionChatDataIfDue } from './prediction-chatbot-freshness.js';
 
 export const PREDICTION_CHATBOT_ADVANCED_VERSION =
   'v7.0-chatbot.3-8-read-only-research-assistant-v1';
@@ -41,8 +40,8 @@ export const predictionChatCapabilities = {
   paperHistoryAndSettlement: true,
   clvAndReliability: true,
   persistentUserChatHistory: false,
-  freshnessCycleBeforeAnswer: true,
-  freshnessCooldownSeconds: 60,
+  freshnessCycleBeforeAnswer: false,
+  freshnessOwnedByWorker: true,
   generativeExternalLlm: false,
   authenticationRequired: true,
   paidPlansEnabled: false,
@@ -397,14 +396,8 @@ export async function answerAdvancedPredictionChat(input: {
 }): Promise<AdvancedPredictionChatResponse> {
   const now = input.now ?? new Date();
 
-  // CHATBOT_FRESHNESS_BEFORE_ANSWER_V1
-  // This does not run a broad provider refresh. It only collects checkpoints
-  // that are already due under the PIT schedule and then recomputes paper
-  // decisions before reading the current analysis.
-  await refreshPredictionChatDataIfDue(now);
-
   const analysis = await getPersonalUpcomingAnalysis({
-    now: new Date(),
+    now,
     days: input.days ?? 14,
     limit: input.limit ?? 300,
   });
@@ -413,6 +406,6 @@ export async function answerAdvancedPredictionChat(input: {
     message: input.message,
     context: input.context,
     analysis,
-    now: new Date(),
+    now,
   });
 }

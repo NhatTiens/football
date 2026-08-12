@@ -10,6 +10,7 @@ import {
   parseApiFootballLeagueProfile,
   type ShadowSettlementRow,
   getV8MonitoringDashboard,
+  selectCanonicalHistoryRows,
 } from '@football-ai/sync';
 import { replayOuBetHistoryRows } from './ou-history-replay.js';
 
@@ -397,23 +398,84 @@ scientificRouter.get('/fixtures', async (request, response, next) => {
 
 scientificRouter.get('/bets', async (request, response, next) => {
   try {
-    const limit = positiveInteger(request.query.limit, 100, 300);
+    const pageSize = positiveInteger(request.query.pageSize, 20, 20);
+    const requestedPage = positiveInteger(request.query.page, 1, 1_000_000);
+    const view = request.query.view === 'audit' ? 'AUDIT_MULTI_HORIZON' : 'SUMMARY_CANONICAL';
     const reportAsOf = new Date();
+    const reportSince = new Date(reportAsOf.getTime() - 8760 * 3_600_000);
+    const totalRows = await prisma.$queryRaw<Array<{ total: bigint | number }>>`
+      SELECT COUNT(*) AS total
+      FROM (
+        SELECT providerFixtureId
+        FROM ScientificPaperBetDecision
+        WHERE selectedSelection IS NOT NULL
+          AND (
+            UPPER(selectedMarket) LIKE 'TOTAL_GOALS%'
+            OR UPPER(selectedMarket) IN ('BTTS', 'BOTH_TEAMS_TO_SCORE', 'OU', 'OVER_UNDER')
+          )
+        UNION
+        SELECT providerFixtureId
+        FROM ScientificCurrentSignalSnapshot
+        WHERE createdAt BETWEEN ${reportSince} AND ${reportAsOf}
+          AND selectedSelection IS NOT NULL
+          AND (
+            UPPER(selectedMarket) LIKE 'TOTAL_GOALS%'
+            OR UPPER(selectedMarket) IN ('BTTS', 'BOTH_TEAMS_TO_SCORE', 'OU', 'OVER_UNDER')
+          )
+      ) AS history_fixture_count
+    `;
+    const totalFixtures = Number(totalRows[0]?.total ?? 0);
+    const totalPages = Math.max(1, Math.ceil(totalFixtures / pageSize));
+    const page = Math.min(requestedPage, totalPages);
+    const offset = (page - 1) * pageSize;
+    const fixturePage = await prisma.$queryRaw<
+      Array<{ providerFixtureId: number | bigint; latestKickoffAt: Date }>
+    >`
+      SELECT providerFixtureId, MAX(kickoffAt) AS latestKickoffAt
+      FROM (
+        SELECT providerFixtureId, kickoffAt
+        FROM ScientificPaperBetDecision
+        WHERE selectedSelection IS NOT NULL
+          AND (
+            UPPER(selectedMarket) LIKE 'TOTAL_GOALS%'
+            OR UPPER(selectedMarket) IN ('BTTS', 'BOTH_TEAMS_TO_SCORE', 'OU', 'OVER_UNDER')
+          )
+        UNION ALL
+        SELECT providerFixtureId, kickoffAt
+        FROM ScientificCurrentSignalSnapshot
+        WHERE createdAt BETWEEN ${reportSince} AND ${reportAsOf}
+          AND selectedSelection IS NOT NULL
+          AND (
+            UPPER(selectedMarket) LIKE 'TOTAL_GOALS%'
+            OR UPPER(selectedMarket) IN ('BTTS', 'BOTH_TEAMS_TO_SCORE', 'OU', 'OVER_UNDER')
+          )
+      ) AS history_fixture_page
+      GROUP BY providerFixtureId
+      ORDER BY latestKickoffAt DESC, providerFixtureId DESC
+      LIMIT ${pageSize} OFFSET ${offset}
+    `;
+    const pageFixtureIds: number[] = (
+      fixturePage as Array<{
+        providerFixtureId: number | bigint;
+        latestKickoffAt: Date;
+      }>
+    ).map((row) => Number(row.providerFixtureId));
     const [decisions, shadowReport] = await Promise.all([
       prisma.scientificPaperBetDecision.findMany({
+        where: { providerFixtureId: { in: pageFixtureIds } },
         include: {
           settlement: true,
         },
         orderBy: {
           decisionAsOf: 'desc',
         },
-        take: limit,
       }),
       buildShadowSettlementRuntimeReport({
         hours: 8760,
         providerFixtureId: null,
+        providerFixtureIds: pageFixtureIds,
         reportAsOf,
-        maximumSnapshots: Math.min(3000, limit * 10),
+        maximumSnapshots: Math.max(100, pageSize * 100),
       }),
     ]);
     const paperRows = (shadowReport.rows as ShadowSettlementRow[]).filter(
@@ -559,14 +621,45 @@ scientificRouter.get('/bets', async (request, response, next) => {
       [...ledgerRows, ...shadowRows],
       reportAsOf,
     );
-    const data = replayedRows
+    const auditRows = replayedRows
       .sort(
         (left, right) =>
           new Date(right.decisionAsOf).getTime() -
             new Date(left.decisionAsOf).getTime() ||
           right.id.localeCompare(left.id),
-      )
-      .slice(0, limit);
+      );
+    const canonicalRows = selectCanonicalHistoryRows(
+      auditRows.map((row) => ({
+        row,
+        providerFixtureId: row.providerFixtureId,
+        source: row.source,
+        market: row.market,
+        lineValue: row.lineValue,
+        decisionAsOf: row.decisionAsOf,
+        settled: row.settlement != null,
+      })),
+    );
+    const data = view === 'AUDIT_MULTI_HORIZON' ? auditRows : canonicalRows;
+    const grouped = new Map<number, typeof data>();
+    for (const row of data) {
+      const rows = grouped.get(row.providerFixtureId);
+      if (rows) rows.push(row);
+      else grouped.set(row.providerFixtureId, [row]);
+    }
+    const fixtures = pageFixtureIds
+      .map((providerFixtureId) => {
+        const rows = grouped.get(providerFixtureId) ?? [];
+        const identity = rows.find((row) => row.homeTeamName && row.awayTeamName) ?? rows[0];
+        if (!identity || rows.length === 0) return null;
+        return {
+          providerFixtureId,
+          homeTeamName: identity.homeTeamName,
+          awayTeamName: identity.awayTeamName,
+          kickoffAt: identity.kickoffAt,
+          rows,
+        };
+      })
+      .filter((fixture): fixture is NonNullable<typeof fixture> => fixture != null);
     const replayedPaperRows = replayedRows.filter(
       (row) => row.source === 'PAPER_SHADOW',
     );
@@ -597,7 +690,17 @@ scientificRouter.get('/bets', async (request, response, next) => {
     response.json({
       timezone: 'Asia/Ho_Chi_Minh',
       generatedAt: reportAsOf,
+      view,
+      pagination: {
+        page,
+        pageSize,
+        totalFixtures,
+        totalPages,
+        hasPrevious: page > 1,
+        hasNext: page < totalPages,
+      },
       summary: {
+        scope: 'PAGE_FIXTURES',
         paperProposals: replayedPaperRows.length,
         pendingPaperProposals: eligiblePaperRows.filter(
           (row) => row.settlement == null,
@@ -613,6 +716,7 @@ scientificRouter.get('/bets', async (request, response, next) => {
         paperProfitUnits,
         paperRoi: paperStakeUnits > 0 ? paperProfitUnits / paperStakeUnits : null,
       },
+      fixtures,
       data,
     });
   } catch (error) {

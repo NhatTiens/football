@@ -24,6 +24,9 @@ football-v7-*/
 **/.*backup*/
 **/.*broken*/
 package.json.before-*
+*.before-*
+*.bak*
+\{console.error(e)
 *.zip
 .stage0/
 

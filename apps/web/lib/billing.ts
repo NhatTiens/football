@@ -8,6 +8,7 @@ export interface BillingPlan {
   priceVnd: number;
   durationDays: number | null;
   purchasable: boolean;
+  unavailableReason: string | null;
 }
 
 export interface BillingPlansResponse {

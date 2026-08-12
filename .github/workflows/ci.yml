@@ -27,6 +27,8 @@ jobs:
       DATABASE_URL: mysql://football:football_password@127.0.0.1:3306/football_ai
       API_FOOTBALL_KEY: test
       ADMIN_API_TOKEN: test-admin-token
+      REQUIRES_PRODUCTION_PRICE_CONFIRMATION: "true"
+      RUN_DB_INTEGRATION: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,8 +38,12 @@ jobs:
       - run: npm run security:scan
       - run: npm ci
       - run: npm run db:generate
-      - run: npm run db:push
+      - run: npm run db:deploy
       - run: npm run typecheck
       - run: npm test
       - run: npm run lint
       - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: git diff --exit-code
