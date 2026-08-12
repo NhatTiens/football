@@ -132,13 +132,13 @@ const EMPTY_CHAT_CONTEXT: ChatContext = {
 const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
-  text: 'Sign in to ask about a fixture, O/U angle, best bet, paper history, or reliability.',
+  text: 'Đăng nhập để hỏi về trận đấu, BTTS, Over/Under, lịch sử đánh giá hoặc độ tin cậy.',
 };
 
 const QUICK_PROMPTS = [
-  'Danh sach BEST BET toi nay',
+  'Danh sach phan tich noi bat toi nay',
   'Du doan Arsenal vs Chelsea',
-  'Tai sao lai chon keo nay?',
+  'Tai sao lai chon lua chon nay?',
   'Cho xem lich su dung sai va CLV',
   'Do tin cay hien tai the nao?',
 ];
@@ -176,26 +176,26 @@ function selectionLabel(
   if (selection === 'UNDER') return `Under ${lineValue ?? ''}`.trim();
   if (selection === 'YES') return 'Both teams score';
   if (selection === 'NO') return 'No BTTS';
-  return 'No pick';
+  return 'Chưa có lựa chọn';
 }
 
 function recommendationLabel(
   status: NonNullable<ChatResponse['answer']>['recommendation']['status'],
 ): string {
-  if (status === 'BEST_BET') return 'BEST BET';
-  if (status === 'PAPER_SHADOW') return 'PAPER SHADOW';
-  if (status === 'CURRENT_SHADOW') return 'CURRENT SHADOW';
-  if (status === 'DIAGNOSTIC_SHADOW') return 'DIAGNOSTIC SHADOW';
-  return 'NO BET';
+  if (status === 'BEST_BET') return 'ĐẠT TIÊU CHÍ';
+  if (status === 'PAPER_SHADOW') return 'MÔ PHỎNG THEO DÕI';
+  if (status === 'CURRENT_SHADOW') return 'TÍN HIỆU HIỆN TẠI';
+  if (status === 'DIAGNOSTIC_SHADOW') return 'CHẨN ĐOÁN MÔ HÌNH';
+  return 'CHƯA CÓ ĐỀ XUẤT';
 }
 
 function intentLabel(intent: ChatIntent): string {
-  if (intent === 'BEST_BET') return 'Best bet';
+  if (intent === 'BEST_BET') return 'Phân tích ưu tiên';
   if (intent === 'TOTAL_GOALS') return 'Total goals';
   if (intent === 'BTTS') return 'BTTS';
   if (intent === 'EXPLANATION') return 'Deep explanation';
   if (intent === 'DISCOVERY') return 'Fixture discovery';
-  if (intent === 'HISTORY') return 'Paper history';
+  if (intent === 'HISTORY') return 'Lịch sử đánh giá';
   if (intent === 'RELIABILITY') return 'Reliability';
   return 'Prediction';
 }
@@ -283,7 +283,7 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
 
       {response.suggestions.length > 0 ? (
         <div className="prediction-chatbot-suggestions">
-          <span>Quick picks:</span>
+          <span>Gợi ý nhanh:</span>
           {response.suggestions.map((suggestion) => (
             <button
               key={suggestion.providerFixtureId}
@@ -302,7 +302,7 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
       <PredictionChatbotAdvancedPanels response={response} />
 
       <small className="prediction-chatbot-safety">
-        Read-only · PIT-safe · paper-only · no real-money execution
+        Chỉ đọc · PIT-safe · mô phỏng nghiên cứu · không giao dịch tài chính
       </small>
     </div>
   );
@@ -475,7 +475,7 @@ export function PredictionChatbot() {
       {!authLoading && !auth.authenticated ? (
         <div className="prediction-chatbot-auth-banner">
           Sign in to use the chatbot. USER can access basic predictions; ANALYST unlocks deep explanation,
-          paper history, and reliability.
+          lịch sử đánh giá và độ tin cậy.
         </div>
       ) : null}
 

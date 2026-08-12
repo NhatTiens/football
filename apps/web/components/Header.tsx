@@ -59,10 +59,10 @@ const canAccessBacktest = Boolean(
 
         <nav className="navigation pcr-navigation" aria-label="Điều hướng chính">
           <Link href="/">Tổng quan</Link>
-          <Link href="/predictions">Dự đoán & BEST BET</Link>
-          {canAccessBacktest ? <Link href="/backtest">Backtest</Link> : null}
+          <Link href="/predictions">Dự đoán</Link>
+          {canAccessBacktest ? <Link href="/backtest">Đánh giá mô hình</Link> : null}
           <Link href="/matches">Trận đấu</Link>
-          <Link href="/bet-history">Lịch sử</Link>
+          <Link href="/history">Lịch sử</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/account">Account</Link>
           {isAdmin ? <Link href="/admin">Admin</Link> : null}

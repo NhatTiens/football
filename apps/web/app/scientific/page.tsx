@@ -125,7 +125,7 @@ export default async function ScientificPage() {
             giao diện. Toàn bộ giờ hiển thị theo Việt Nam.
           </p>
           <div className="science-actions">
-            <Link className="button primary" href="/bet-history">
+            <Link className="button primary" href="/history">
               Lịch sử bet
             </Link>
             <Link className="button secondary" href="/backtest">

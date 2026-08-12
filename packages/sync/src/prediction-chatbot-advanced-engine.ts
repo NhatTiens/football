@@ -26,6 +26,7 @@ import {
   type PredictionChatResearchReport,
 } from './prediction-chatbot-research-engine.js';
 import { getPersonalUpcomingAnalysis } from './personal-console-engine.js';
+import { refreshPredictionChatDataIfDue } from './prediction-chatbot-freshness.js';
 
 export const PREDICTION_CHATBOT_ADVANCED_VERSION =
   'v7.0-chatbot.3-8-read-only-research-assistant-v1';
@@ -40,6 +41,8 @@ export const predictionChatCapabilities = {
   paperHistoryAndSettlement: true,
   clvAndReliability: true,
   persistentUserChatHistory: false,
+  freshnessCycleBeforeAnswer: true,
+  freshnessCooldownSeconds: 60,
   generativeExternalLlm: false,
   authenticationRequired: true,
   paidPlansEnabled: false,
@@ -213,13 +216,13 @@ function researchFixture(row: AdvancedAnalysisFixtureRow): PredictionChatResearc
 function collectionMessage(collection: PredictionChatCollection): string {
   if (collection.rows.length === 0) {
     return collection.kind === 'BEST_BET'
-      ? 'Hiện chưa có BEST BET hoặc tín hiệu paper/shadow đủ điều kiện trong dữ liệu sắp tới.'
+      ? 'Hiện chưa có phân tích nào đạt tiêu chí hoặc tín hiệu mô phỏng phù hợp trong dữ liệu sắp tới.'
       : 'Hiện chưa có trận sắp tới phù hợp với bộ lọc này trong database.';
   }
   if (collection.kind === 'BEST_BET') {
     return collection.officialBestBets > 0
-      ? `Có ${collection.officialBestBets} BEST BET chính thức trong danh sách. Tất cả vẫn chỉ là paper, không đặt tiền thật.`
-      : `Chưa có BEST BET chính thức. Tôi hiển thị ${collection.paperShadowCandidates} tín hiệu paper/shadow để theo dõi, không đổi chúng thành BEST BET.`;
+      ? `Có ${collection.officialBestBets} phân tích đạt tiêu chí trong danh sách. Tất cả chỉ phục vụ mô phỏng nghiên cứu.`
+      : `Chưa có phân tích nào đạt tiêu chí chính thức. Tôi hiển thị ${collection.paperShadowCandidates} tín hiệu mô phỏng để theo dõi.`;
   }
   return `Tìm thấy ${collection.rows.length} trận sắp tới phù hợp. Xếp hạng ưu tiên tín hiệu đã có trong dữ liệu, không tự tạo xác suất.`;
 }
@@ -361,8 +364,8 @@ export async function answerAdvancedPredictionChatFromAnalysis(input: {
       });
       const message =
         intent === 'HISTORY'
-          ? `Tìm thấy ${research.history.totalRows} bản ghi paper; ${research.history.settledRows} đã settlement và ${research.history.pendingRows} đang chờ.`
-          : `Reliability hiện có ${research.reliability.overall.settled} settlement, ROI ${research.reliability.overall.roi == null ? 'chưa đủ dữ liệu' : `${(research.reliability.overall.roi * 100).toFixed(1)}%`}. Không tự động promotion.`;
+          ? `Tìm thấy ${research.history.totalRows} bản ghi mô phỏng; ${research.history.settledRows} đã đối chiếu kết quả và ${research.history.pendingRows} đang chờ.`
+          : `Độ tin cậy hiện có ${research.reliability.overall.settled} bản ghi đã đối chiếu; hiệu suất ${research.reliability.overall.roi == null ? 'chưa đủ dữ liệu' : `${(research.reliability.overall.roi * 100).toFixed(1)}%`}. Không tự động nâng cấp kết luận.`;
       return withAdvancedFields({
         base: { ...base, status: 'ANSWER', suggestions: [] },
         intent,
@@ -376,7 +379,7 @@ export async function answerAdvancedPredictionChatFromAnalysis(input: {
         intent,
         context,
         message:
-          'Chưa thể đọc báo cáo paper settlement lúc này; chatbot không thay thế bằng số liệu ước đoán.',
+          'Chưa thể đọc báo cáo đánh giá lịch sử lúc này; chatbot không thay thế bằng số liệu ước đoán.',
         researchError: 'RESEARCH_UNAVAILABLE',
       });
     }
@@ -392,15 +395,24 @@ export async function answerAdvancedPredictionChat(input: {
   days?: number;
   limit?: number;
 }): Promise<AdvancedPredictionChatResponse> {
+  const now = input.now ?? new Date();
+
+  // CHATBOT_FRESHNESS_BEFORE_ANSWER_V1
+  // This does not run a broad provider refresh. It only collects checkpoints
+  // that are already due under the PIT schedule and then recomputes paper
+  // decisions before reading the current analysis.
+  await refreshPredictionChatDataIfDue(now);
+
   const analysis = await getPersonalUpcomingAnalysis({
-    now: input.now,
+    now: new Date(),
     days: input.days ?? 14,
     limit: input.limit ?? 300,
   });
+
   return answerAdvancedPredictionChatFromAnalysis({
     message: input.message,
     context: input.context,
     analysis,
-    now: input.now,
+    now: new Date(),
   });
 }

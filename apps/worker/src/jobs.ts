@@ -95,6 +95,7 @@ export type WorkerCommand =
   | 'scientific-best-bet-reliability-report'
   | 'paper-bet-operations-cycle'
   | 'paper-bet-ledger-settle'
+  | 'startup-result-catch-up'
   | 'paper-bet-ledger-coverage'
   | 'v8-paper-runtime-cycle'
   | 'v8-paper-runtime-coverage'
@@ -199,12 +200,57 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
     else if (command === 'api-football-league-profile-discover')
       result = await discoverApiFootballLeagueProfile();
     else if (command === 'api-football-vn-schedule') result = await getApiFootballVietnamSchedule();
-    else if (command === 'paper-bet-operations-cycle') result = await runPaperBetOperationsCycle();
+    else if (command === 'paper-bet-operations-cycle')
+      result = await runPaperBetOperationsCycle();
     else if (command === 'paper-bet-ledger-coverage')
       result = await getScientificPaperBetLedgerCoverage();
-    else if (command === 'paper-bet-ledger-settle') result = await settleOpenScientificPaperBets();
-    else if (command === 'v8-paper-runtime-cycle') result = await runV8PaperRuntimeCycle();
-    else if (command === 'v8-paper-runtime-coverage') result = await getV8PaperRuntimeCoverage();
+    else if (command === 'paper-bet-ledger-settle') {
+      const configuredMinutes = Number(
+        process.env.PAPER_BET_RESULT_MINUTES_AFTER_KICKOFF ?? 100,
+      );
+      const configuredMaximumFetches = Number(
+        process.env.PAPER_BET_RESULT_MAX_FIXTURES_PER_TICK ?? 40,
+      );
+
+      result = await settleOpenScientificPaperBets({
+        minimumMinutesAfterKickoff:
+          Number.isFinite(configuredMinutes) && configuredMinutes > 0
+            ? Math.floor(configuredMinutes)
+            : 100,
+        maximumFixtureFetches:
+          Number.isFinite(configuredMaximumFetches) && configuredMaximumFetches > 0
+            ? Math.floor(configuredMaximumFetches)
+            : 40,
+      });
+    } else if (command === 'startup-result-catch-up') {
+      const configuredMinutes = Number(
+        process.env.PAPER_BET_RESULT_MINUTES_AFTER_KICKOFF ?? 100,
+      );
+      const configuredMaximumFetches = Number(
+        process.env.PAPER_BET_STARTUP_CATCHUP_MAX_FIXTURES ?? 80,
+      );
+
+      const minimumMinutesAfterKickoff =
+        Number.isFinite(configuredMinutes) && configuredMinutes > 0
+          ? Math.floor(configuredMinutes)
+          : 100;
+      const maximumFixtureFetches =
+        Number.isFinite(configuredMaximumFetches) && configuredMaximumFetches > 0
+          ? Math.floor(configuredMaximumFetches)
+          : 80;
+
+      result = {
+        version: 'v7.0-result-startup-catchup-v1',
+        paperHistory: await settleOpenScientificPaperBets({
+          minimumMinutesAfterKickoff,
+          maximumFixtureFetches,
+        }),
+        recommendationHistory: await settleRecommendations(),
+      };
+    } else if (command === 'v8-paper-runtime-cycle')
+      result = await runV8PaperRuntimeCycle();
+    else if (command === 'v8-paper-runtime-coverage')
+      result = await getV8PaperRuntimeCoverage();
     else if (command === 'sync-lineups') result = await syncLineups();
     else if (command === 'sync-lineups-history') {
       result = await syncLineups({ includeHistory: true });

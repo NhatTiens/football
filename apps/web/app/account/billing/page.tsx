@@ -49,7 +49,15 @@ export default function AccountBillingPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) void load();
+    });
+
+    return () => {
+      active = false;
+    };
   }, [load]);
 
   const summary = useMemo(

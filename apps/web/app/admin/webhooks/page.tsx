@@ -46,7 +46,15 @@ export default function AdminWebhooksPage() {
   }, [processingStatus]);
 
   useEffect(() => {
-    void load('');
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) void load('');
+    });
+
+    return () => {
+      active = false;
+    };
   }, [load]);
 
   return (

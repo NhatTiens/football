@@ -30,7 +30,15 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) void load();
+    });
+
+    return () => {
+      active = false;
+    };
   }, [load]);
 
   if (!dashboard && !error) {

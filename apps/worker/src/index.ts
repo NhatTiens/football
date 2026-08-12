@@ -2,6 +2,7 @@ import 'dotenv/config';
 import cron from 'node-cron';
 import { prisma } from '@football-ai/database';
 import { executeJob } from './jobs.js';
+import { runResultStartupCatchUp } from './startup-result-catchup.js';
 
 const repeatedOddsEnabled = (process.env.ODDS_REPEATED_ENABLED ?? 'true').toLowerCase() === 'true';
 const oddsCommand = repeatedOddsEnabled ? 'sync-odds-repeated' : 'sync-odds';
@@ -22,10 +23,10 @@ if (!enabled) {
     ? ([
         [process.env.RECOMMENDATION_CRON ?? '*/15 * * * *', 'generate'],
         [
-          process.env.PAPER_BET_SETTLEMENT_CRON ?? '17,47 * * * *',
+          process.env.PAPER_BET_SETTLEMENT_CRON ?? '*/10 * * * *',
           'paper-bet-ledger-settle',
         ],
-        [process.env.SETTLEMENT_CRON ?? '10 */1 * * *', 'settle'],
+        [process.env.SETTLEMENT_CRON ?? '3,13,23,33,43,53 * * * *', 'settle'],
       ] as const)
     : ([
         [process.env.FIXTURE_SYNC_CRON ?? '0 */6 * * *', 'sync-fixtures'],
@@ -35,10 +36,10 @@ if (!enabled) {
         [process.env.PREDICTION_SYNC_CRON ?? '5 */1 * * *', 'sync-predictions'],
         [process.env.RECOMMENDATION_CRON ?? '*/15 * * * *', 'generate'],
         [
-          process.env.PAPER_BET_SETTLEMENT_CRON ?? '17,47 * * * *',
+          process.env.PAPER_BET_SETTLEMENT_CRON ?? '*/10 * * * *',
           'paper-bet-ledger-settle',
         ],
-        [process.env.SETTLEMENT_CRON ?? '10 */1 * * *', 'settle'],
+        [process.env.SETTLEMENT_CRON ?? '3,13,23,33,43,53 * * * *', 'settle'],
       ] as const);
   const schedules: ReadonlyArray<readonly [string, import('./jobs.js').WorkerCommand]> = [
     ...baseSchedules,
@@ -61,7 +62,17 @@ if (!enabled) {
     console.log(`[worker] scheduled ${command}: ${expression}`);
   }
 
-  setTimeout(() => void executeJob('generate'), 5_000);
+  // RESULT_STARTUP_CATCHUP_V1
+  setTimeout(() => {
+    void runResultStartupCatchUp({
+      maxAttempts: Number(process.env.RESULT_STARTUP_CATCHUP_MAX_ATTEMPTS ?? 12),
+      retryDelayMs: Number(process.env.RESULT_STARTUP_CATCHUP_RETRY_MS ?? 2_000),
+    })
+      .then(() => executeJob('generate'))
+      .catch((error) => {
+        console.error('[worker] startup result catch-up failed', error);
+      });
+  }, Number(process.env.RESULT_STARTUP_CATCHUP_DELAY_MS ?? 1_500));
 }
 
 async function shutdown(signal: string): Promise<void> {

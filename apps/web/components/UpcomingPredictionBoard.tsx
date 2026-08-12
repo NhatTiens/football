@@ -88,9 +88,9 @@ function decisionSelectionName(row: PersonalUpcomingFixtureDto): string {
 }
 
 function stateLabel(state: PersonalFixtureState): string {
-  if (state === 'BEST_BET') return 'BEST BET';
-  if (state === 'NO_BET') return 'NO BET';
-  if (state === 'PREDICTION_ONLY') return 'CHỜ KÈO';
+  if (state === 'BEST_BET') return 'ĐẠT TIÊU CHÍ';
+  if (state === 'NO_BET') return 'CHƯA ĐẠT TIÊU CHÍ';
+  if (state === 'PREDICTION_ONLY') return 'ĐANG PHÂN TÍCH';
   return 'CHỜ DỮ LIỆU';
 }
 
@@ -101,13 +101,13 @@ function probabilityWidth(value: number | null): string {
 
 function marketStatusLabel(status: PersonalMarketPredictionDto['status']): string {
   // R4.10.2.9_UI_EXPLAINABILITY_STATUS_CONSISTENCY
-  if (status === 'BEST_BET') return 'BEST BET';
-  if (status === 'ELIGIBLE_VALUE') return 'CÓ VALUE';
-  if (status === 'EVALUATED_VALUE_AVAILABLE') return 'CÓ VALUE NGHIÊN CỨU';
-  if (status === 'EVALUATED_NO_VALUE') return 'KHÔNG ĐỦ VALUE';
-  if (status === 'ANALYSIS_ONLY') return 'ANALYSIS ONLY';
-  if (status === 'ODDS_AVAILABLE_WAITING_DECISION') return 'ODDS CÓ SẴN · CHỜ MODEL';
-  if (status === 'WAITING_ODDS') return 'CHỜ ODDS';
+  if (status === 'BEST_BET') return 'ĐẠT TIÊU CHÍ';
+  if (status === 'ELIGIBLE_VALUE') return 'ĐẠT NGƯỠNG MÔ HÌNH';
+  if (status === 'EVALUATED_VALUE_AVAILABLE') return 'TÍN HIỆU NGHIÊN CỨU';
+  if (status === 'EVALUATED_NO_VALUE') return 'CHƯA ĐẠT NGƯỠNG';
+  if (status === 'ANALYSIS_ONLY') return 'CHỈ PHÂN TÍCH';
+  if (status === 'ODDS_AVAILABLE_WAITING_DECISION') return 'CÓ DỮ LIỆU THỊ TRƯỜNG · CHỜ MODEL';
+  if (status === 'WAITING_ODDS') return 'CHỜ DỮ LIỆU THỊ TRƯỜNG';
   return 'TRẠNG THÁI KHÁC';
 }
 
@@ -128,7 +128,7 @@ function rejectionReasonList(value: unknown): string[] {
 
 function rejectionReasonLabel(reason: string): string {
   const labels: Record<string, string> = {
-    CURRENT_ODDS_BELOW_MINIMUM: 'Odds thấp hơn ngưỡng tối thiểu.',
+    CURRENT_ODDS_BELOW_MINIMUM: 'Tỷ lệ thị trường thấp hơn ngưỡng tối thiểu.',
     CURRENT_RAW_EDGE_BELOW_MINIMUM: 'Raw edge chưa đạt ngưỡng tối thiểu.',
     CURRENT_RAW_EV_BELOW_MINIMUM: 'Raw EV chưa đạt ngưỡng tối thiểu.',
     CURRENT_CONSERVATIVE_EDGE_BELOW_MINIMUM:
@@ -140,11 +140,11 @@ function rejectionReasonLabel(reason: string): string {
     CURRENT_MODEL_HISTORY_INSUFFICIENT: 'Lịch sử model chưa đủ mẫu để chứng minh độ tin cậy.',
     CURRENT_RELIABILITY_NOT_PROVEN: 'Reliability của market/horizon chưa được chứng minh.',
     CURRENT_LIMITED_CONFIDENCE_LONGSHOT_BLOCKED:
-      'Longshot Guard chặn cửa odds cao khi confidence còn thấp.',
+      'Longshot Guard chặn cửa dữ liệu thị trường cao khi confidence còn thấp.',
     CURRENT_LOW_CONFIDENCE_DIAGNOSTIC_ONLY: 'Candidate chỉ thuộc tầng chẩn đoán độ tin cậy thấp.',
-    CURRENT_BOOKMAKER_AGREEMENT_BELOW_MINIMUM: 'Mức đồng thuận giữa các nhà cái chưa đạt ngưỡng.',
+    CURRENT_BOOKMAKER_AGREEMENT_BELOW_MINIMUM: 'Mức đồng thuận giữa các nguồn thị trường chưa đạt ngưỡng.',
     CURRENT_HIGH_QUOTE_OUTLIER_BLOCKED: 'Quote cao bất thường so với consensus bị chặn.',
-    CURRENT_QUOTE_OUTLIER_BLOCKED: 'Odds bị xác định là outlier so với thị trường.',
+    CURRENT_QUOTE_OUTLIER_BLOCKED: 'Tỷ lệ thị trường bị xác định là outlier so với thị trường.',
   };
   return labels[reason] ?? reason.toLowerCase().replaceAll('_', ' ');
 }
@@ -157,12 +157,12 @@ function selectionAuditSummary(selection: PersonalMarketSelectionDto): string {
     if (selection.signalTier === 'LOW_CONFIDENCE_DIAGNOSTIC') {
       return `Research only · ${confidence} · history ${history}`;
     }
-    return `Đã đánh giá · không đủ value · ${confidence}`;
+    return `Đã đánh giá · chưa đạt ngưỡng mô hình · ${confidence}`;
   }
   if (selection.oddsSource === 'LATEST_SNAPSHOT') {
     return selection.oddsPitUsable
-      ? 'Odds DB · PIT usable · chờ model hiện tại'
-      : 'Odds DB · chưa PIT-usable';
+      ? 'Dữ liệu thị trường · PIT usable · chờ model hiện tại'
+      : 'Dữ liệu thị trường · chưa PIT-usable';
   }
   return selection.eligible
     ? 'Scientific candidate · Eligible'
@@ -320,7 +320,7 @@ function currentRecommendationStatusLabel(
   }
 
   if (status === 'NO_FRESH_PIT_ODDS') {
-    return 'Chờ odds PIT mới';
+    return 'Chờ dữ liệu PIT mới';
   }
 
   if (status === 'NO_PROVIDER_FIXTURE_SNAPSHOT') {
@@ -336,7 +336,7 @@ function currentRecommendationStatusLabel(
   }
 
   if (status === 'NO_VALUE_SIGNAL') {
-    return 'Đã tính, không đủ value';
+    return 'Đã tính, chưa đạt ngưỡng mô hình';
   }
 
   if (status === 'UNMAPPED_FIXTURE') {
@@ -354,12 +354,12 @@ function currentRecommendationStatusDescription(row: PersonalUpcomingFixtureDto)
   const status = row.currentRecommendationStatus;
 
   if (status === 'NO_FRESH_PIT_ODDS') {
-    return 'Không có phiên bản odds PIT đủ mới hoặc vừa được API tái xác nhận.';
+    return 'Không có phiên bản dữ liệu PIT đủ mới hoặc vừa được API tái xác nhận.';
   }
 
   if (status === 'NO_PROVIDER_FIXTURE_SNAPSHOT') {
     return row.currentRecommendationError === 'NO_PROVIDER_FIXTURE_SNAPSHOT_AT_CURRENT_AS_OF'
-      ? 'Fixture local chưa có snapshot metadata tương ứng từ provider tại thời điểm phân tích. Hệ thống không tạo odds hoặc mapping giả.'
+      ? 'Fixture local chưa có snapshot metadata tương ứng từ provider tại thời điểm phân tích. Hệ thống không tạo dữ liệu thị trường hoặc mapping giả.'
       : 'Thiếu snapshot fixture provider hợp lệ tại thời điểm phân tích.';
   }
 
@@ -375,11 +375,11 @@ function currentRecommendationStatusDescription(row: PersonalUpcomingFixtureDto)
   }
 
   if (status === 'NO_COMPLETE_MARKET') {
-    return 'Odds đang có nhưng chưa đủ các cửa đồng bộ để tính xác suất thị trường no-vig.';
+    return 'Dữ liệu thị trường đang có nhưng chưa đủ các cửa đồng bộ để tính xác suất thị trường no-vig.';
   }
 
   if (status === 'NO_VALUE_SIGNAL') {
-    return 'Model đã chạy; không candidate nào vượt đồng thời conservative edge, conservative EV, độ tin cậy, longshot guard và kiểm tra đồng thuận bookmaker.';
+    return 'Model đã chạy; không candidate nào vượt đồng thời conservative edge, conservative EV, độ tin cậy, longshot guard và kiểm tra đồng thuận nguồn dữ liệu.';
   }
 
   if (status === 'UNMAPPED_FIXTURE') {
@@ -554,7 +554,7 @@ export function UpcomingPredictionBoard({
     }
 
     const confirmed = window.confirm(
-      'Hệ thống sẽ hỏi API-Football mùa đang hoạt động, chỉ lấy các trận từ hôm nay trở đi, sau đó chạy prediction/odds/BEST BET. Tiếp tục?',
+      'Hệ thống sẽ hỏi API-Football mùa đang hoạt động, chỉ lấy các trận từ hôm nay trở đi, sau đó chạy phân tích mô hình. Tiếp tục?',
     );
     if (!confirmed) return;
 
@@ -583,7 +583,7 @@ export function UpcomingPredictionBoard({
       setData(payload.analysis);
       setLastDiscovery(payload.discovery);
       setMessage(
-        `Đã đồng bộ ${payload.discovery.competitions.length} giải/mùa hiện tại · ${payload.analysis.counts.fixtures} trận sắp tới · ${payload.analysis.counts.bestBets} BEST BET.`,
+        `Đã đồng bộ ${payload.discovery.competitions.length} giải/mùa hiện tại · ${payload.analysis.counts.fixtures} trận sắp tới · ${payload.analysis.counts.bestBets} đề xuất đạt tiêu chí.`,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Đồng bộ thất bại.');
@@ -686,19 +686,19 @@ export function UpcomingPredictionBoard({
           <small>{data.window.days} ngày</small>
         </div>
         <div>
-          <span>Có odds DB</span>
+          <span>Có dữ liệu thị trường</span>
           <strong>{data.counts.fixturesWithOdds ?? 0}</strong>
-          <small>{data.counts.fixturesWithPitUsableOdds ?? 0} fixture có PIT-usable odds</small>
+          <small>{data.counts.fixturesWithPitUsableOdds ?? 0} fixture có dữ liệu PIT hợp lệ</small>
         </div>
         <div className="highlight">
-          <span>BEST BET</span>
+          <span>Đạt tiêu chí</span>
           <strong>{data.counts.bestBets}</strong>
           <small>scientific policy</small>
         </div>
         <div>
-          <span>NO BET</span>
+          <span>Chưa đạt tiêu chí</span>
           <strong>{data.counts.noBets}</strong>
-          <small>không đủ value</small>
+          <small>chưa đạt ngưỡng mô hình</small>
         </div>
         <div>
           <span>Đang chờ</span>
@@ -712,9 +712,9 @@ export function UpcomingPredictionBoard({
           <small>scientific now · chưa chốt</small>
         </div>
         <div className="paper-signal-kpi">
-          <span>PAPER BET PROPOSAL</span>
+          <span>BẢN GHI MÔ PHỎNG</span>
           <strong>{data.counts.paperRecommendations}</strong>
-          <small>bounded probability | flat 1u | paper only</small>
+          <small>xác suất điều chỉnh · chuẩn 1 đơn vị · mô phỏng nghiên cứu</small>
         </div>
       </section>
 
@@ -766,7 +766,7 @@ export function UpcomingPredictionBoard({
           </div>
 
           <div className="status-odds">
-            <span>Chờ odds mới</span>
+            <span>Chờ dữ liệu thị trường mới</span>
             <strong>{data.currentRecommendationStatusCounts.NO_FRESH_PIT_ODDS}</strong>
             <small>PIT / re-observation</small>
           </div>
@@ -842,9 +842,9 @@ export function UpcomingPredictionBoard({
               }
             >
               <option value="ALL">Tất cả</option>
-              <option value="BEST_BET">BEST BET</option>
-              <option value="NO_BET">NO BET</option>
-              <option value="PREDICTION_ONLY">Có prediction, chờ odds</option>
+              <option value="BEST_BET">Đạt tiêu chí</option>
+              <option value="NO_BET">Chưa đạt tiêu chí</option>
+              <option value="PREDICTION_ONLY">Có dự đoán, chờ dữ liệu thị trường</option>
               <option value="WAITING_DATA">Chờ dữ liệu</option>
             </select>
           </label>
@@ -886,55 +886,7 @@ export function UpcomingPredictionBoard({
         </div>
       </section>
 
-      <section className="pcr-best-zone">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">SCIENTIFIC VALUE</span>
-            <h2>BEST BET của các trận sắp tới</h2>
-          </div>
-          <small>{data.topBestBets.length} lựa chọn</small>
-        </div>
-
-        {data.topBestBets.length === 0 ? (
-          <div className="pcr-empty">
-            Chưa có BEST BET ở horizon hiện tại. Prediction vẫn được hiển thị bên dưới; hệ thống
-            không ép tạo kèo khi odds/value chưa đạt.
-          </div>
-        ) : (
-          <div className="pcr-best-grid">
-            {data.topBestBets.map((row, index) => (
-              <article className="pcr-best-card" key={row.fixture.id}>
-                <div className="pcr-best-top">
-                  <span>#{index + 1}</span>
-                  <small>
-                    {row.fixture.league.name} · {row.fixture.league.season}
-                  </small>
-                </div>
-                <h3>
-                  {row.fixture.homeTeam.name} <span>vs</span> {row.fixture.awayTeam.name}
-                </h3>
-                <small>{localTime(row.fixture.kickoffAt)}</small>
-                <div className="pcr-best-pick">{decisionSelectionName(row)}</div>
-                <div className="pcr-value-grid">
-                  <div>
-                    <span>Odds</span>
-                    <b>{decimal(row.decision?.decimalOdds)}</b>
-                  </div>
-                  <div>
-                    <span>Edge</span>
-                    <b>{pct(row.decision?.edge)}</b>
-                  </div>
-                  <div>
-                    <span>EV</span>
-                    <b>{pct(row.decision?.expectedValue)}</b>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
+      {/* NEUTRAL_PREDICTION_LANGUAGE_V1: dedicated BEST_BET presentation removed. */}
       <section className="pcr-match-list">
         <div className="section-heading">
           <div>
@@ -1093,8 +1045,8 @@ export function UpcomingPredictionBoard({
                     </div>
                     <em>
                       {row.marketMovement.movementAvailable
-                        ? `${row.marketMovement.matchedBookmakerCount} nhà cái matched`
-                        : `${row.marketMovement.bookmakerCount} nhà cái`}
+                        ? `${row.marketMovement.matchedBookmakerCount} nguồn thị trường matched`
+                        : `${row.marketMovement.bookmakerCount} nguồn thị trường`}
                     </em>
                   </div>
 
@@ -1154,8 +1106,8 @@ export function UpcomingPredictionBoard({
                     </>
                   ) : (
                     <div className="pcr-movement-empty">
-                      Chưa đủ ít nhất 3 nhà cái 1X2 hoàn chỉnh để tạo movement consensus đáng tin
-                      cậy. Early Odds vẫn tiếp tục thu theo cadence 3 giờ.
+                      Chưa đủ ít nhất 3 nguồn thị trường 1X2 hoàn chỉnh để tạo movement consensus đáng tin
+                      cậy. Early Tỷ lệ thị trường vẫn tiếp tục thu theo cadence 3 giờ.
                     </div>
                   )}
                 </section>
@@ -1193,7 +1145,7 @@ export function UpcomingPredictionBoard({
 
                         {market.status === 'WAITING_ODDS' ? (
                           <small>
-                            Chưa có odds snapshot trong 6 giờ gần nhất. Xem checkpoint bên dưới.
+                            Chưa có snapshot thị trường trong 6 giờ gần nhất. Xem checkpoint bên dưới.
                           </small>
                         ) : (
                           <>
@@ -1211,7 +1163,7 @@ export function UpcomingPredictionBoard({
                                 >
                                   <span>{marketSelectionLabel(row, market, selection)}</span>
                                   <b className="pcr-odds-primary">
-                                    Odds {decimal(selection.decimalOdds)}
+                                    Tỷ lệ thị trường {decimal(selection.decimalOdds)}
                                   </b>
                                   <div className="pcr-selection-metrics">
                                     <span>
@@ -1296,8 +1248,8 @@ export function UpcomingPredictionBoard({
                                   <span>MULTI-MARKET MOVEMENT</span>
                                   <em>
                                     {marketMovement.movementAvailable
-                                      ? `${marketMovement.matchedBookmakerCount} nhà cái matched`
-                                      : `${marketMovement.bookmakerCount} nhà cái current`}
+                                      ? `${marketMovement.matchedBookmakerCount} nguồn thị trường matched`
+                                      : `${marketMovement.bookmakerCount} nguồn thị trường current`}
                                   </em>
                                 </div>
 
@@ -1365,7 +1317,7 @@ export function UpcomingPredictionBoard({
                                   </>
                                 ) : (
                                   <div className="pcr-two-way-movement-wait">
-                                    Chưa đủ market 2 cửa hoàn chỉnh từ ít nhất 3 nhà cái.
+                                    Chưa đủ market 2 cửa hoàn chỉnh từ ít nhất 3 nguồn thị trường.
                                   </div>
                                 )}
                               </div>
@@ -1387,7 +1339,7 @@ export function UpcomingPredictionBoard({
 
               <div className="pcr-odds-diagnostics">
                 <span>
-                  Odds DB: <b>{row.oddsDiagnostics.snapshotRows}</b> rows · PIT{' '}
+                  Dữ liệu thị trường: <b>{row.oddsDiagnostics.snapshotRows}</b> rows · PIT{' '}
                   <b>{row.oddsDiagnostics.pitUsableRows}</b> · markets{' '}
                   <b>{row.oddsDiagnostics.marketsWithOdds}</b>
                 </span>
@@ -1449,8 +1401,8 @@ export function UpcomingPredictionBoard({
                 >
                   <span className="eyebrow">
                     {row.paperShadowRecommendation.selected.paperTrackEligible
-                      ? 'PAPER BET PROPOSAL | FLAT 1U | NOT BEST BET'
-                      : 'PAPER DIAGNOSTIC | NOT A BET PROPOSAL'}
+                      ? 'ĐỀ XUẤT MÔ PHỎNG | CHUẨN 1 ĐƠN VỊ'
+                      : 'CHẨN ĐOÁN MÔ PHỎNG'}
                   </span>
                   <b>
                     {paperShadowSelectionLabel(row)}
@@ -1474,7 +1426,7 @@ export function UpcomingPredictionBoard({
                     {pct(row.paperShadowRecommendation.selected.hierarchicalExpectedValue)}
                   </small>
                   <small>
-                    Bounded paper probability{' '}
+                    Xác suất mô phỏng điều chỉnh{' '}
                     {pct(row.paperShadowRecommendation.selected.boundedAdjustedProbability)}
                     {' | '}adjustment{' '}
                     {pct(row.paperShadowRecommendation.selected.boundedProbabilityAdjustment)}
@@ -1484,13 +1436,13 @@ export function UpcomingPredictionBoard({
                   <small>
                     Model {row.paperShadowRecommendation.selected.modelSource ?? 'UNKNOWN'}
                     {' · '}history {row.paperShadowRecommendation.selected.modelHistorySampleSize}
-                    {' · '}paper flat stake{' '}
+                    {' · '}trọng số mô phỏng{' '}
                     {row.paperShadowRecommendation.selected.hypotheticalFlatStakeUnits}u{' · '}real
                     stake 0u
                   </small>
                   {row.paperShadowRecommendation.selected.ouOppositeLineStrategy ? (
                     <small>
-                      O/U paper rule: model{' '}
+                      Quy tắc mô phỏng O/U: model{' '}
                       {
                         row.paperShadowRecommendation.selected.ouOppositeLineStrategy
                           .predictionSelection
@@ -1504,7 +1456,7 @@ export function UpcomingPredictionBoard({
                         row.paperShadowRecommendation.selected.ouOppositeLineStrategy
                           .predictionProbability,
                       )}
-                      {') -> paper '}
+                      {') → mô phỏng '}
                       {
                         row.paperShadowRecommendation.selected.ouOppositeLineStrategy
                           .recommendedSelection
@@ -1551,12 +1503,12 @@ export function UpcomingPredictionBoard({
                   </small>
                   {row.currentRecommendation.ouOppositeLineStrategy ? (
                     <small>
-                      O/U paper rule: model{' '}
+                      Quy tắc mô phỏng O/U: model{' '}
                       {row.currentRecommendation.ouOppositeLineStrategy.predictionSelection}{' '}
                       {row.currentRecommendation.ouOppositeLineStrategy.predictionLineValue}
                       {' ('}
                       {pct(row.currentRecommendation.ouOppositeLineStrategy.predictionProbability)}
-                      {') -> paper '}
+                      {') → mô phỏng '}
                       {row.currentRecommendation.ouOppositeLineStrategy.recommendedSelection}{' '}
                       {row.currentRecommendation.ouOppositeLineStrategy.recommendedLineValue}
                       {' | '}
@@ -1583,7 +1535,7 @@ export function UpcomingPredictionBoard({
                   <small>
                     T-
                     {row.currentRecommendation.horizonMinutes} · Risk-adjusted research signal ·
-                    chưa phải BEST BET chính thức
+                    chưa phải đề xuất chính thức
                   </small>
 
                   <small>
@@ -1602,12 +1554,12 @@ export function UpcomingPredictionBoard({
                   {row.currentRecommendation.modelSource === 'SCIENTIFIC_BASELINE_FALLBACK' ? (
                     <small>
                       Fallback reason: {row.currentRecommendation.modelFallbackReason}
-                      {' · research signal only · không được promote thành BEST BET'}
+                      {' · research signal only · không được nâng thành đề xuất chính thức'}
                     </small>
                   ) : null}
 
                   <small>
-                    Odds evidence:{' '}
+                    Tỷ lệ thị trường evidence:{' '}
                     {row.currentRecommendation.oddsFreshnessBasis === 'REOBSERVED_AT'
                       ? 'API vừa tái xác nhận phiên bản giá'
                       : 'source update còn mới'}
@@ -1635,7 +1587,7 @@ export function UpcomingPredictionBoard({
                 </span>
                 {row.nextCheckpoint ? (
                   <span>
-                    Mốc odds kế: <b>{row.nextCheckpoint.horizonLabel}</b> ·{' '}
+                    Mốc dữ liệu thị trường kế: <b>{row.nextCheckpoint.horizonLabel}</b> ·{' '}
                     {localTime(row.nextCheckpoint.dueAt)}
                   </span>
                 ) : null}
@@ -1675,9 +1627,9 @@ export function UpcomingPredictionBoard({
       </section>
 
       <div className="pcr-safety-note">
-        Early Odds 1–14 ngày dùng để lưu opening/current · HDA, BTTS và O/U đều có market movement
-        khi đủ snapshot · không tự tạo BEST BET · Scientific HDA và API-Football được tách riêng ·
-        HDA/BTTS/Over-Under chỉ thành BEST BET khi scientific/reliability gate cho phép · không
+        Early Tỷ lệ thị trường 1–14 ngày dùng để lưu opening/current · HDA, BTTS và O/U đều có market movement
+        khi đủ snapshot · không tự tạo đề xuất · Scientific HDA và API-Football được tách riêng ·
+        HDA/BTTS/Over-Under chỉ thành đề xuất khi scientific/reliability gate cho phép · không
         auto-bet · không real-money.
       </div>
     </div>

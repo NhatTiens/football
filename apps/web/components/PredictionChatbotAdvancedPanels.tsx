@@ -153,7 +153,7 @@ function CollectionPanel({
     <section className="prediction-chatbot-panel">
       <h4>Danh sách ưu tiên</h4>
       <p>
-        BEST BET chính thức: <b>{collection.officialBestBets}</b> · Paper/shadow:{' '}
+        Phân tích đạt tiêu chí: <b>{collection.officialBestBets}</b> · Mô phỏng/theo dõi:{' '}
         <b>{collection.paperShadowCandidates}</b>
       </p>
       <div className="prediction-chatbot-collection">
@@ -170,7 +170,7 @@ function CollectionPanel({
             <div>
               <b>{row.recommendation.status.replaceAll('_', ' ')}</b>
               <small>
-                {row.recommendation.selection ?? 'NO BET'}
+                {row.recommendation.selection ?? 'CHƯA CÓ ĐỀ XUẤT'}
                 {row.recommendation.lineValue == null ? '' : ` ${row.recommendation.lineValue}`}
                 {row.recommendation.decimalOdds == null
                   ? ''
@@ -267,7 +267,7 @@ function ReliabilityPanel({
   const reliability = data.reliability.overall;
   return (
     <section className="prediction-chatbot-panel">
-      <h4>Reliability paper</h4>
+      <h4>Độ tin cậy mô phỏng</h4>
       <div className="prediction-chatbot-evidence-grid">
         <span>
           Settled <b>{reliability.settled}</b>
@@ -282,10 +282,10 @@ function ReliabilityPanel({
           Hit rate <b>{pct(reliability.hitRate)}</b>
         </span>
         <span>
-          ROI <b>{pct(reliability.roi)}</b>
+          Hiệu suất <b>{pct(reliability.roi)}</b>
         </span>
         <span>
-          P/L units <b>{signed(reliability.profitUnits)}</b>
+          Điểm hiệu suất <b>{signed(reliability.profitUnits)}</b>
         </span>
         <span>
           CLV trung bình <b>{pct(reliability.averageClv)}</b>
@@ -310,7 +310,7 @@ function HistoryPanel({ data }: { data: NonNullable<PredictionChatbotAdvancedDat
   if (data.history.rows.length === 0) return null;
   return (
     <section className="prediction-chatbot-panel">
-      <h4>Lịch sử dự đoán paper</h4>
+      <h4>Lịch sử đánh giá mô phỏng</h4>
       <div className="prediction-chatbot-history">
         {data.history.rows.map((row) => (
           <article key={row.id}>
@@ -325,10 +325,10 @@ function HistoryPanel({ data }: { data: NonNullable<PredictionChatbotAdvancedDat
             <div>
               <b className={`result-${row.result.toLowerCase()}`}>{row.result}</b>
               <small>
-                {row.selection ?? 'NO BET'}
+                {row.selection ?? 'CHƯA CÓ LỰA CHỌN'}
                 {row.lineValue == null ? '' : ` ${row.lineValue}`}
                 {row.decimalOdds == null ? '' : ` @ ${row.decimalOdds.toFixed(2)}`}
-                {' · '}P/L {signed(row.profitUnits)} · CLV {pct(row.clv)}
+                {' · '}Điểm hiệu suất {signed(row.profitUnits)} · CLV {pct(row.clv)}
               </small>
             </div>
           </article>

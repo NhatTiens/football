@@ -38,7 +38,7 @@ function marketDisplayName(code: string): string {
 
 function EquityChart({ points }: { points: BacktestDetailDto['equityCurve'] }) {
   if (points.length < 2) {
-    return <div className="pcr-empty">Chưa đủ bet để vẽ equity curve.</div>;
+    return <div className="pcr-empty">Chưa đủ bản ghi để vẽ đường hiệu suất.</div>;
   }
 
   const width = 900;
@@ -127,7 +127,7 @@ export function PersonalBacktestDashboard({
 
   async function loadDetail(id: number): Promise<BacktestDetailDto> {
     const response = await fetch(`${apiUrl}/backtests/${id}`, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`Không tải được backtest #${id}.`);
+    if (!response.ok) throw new Error(`Không tải được lần đánh giá #${id}.`);
     return (await response.json()) as BacktestDetailDto;
   }
 
@@ -149,7 +149,7 @@ export function PersonalBacktestDashboard({
     setMessage(
       selectedLeagueIds.length > 0
         ? `Đang chạy ${selectedLeagueIds.length} giải riêng biệt…`
-        : 'Đang chạy backtest gộp tất cả giải trong DB…',
+        : 'Đang chạy đánh giá mô hình gộp tất cả giải trong DB…',
     );
 
     try {
@@ -193,10 +193,10 @@ export function PersonalBacktestDashboard({
       });
 
       setMessage(
-        `Hoàn thành ${details.length} run. Backtest cá nhân không dùng ADMIN_API_TOKEN.`,
+        `Hoàn thành ${details.length} run. Đánh giá mô hình cá nhân không dùng ADMIN_API_TOKEN.`,
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Backtest thất bại.');
+      setMessage(error instanceof Error ? error.message : 'Đánh giá mô hình thất bại.');
     } finally {
       setLoading(false);
     }
@@ -206,10 +206,10 @@ export function PersonalBacktestDashboard({
     <div className="pcr-backtest-page">
       <section className="pcr-hero compact">
         <div>
-          <span className="eyebrow">POINT-IN-TIME BACKTEST LAB</span>
-          <h1>Backtest nhiều giải, không cần admin token</h1>
+          <span className="eyebrow">POINT-IN-TIME MODEL EVALUATION</span>
+          <h1>Đánh giá mô hình nhiều giải</h1>
           <p>
-            Chọn tối đa 16 giải. Hệ thống tạo một BacktestRun riêng cho từng giải để bạn so sánh
+            Chọn tối đa 16 giải. Hệ thống tạo một lần đánh giá riêng cho từng giải để bạn so sánh
             ROI, hit rate, drawdown và Brier rõ ràng.
           </p>
         </div>
@@ -409,10 +409,10 @@ export function PersonalBacktestDashboard({
                   <thead>
                     <tr>
                       <th>Giải</th>
-                      <th>Bets</th>
+                      <th>Bản ghi</th>
                       <th>Hit rate</th>
-                      <th>Profit</th>
-                      <th>ROI</th>
+                      <th>Điểm</th>
+                      <th>Hiệu suất</th>
                       <th>Drawdown</th>
                       <th>Brier</th>
                     </tr>
@@ -438,7 +438,7 @@ export function PersonalBacktestDashboard({
           ) : null}
 
           {!detail ? (
-            <div className="pcr-empty">Chưa có kết quả backtest.</div>
+            <div className="pcr-empty">Chưa có kết quả đánh giá mô hình.</div>
           ) : (
             <>
               <section className="pcr-result-head">
@@ -453,9 +453,9 @@ export function PersonalBacktestDashboard({
               </section>
 
               <section className="pcr-result-kpis">
-                <div><span>Bets</span><strong>{detail.totalBets}</strong><small>{detail.eligibleFixtures}/{detail.totalFixtures} fixture</small></div>
+                <div><span>Bản ghi</span><strong>{detail.totalBets}</strong><small>{detail.eligibleFixtures}/{detail.totalFixtures} fixture</small></div>
                 <div><span>Hit rate</span><strong>{percent(detail.hitRate)}</strong><small>{detail.wins}W · {detail.losses}L</small></div>
-                <div><span>Profit</span><strong className={detail.profitUnits >= 0 ? 'positive' : 'negative'}>{signed(detail.profitUnits)}u</strong><small>ROI {percent(detail.roi)}</small></div>
+                <div><span>Điểm</span><strong className={detail.profitUnits >= 0 ? 'positive' : 'negative'}>{signed(detail.profitUnits)}u</strong><small>ROI {percent(detail.roi)}</small></div>
                 <div><span>Max DD</span><strong>{(detail.maximumDrawdown ?? 0).toFixed(2)}u</strong><small>Avg odds {(detail.averageOdds ?? 0).toFixed(2)}</small></div>
                 <div><span>Brier</span><strong>{detail.brierScore?.toFixed(3) ?? '—'}</strong><small>lower is better</small></div>
               </section>
@@ -464,7 +464,7 @@ export function PersonalBacktestDashboard({
                 <div className="section-heading">
                   <div>
                     <span className="eyebrow">EQUITY CURVE</span>
-                    <h2>Lợi nhuận theo thứ tự bet</h2>
+                    <h2>Hiệu suất theo thứ tự bản ghi</h2>
                   </div>
                   <strong className={detail.profitUnits >= 0 ? 'positive' : 'negative'}>
                     {signed(detail.profitUnits)}u
@@ -485,11 +485,11 @@ export function PersonalBacktestDashboard({
                     <thead>
                       <tr>
                         <th>Market</th>
-                        <th>Bets</th>
+                        <th>Bản ghi</th>
                         <th>W-L-P</th>
                         <th>Hit rate</th>
-                        <th>Profit</th>
-                        <th>ROI</th>
+                        <th>Điểm</th>
+                        <th>Hiệu suất</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -513,8 +513,8 @@ export function PersonalBacktestDashboard({
               <section className="pcr-panel">
                 <div className="section-heading">
                   <div>
-                    <span className="eyebrow">BET LOG</span>
-                    <h2>Chi tiết từng bet</h2>
+                    <span className="eyebrow">EVALUATION LOG</span>
+                    <h2>Chi tiết từng bản ghi</h2>
                   </div>
                   <select
                     value={marketFilter}
@@ -534,12 +534,12 @@ export function PersonalBacktestDashboard({
                     <thead>
                       <tr>
                         <th>Trận</th>
-                        <th>Pick</th>
-                        <th>Odds</th>
+                        <th>Lựa chọn</th>
+                        <th>Tỷ lệ thị trường</th>
                         <th>Model / Market</th>
                         <th>EV</th>
                         <th>KQ</th>
-                        <th>P/L</th>
+                        <th>Điểm</th>
                       </tr>
                     </thead>
                     <tbody>

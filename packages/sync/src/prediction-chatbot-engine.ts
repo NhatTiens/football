@@ -156,12 +156,12 @@ export interface PredictionChatResponse {
 
 const statusReason: Record<string, string> = {
   AVAILABLE:
-    'Có tín hiệu khoa học hiện tại nhưng đây vẫn là tín hiệu shadow, không phải BEST BET chính thức.',
-  NO_FRESH_PIT_ODDS: 'Chưa có odds PIT đủ mới để đánh giá value.',
-  NO_PROVIDER_FIXTURE_SNAPSHOT: 'Chưa có snapshot fixture từ nhà cung cấp để liên kết odds.',
+    'Có tín hiệu khoa học hiện tại nhưng chưa phải đề xuất chính thức.',
+  NO_FRESH_PIT_ODDS: 'Chưa có dữ liệu PIT đủ mới để đánh giá mô hình.',
+  NO_PROVIDER_FIXTURE_SNAPSHOT: 'Chưa có snapshot fixture từ nhà cung cấp để liên kết dữ liệu thị trường.',
   NO_MODEL: 'Chưa có model hợp lệ cho trận này.',
   NO_COMPLETE_MARKET: 'Chưa có đủ hai phía của market để đánh giá công bằng.',
-  NO_VALUE_SIGNAL: 'Mô hình đã đánh giá nhưng edge/EV chưa đạt ngưỡng value.',
+  NO_VALUE_SIGNAL: 'Mô hình đã đánh giá nhưng các chỉ số chưa đạt ngưỡng.',
   UNMAPPED_FIXTURE: 'Chưa ánh xạ được fixture nội bộ với fixture của nhà cung cấp.',
   MAPPING_MISMATCH: 'Dữ liệu ánh xạ fixture không khớp nên tín hiệu bị chặn.',
   NOT_EVALUATED: 'Trận chưa tới lượt đánh giá hoặc đang chờ checkpoint.',
@@ -254,7 +254,7 @@ function recommendationAnswer(row: AnalysisFixtureRow): PredictionChatRecommenda
       expectedValue: row.decision.expectedValue,
       officialBestBet: true,
       paperOnly: true,
-      reason: 'BEST BET khoa học đã được khóa trong paper ledger; không đặt cược tiền thật.',
+      reason: 'Đề xuất khoa học đã được ghi vào nhật ký mô phỏng; không có giao dịch tài chính.',
     };
   }
 
@@ -272,7 +272,7 @@ function recommendationAnswer(row: AnalysisFixtureRow): PredictionChatRecommenda
       expectedValue: paper.boundedExpectedValue,
       officialBestBet: false,
       paperOnly: true,
-      reason: 'Ứng viên PAPER shadow đủ điều kiện theo dõi, chưa phải BEST BET chính thức.',
+      reason: 'Tín hiệu mô phỏng đủ điều kiện theo dõi, chưa phải đề xuất chính thức.',
     };
   }
 
@@ -289,7 +289,7 @@ function recommendationAnswer(row: AnalysisFixtureRow): PredictionChatRecommenda
       expectedValue: row.currentRecommendation.expectedValue,
       officialBestBet: false,
       paperOnly: true,
-      reason: 'Tín hiệu khoa học hiện tại dùng cho shadow research, chưa thay đổi BEST BET.',
+      reason: 'Tín hiệu khoa học hiện tại dùng cho nghiên cứu theo dõi, chưa thay đổi đề xuất chính thức.',
     };
   }
 
@@ -306,7 +306,7 @@ function recommendationAnswer(row: AnalysisFixtureRow): PredictionChatRecommenda
       expectedValue: paper.boundedExpectedValue,
       officialBestBet: false,
       paperOnly: true,
-      reason: 'Có candidate chẩn đoán nhưng chưa đủ điều kiện PAPER tracking.',
+      reason: 'Có tín hiệu chẩn đoán nhưng chưa đủ điều kiện theo dõi mô phỏng.',
     };
   }
 
@@ -325,7 +325,7 @@ function recommendationAnswer(row: AnalysisFixtureRow): PredictionChatRecommenda
     reason:
       row.currentRecommendationError ??
       statusReason[row.currentRecommendationStatus] ??
-      'Chưa có đề xuất đủ điều kiện; bot không tự tạo kèo thay cho mô hình.',
+      'Chưa có đề xuất đủ điều kiện; bot không tự tạo lựa chọn thay cho mô hình.',
   };
 }
 

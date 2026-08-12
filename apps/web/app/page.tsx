@@ -19,9 +19,9 @@ export default async function HomePage() {
       <section className="pcr-hero">
         <div>
           <span className="eyebrow">FOOTBALL AI V7 · PERSONAL</span>
-          <h1>Dự đoán, BEST BET và backtest trên một giao diện</h1>
+          <h1>Dự đoán và đánh giá mô hình trên một giao diện</h1>
           <p>
-            Dùng prediction để hiểu trận đấu; dùng scientific value policy để quyết định BEST BET;
+            Dùng prediction để hiểu trận đấu; dùng scientific value policy để quyết định đề xuất đạt tiêu chí;
             dùng backtest point-in-time để kiểm chứng model trước khi tin kết quả.
           </p>
           <div className="hero-actions">
@@ -29,34 +29,34 @@ export default async function HomePage() {
               Xem trận sắp tới
             </Link>
             <Link className="button secondary" href="/backtest">
-              Mở Backtest Lab
+              Mở đánh giá mô hình
             </Link>
           </div>
         </div>
 
         <div className="pcr-principles">
           <span>Nguyên tắc</span>
-          <strong>Prediction ≠ BEST BET</strong>
-          <strong>BEST BET cần odds + edge + EV + reliability</strong>
-          <small>Paper/research only · không auto-bet</small>
+          <strong>Dự đoán ≠ kết luận chắc chắn</strong>
+          <strong>Đề xuất cần dữ liệu thị trường + độ lệch mô hình + độ tin cậy</strong>
+          <small>Chỉ mô phỏng nghiên cứu · không giao dịch tài chính</small>
         </div>
       </section>
 
       <section className="pcr-kpis">
         <div><span>Trận 7 ngày tới</span><strong>{analysis.counts.fixtures}</strong><small>{analysis.counts.predicted} có prediction</small></div>
-        <div className="highlight"><span>BEST BET</span><strong>{analysis.counts.bestBets}</strong><small>scientific decision</small></div>
-        <div><span>NO BET</span><strong>{analysis.counts.noBets}</strong><small>không đủ value</small></div>
-        <div><span>Prediction-only</span><strong>{analysis.counts.predictionOnly}</strong><small>chưa phải kèo</small></div>
-        <div><span>Paper hit rate</span><strong>{pct(stats.hitRate)}</strong><small>{stats.wins}W / {stats.losses}L</small></div>
+        <div className="highlight"><span>Đạt tiêu chí</span><strong>{analysis.counts.bestBets}</strong><small>scientific decision</small></div>
+        <div><span>Chưa đạt tiêu chí</span><strong>{analysis.counts.noBets}</strong><small>không đủ value</small></div>
+        <div><span>Đang phân tích</span><strong>{analysis.counts.predictionOnly}</strong><small>chưa đủ điều kiện đề xuất</small></div>
+        <div><span>Độ chính xác mô phỏng</span><strong>{pct(stats.hitRate)}</strong><small>{stats.wins}W / {stats.losses}L</small></div>
       </section>
 
       <section className="pcr-home-grid">
         <Link href="/predictions" className="pcr-home-card">
           <span className="eyebrow">01</span>
-          <h2>Dự đoán & BEST BET</h2>
+          <h2>Dự đoán</h2>
           <p>
             Trận hiện tại gồm ASEAN Championship, Đông Nam Á, châu Á, Premier League và La Liga;
-            có HDA, BTTS, Over/Under, BEST BET, Edge, EV và stake overlay.
+            có BTTS, Over/Under, xác suất, độ lệch mô hình và độ tin cậy.
           </p>
           <b>Mở dự đoán →</b>
         </Link>
@@ -68,7 +68,7 @@ export default async function HomePage() {
           <b>Mở backtest →</b>
         </Link>
 
-        <Link href="/bet-history" className="pcr-home-card">
+        <Link href="/history" className="pcr-home-card">
           <span className="eyebrow">03</span>
           <h2>Audit & lịch sử</h2>
           <p>Theo dõi quyết định, settlement và lịch sử paper-bet để đánh giá hệ thống theo thời gian.</p>

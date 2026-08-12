@@ -37,6 +37,7 @@ const supported: WorkerCommand[] = [
   'scientific-multi-market-replay-report',
   'scientific-best-bet-reliability-report',
   'paper-bet-ledger-settle',
+  'startup-result-catch-up',
   'paper-bet-ledger-coverage',
   'v8-paper-runtime-cycle',
   'v8-paper-runtime-coverage',

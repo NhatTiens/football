@@ -28,7 +28,15 @@ export default function AdminAuditPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) void load();
+    });
+
+    return () => {
+      active = false;
+    };
   }, [load]);
 
   return (
