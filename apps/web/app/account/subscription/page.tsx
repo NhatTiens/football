@@ -70,6 +70,7 @@ export default function AccountSubscriptionPage() {
 
   const history = subscription.subscriptions ?? [];
   const isPro = subscription.plan === 'PRO';
+  const isAdmin = subscription.role === 'ADMIN';
 
   return (
     <div className="auth-card commercial-account-page">
@@ -127,9 +128,13 @@ export default function AccountSubscriptionPage() {
       </div>
 
       <div className="hero-actions commercial-account-actions">
-        <Link href="/pricing" className="button primary">
-          {isPro ? 'Gia hạn PRO' : 'Nâng cấp PRO'}
-        </Link>
+        {isAdmin ? (
+          <span className="button primary">ADMIN · PRO không thời hạn</span>
+        ) : (
+          <Link href="/pricing" className="button primary">
+            {isPro ? 'Gia hạn PRO' : 'Nâng cấp PRO'}
+          </Link>
+        )}
         <Link href="/account/usage" className="button secondary">
           Xem quota
         </Link>

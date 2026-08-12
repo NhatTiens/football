@@ -85,8 +85,8 @@ export default function AdminSystemPage() {
         <h2>Quy tắc vận hành hiện tại</h2>
         <div className="admin-rule-grid">
           <div>
-            <strong>ADMIN ≠ PRO</strong>
-            <span>Role quản trị độc lập với plan thương mại.</span>
+            <strong>ADMIN luôn PRO</strong>
+            <span>Role ADMIN nhận entitlement PRO không thời hạn.</span>
           </div>
           <div>
             <strong>Payment exactly-once</strong>

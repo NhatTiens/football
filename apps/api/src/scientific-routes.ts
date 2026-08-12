@@ -7,10 +7,15 @@ import {
   apiFootballLeagueProfile,
   buildShadowSettlementRuntimeReport,
   buildVietnamHorizonSchedule,
+  isUserHistoryKickoffVisible,
+  isUserHistoryMarketVisible,
+  loadPaperShadowHistoryCandidates,
   parseApiFootballLeagueProfile,
+  paginateHistoryFixtures,
   type ShadowSettlementRow,
   getV8MonitoringDashboard,
   selectCanonicalHistoryRows,
+  USER_HISTORY_VISIBLE_FROM_VN,
 } from '@football-ai/sync';
 import { replayOuBetHistoryRows } from './ou-history-replay.js';
 
@@ -402,64 +407,71 @@ scientificRouter.get('/bets', async (request, response, next) => {
     const requestedPage = positiveInteger(request.query.page, 1, 1_000_000);
     const view = request.query.view === 'audit' ? 'AUDIT_MULTI_HORIZON' : 'SUMMARY_CANONICAL';
     const reportAsOf = new Date();
-    const reportSince = new Date(reportAsOf.getTime() - 8760 * 3_600_000);
-    const totalRows = await prisma.$queryRaw<Array<{ total: bigint | number }>>`
-      SELECT COUNT(*) AS total
-      FROM (
-        SELECT providerFixtureId
-        FROM ScientificPaperBetDecision
-        WHERE selectedSelection IS NOT NULL
-          AND (
-            UPPER(selectedMarket) LIKE 'TOTAL_GOALS%'
-            OR UPPER(selectedMarket) IN ('BTTS', 'BOTH_TEAMS_TO_SCORE', 'OU', 'OVER_UNDER')
-          )
-        UNION
-        SELECT providerFixtureId
-        FROM ScientificCurrentSignalSnapshot
-        WHERE createdAt BETWEEN ${reportSince} AND ${reportAsOf}
-          AND selectedSelection IS NOT NULL
-          AND (
-            UPPER(selectedMarket) LIKE 'TOTAL_GOALS%'
-            OR UPPER(selectedMarket) IN ('BTTS', 'BOTH_TEAMS_TO_SCORE', 'OU', 'OVER_UNDER')
-          )
-      ) AS history_fixture_count
-    `;
-    const totalFixtures = Number(totalRows[0]?.total ?? 0);
-    const totalPages = Math.max(1, Math.ceil(totalFixtures / pageSize));
-    const page = Math.min(requestedPage, totalPages);
-    const offset = (page - 1) * pageSize;
-    const fixturePage = await prisma.$queryRaw<
-      Array<{ providerFixtureId: number | bigint; latestKickoffAt: Date }>
-    >`
-      SELECT providerFixtureId, MAX(kickoffAt) AS latestKickoffAt
-      FROM (
-        SELECT providerFixtureId, kickoffAt
-        FROM ScientificPaperBetDecision
-        WHERE selectedSelection IS NOT NULL
-          AND (
-            UPPER(selectedMarket) LIKE 'TOTAL_GOALS%'
-            OR UPPER(selectedMarket) IN ('BTTS', 'BOTH_TEAMS_TO_SCORE', 'OU', 'OVER_UNDER')
-          )
-        UNION ALL
-        SELECT providerFixtureId, kickoffAt
-        FROM ScientificCurrentSignalSnapshot
-        WHERE createdAt BETWEEN ${reportSince} AND ${reportAsOf}
-          AND selectedSelection IS NOT NULL
-          AND (
-            UPPER(selectedMarket) LIKE 'TOTAL_GOALS%'
-            OR UPPER(selectedMarket) IN ('BTTS', 'BOTH_TEAMS_TO_SCORE', 'OU', 'OVER_UNDER')
-          )
-      ) AS history_fixture_page
-      GROUP BY providerFixtureId
-      ORDER BY latestKickoffAt DESC, providerFixtureId DESC
-      LIMIT ${pageSize} OFFSET ${offset}
-    `;
-    const pageFixtureIds: number[] = (
-      fixturePage as Array<{
-        providerFixtureId: number | bigint;
-        latestKickoffAt: Date;
-      }>
-    ).map((row) => Number(row.providerFixtureId));
+    const userHistoryKickoffFrom = new Date(USER_HISTORY_VISIBLE_FROM_VN);
+    type LedgerFixtureIndexRow = {
+      providerFixtureId: number | bigint;
+      latestKickoffAt: Date;
+    };
+    const ledgerFixtureIndexPromise =
+      view === 'AUDIT_MULTI_HORIZON'
+        ? prisma.$queryRaw<LedgerFixtureIndexRow[]>`
+            SELECT providerFixtureId, MAX(kickoffAt) AS latestKickoffAt
+            FROM ScientificPaperBetDecision
+            GROUP BY providerFixtureId
+          `
+        : prisma.$queryRaw<LedgerFixtureIndexRow[]>`
+            SELECT providerFixtureId, MAX(kickoffAt) AS latestKickoffAt
+            FROM ScientificPaperBetDecision
+            WHERE kickoffAt BETWEEN ${userHistoryKickoffFrom} AND ${reportAsOf}
+              AND selectedSelection IS NOT NULL
+              AND (
+                UPPER(REPLACE(REPLACE(TRIM(selectedMarket), '-', '_'), ' ', '_')) LIKE 'TOTAL_GOALS%'
+                OR UPPER(REPLACE(REPLACE(TRIM(selectedMarket), '-', '_'), ' ', '_')) LIKE '%OVER_UNDER%'
+                OR UPPER(REPLACE(REPLACE(TRIM(selectedMarket), '-', '_'), ' ', '_')) IN (
+                  'BTTS',
+                  'BOTH_TEAMS_TO_SCORE',
+                  'BOTH_TEAM_TO_SCORE',
+                  'OU'
+                )
+              )
+            GROUP BY providerFixtureId
+          `;
+    const [ledgerFixtureIndex, shadowHistoryCandidates] = await Promise.all([
+      ledgerFixtureIndexPromise,
+      loadPaperShadowHistoryCandidates({
+        hours: 8760,
+        reportAsOf,
+        maximumSnapshots: 5000,
+      }),
+    ]);
+    const displayableShadowCandidates = shadowHistoryCandidates.filter(
+      (candidate) =>
+        view === 'AUDIT_MULTI_HORIZON' ||
+        (isUserHistoryMarketVisible(candidate.marketType) &&
+          isUserHistoryKickoffVisible(candidate.kickoffAt, reportAsOf)),
+    );
+    const historyPage = paginateHistoryFixtures(
+      [
+        ...ledgerFixtureIndex.map((row: LedgerFixtureIndexRow) => ({
+          providerFixtureId: Number(row.providerFixtureId),
+          kickoffAt: row.latestKickoffAt,
+        })),
+        ...displayableShadowCandidates.map((candidate) => ({
+          providerFixtureId: candidate.providerFixtureId,
+          kickoffAt: candidate.kickoffAt,
+        })),
+      ],
+      requestedPage,
+      pageSize,
+    );
+    const {
+      page,
+      totalFixtures,
+      totalPages,
+      hasPrevious,
+      hasNext,
+      providerFixtureIds: pageFixtureIds,
+    } = historyPage;
     const [decisions, shadowReport] = await Promise.all([
       prisma.scientificPaperBetDecision.findMany({
         where: { providerFixtureId: { in: pageFixtureIds } },
@@ -475,7 +487,9 @@ scientificRouter.get('/bets', async (request, response, next) => {
         providerFixtureId: null,
         providerFixtureIds: pageFixtureIds,
         reportAsOf,
-        maximumSnapshots: Math.max(100, pageSize * 100),
+        // Match the fixture-index window so an indexed shadow row cannot
+        // disappear while the selected page is materialized.
+        maximumSnapshots: 5000,
       }),
     ]);
     const paperRows = (shadowReport.rows as ShadowSettlementRow[]).filter(
@@ -617,17 +631,12 @@ scientificRouter.get('/bets', async (request, response, next) => {
             : null,
       };
     });
-    const replayedRows = await replayOuBetHistoryRows(
-      [...ledgerRows, ...shadowRows],
-      reportAsOf,
+    const replayedRows = await replayOuBetHistoryRows([...ledgerRows, ...shadowRows], reportAsOf);
+    const auditRows = replayedRows.sort(
+      (left, right) =>
+        new Date(right.decisionAsOf).getTime() - new Date(left.decisionAsOf).getTime() ||
+        right.id.localeCompare(left.id),
     );
-    const auditRows = replayedRows
-      .sort(
-        (left, right) =>
-          new Date(right.decisionAsOf).getTime() -
-            new Date(left.decisionAsOf).getTime() ||
-          right.id.localeCompare(left.id),
-      );
     const canonicalRows = selectCanonicalHistoryRows(
       auditRows.map((row) => ({
         row,
@@ -660,24 +669,12 @@ scientificRouter.get('/bets', async (request, response, next) => {
         };
       })
       .filter((fixture): fixture is NonNullable<typeof fixture> => fixture != null);
-    const replayedPaperRows = replayedRows.filter(
-      (row) => row.source === 'PAPER_SHADOW',
-    );
-    const eligiblePaperRows = replayedPaperRows.filter(
-      (row) => row.historyStrategyEligible,
-    );
-    const settledPaperRows = eligiblePaperRows.filter(
-      (row) => row.settlement != null,
-    );
-    const paperWins = settledPaperRows.filter(
-      (row) => row.settlement?.result === 'WIN',
-    ).length;
-    const paperLosses = settledPaperRows.filter(
-      (row) => row.settlement?.result === 'LOSS',
-    ).length;
-    const paperVoids = settledPaperRows.filter(
-      (row) => row.settlement?.result === 'VOID',
-    ).length;
+    const replayedPaperRows = replayedRows.filter((row) => row.source === 'PAPER_SHADOW');
+    const eligiblePaperRows = replayedPaperRows.filter((row) => row.historyStrategyEligible);
+    const settledPaperRows = eligiblePaperRows.filter((row) => row.settlement != null);
+    const paperWins = settledPaperRows.filter((row) => row.settlement?.result === 'WIN').length;
+    const paperLosses = settledPaperRows.filter((row) => row.settlement?.result === 'LOSS').length;
+    const paperVoids = settledPaperRows.filter((row) => row.settlement?.result === 'VOID').length;
     const paperProfitUnits = settledPaperRows.reduce(
       (sum, row) => sum + (row.settlement?.profitUnits ?? 0),
       0,
@@ -696,18 +693,15 @@ scientificRouter.get('/bets', async (request, response, next) => {
         pageSize,
         totalFixtures,
         totalPages,
-        hasPrevious: page > 1,
-        hasNext: page < totalPages,
+        hasPrevious,
+        hasNext,
       },
       summary: {
         scope: 'PAGE_FIXTURES',
         paperProposals: replayedPaperRows.length,
-        pendingPaperProposals: eligiblePaperRows.filter(
-          (row) => row.settlement == null,
-        ).length,
-        invalidPaperProposals: replayedPaperRows.filter(
-          (row) => !row.historyStrategyEligible,
-        ).length,
+        pendingPaperProposals: eligiblePaperRows.filter((row) => row.settlement == null).length,
+        invalidPaperProposals: replayedPaperRows.filter((row) => !row.historyStrategyEligible)
+          .length,
         settledPaperProposals: settledPaperRows.length,
         paperWins,
         paperLosses,

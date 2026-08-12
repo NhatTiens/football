@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 process.env.NODE_ENV = 'test';
 process.env.ADMIN_API_TOKEN ??= 'test-admin-token';
 
-import {
+const {
   deletedManagedEmail,
   isDeletedManagedEmail,
-} from '../src/admin-user-management';
+} = await import('../src/admin-user-management.ts');
 
 describe('ADMIN user-management helpers', () => {
   it('builds a deterministic deleted identity namespace', () => {

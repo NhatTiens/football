@@ -72,4 +72,27 @@ describe('SUBSCRIPTION-1 lifecycle', () => {
     expect(result?.plan).toBe('FREE');
     expect(result?.proExpiresAt).toBeNull();
   });
+
+  it('repairs ADMIN to permanent PRO without creating a subscription row', async () => {
+    const now = new Date('2026-08-13T06:00:00.000Z');
+    let user = {
+      id: 3,
+      role: 'ADMIN',
+      plan: 'FREE',
+      proExpiresAt: new Date('2026-08-12T06:00:00.000Z'),
+    };
+    const update = async ({ data }: any) => {
+      user = { ...user, ...data };
+      return user;
+    };
+    const db = {
+      subscription: { updateMany: async () => ({ count: 0 }) },
+      authUser: { findUnique: async () => user, update },
+    };
+
+    const result = await lifecycle.reconcileSubscriptionLifecycle(3, db as any, now);
+
+    expect(result).toMatchObject({ plan: 'PRO', proExpiresAt: null });
+    expect(user).toMatchObject({ plan: 'PRO', proExpiresAt: null });
+  });
 });

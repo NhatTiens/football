@@ -94,8 +94,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="admin-sidebar-note">
-          <strong>Role ≠ Plan</strong>
-          <span>ADMIN là quyền quản trị. PRO là gói người dùng.</span>
+          <strong>ADMIN · PRO</strong>
+          <span>Tài khoản ADMIN luôn có quyền PRO không thời hạn.</span>
         </div>
       </aside>
 

@@ -132,7 +132,7 @@ export default function AdminUsersPage() {
           <h1>Quản lý người dùng</h1>
           <p>
             Thêm, khóa/mở, xóa an toàn, revoke sessions và nâng/hạ gói PRO.
-            ADMIN role không đồng nghĩa với PRO plan.
+            Mọi tài khoản ADMIN luôn có PRO không thời hạn.
           </p>
         </div>
       </header>

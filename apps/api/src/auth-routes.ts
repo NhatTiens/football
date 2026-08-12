@@ -205,7 +205,17 @@ async function loadUserById(userId: number): Promise<UserRecord | null> {
 }
 
 async function ensurePlanFresh(user: UserRecord): Promise<UserRecord> {
-  if (user.role !== 'ADMIN' && user.plan === 'PRO' && user.proExpiresAt && user.proExpiresAt <= new Date()) {
+  if (user.role === 'ADMIN') {
+    if (user.plan !== 'PRO' || user.proExpiresAt != null) {
+      return prisma.authUser.update({
+        where: { id: user.id },
+        data: { plan: 'PRO', proExpiresAt: null },
+      }) as Promise<UserRecord>;
+    }
+    return user;
+  }
+
+  if (user.plan === 'PRO' && user.proExpiresAt && user.proExpiresAt <= new Date()) {
     const updated = await prisma.authUser.update({
       where: { id: user.id },
       data: { plan: 'FREE', proExpiresAt: null },
@@ -994,6 +1004,10 @@ router.post(
       response.status(404).json({ error: 'User not found.' });
       return;
     }
+    if (current.role === 'ADMIN') {
+      response.status(409).json({ error: 'ADMIN accounts always have PRO entitlement.' });
+      return;
+    }
 
     const entitlement = await prisma.$transaction(async (tx: any) => {
       const granted = await grantManualProEntitlement(
@@ -1051,6 +1065,10 @@ router.post(
     const current = (await loadUserById(id)) as UserRecord | null;
     if (!current) {
       response.status(404).json({ error: 'User not found.' });
+      return;
+    }
+    if (current.role === 'ADMIN') {
+      response.status(409).json({ error: 'ADMIN PRO entitlement cannot be revoked.' });
       return;
     }
 

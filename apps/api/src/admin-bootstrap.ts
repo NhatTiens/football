@@ -133,7 +133,7 @@ export async function bootstrapAdmin(options: {
           passwordHash,
           role: 'ADMIN',
           status: 'ACTIVE',
-          plan: 'FREE',
+          plan: 'PRO',
           emailVerifiedAt: now,
           proExpiresAt: null,
           forcePasswordChange: true,
@@ -151,6 +151,7 @@ export async function bootstrapAdmin(options: {
           metadata: {
             source: 'ENV_BOOTSTRAP',
             forcePasswordChange: true,
+            permanentProEntitlement: true,
           },
         },
       });

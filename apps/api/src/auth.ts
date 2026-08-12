@@ -133,6 +133,17 @@ export function isPlanActive(plan: AuthPlan, proExpiresAt: Date | null): boolean
   return plan === 'PRO' && (proExpiresAt == null || proExpiresAt.getTime() > Date.now());
 }
 
+export function effectivePlan(role: AuthRole, storedPlan: AuthPlan): AuthPlan {
+  return role === 'ADMIN' ? 'PRO' : storedPlan;
+}
+
+export function effectiveProExpiresAt(
+  role: AuthRole,
+  storedProExpiresAt: Date | null,
+): Date | null {
+  return role === 'ADMIN' ? null : storedProExpiresAt;
+}
+
 export function canUseAdvancedChat(user: { role: AuthRole; plan: AuthPlan; proExpiresAt: Date | null }): boolean {
   return user.role === 'ADMIN' || isPlanActive(user.plan, user.proExpiresAt);
 }
@@ -240,10 +251,12 @@ function userDto(user: {
   if (!status) {
     throw new Error(`Unsupported auth status: ${user.status}`);
   }
-  const plan = normalizePlan(user.plan);
-  if (!plan) {
+  const storedPlan = normalizePlan(user.plan);
+  if (!storedPlan) {
     throw new Error(`Unsupported auth plan: ${user.plan}`);
   }
+  const plan = effectivePlan(role, storedPlan);
+  const proExpiresAt = effectiveProExpiresAt(role, user.proExpiresAt);
 
   return {
     id: user.id,
@@ -253,7 +266,7 @@ function userDto(user: {
     status,
     plan,
     emailVerifiedAt: toIso(user.emailVerifiedAt),
-    proExpiresAt: toIso(user.proExpiresAt),
+    proExpiresAt: toIso(proExpiresAt),
     forcePasswordChange: user.forcePasswordChange,
     failedLoginCount: user.failedLoginCount,
     lockedUntil: toIso(user.lockedUntil),

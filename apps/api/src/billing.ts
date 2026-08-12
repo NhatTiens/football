@@ -338,9 +338,9 @@ export async function getAccountSubscriptionData(
   return {
     role: fresh.role,
     status: fresh.status,
-    plan: fresh.plan,
+    plan: fresh.role === 'ADMIN' ? 'PRO' : fresh.plan,
     emailVerifiedAt: toIso(fresh.emailVerifiedAt),
-    proExpiresAt: toIso(fresh.proExpiresAt),
+    proExpiresAt: fresh.role === 'ADMIN' ? null : toIso(fresh.proExpiresAt),
     forcePasswordChange: Boolean(fresh.forcePasswordChange),
     canAccessAdvancedChat: canUseAdvancedChat({
       role: fresh.role,

@@ -19,7 +19,7 @@ import {
 
 type AnyRecord = Record<string, unknown>;
 
-interface CurrentSignalSnapshotRow {
+export interface CurrentSignalSnapshotRow {
   id: number;
   providerFixtureId: number;
   checkpointMinutes: number;
@@ -30,6 +30,13 @@ interface CurrentSignalSnapshotRow {
   snapshotHash: string;
   createdAt: Date;
 }
+
+export type PaperShadowHistoryCandidate = Omit<
+  ShadowSettlementCandidate,
+  'sourceOddsObservedAt'
+> & {
+  decisionSource: 'paperShadowRecommendation';
+};
 
 interface SourceOddsRow {
   id: number;
@@ -300,6 +307,17 @@ function selectedCandidateFromPayload(
   };
 }
 
+export function selectPaperShadowHistoryCandidates(
+  snapshots: ReadonlyArray<CurrentSignalSnapshotRow>,
+): PaperShadowHistoryCandidate[] {
+  return snapshots
+    .map(selectedCandidateFromPayload)
+    .filter(
+      (candidate): candidate is PaperShadowHistoryCandidate =>
+        candidate?.decisionSource === 'paperShadowRecommendation',
+    );
+}
+
 async function loadSnapshots(input: {
   hours: number;
   providerFixtureId: number | null;
@@ -314,9 +332,7 @@ async function loadSnapshots(input: {
       createdAt: { gte: since, lte: input.reportAsOf },
       providerFixtureId:
         input.providerFixtureId ??
-        (input.providerFixtureIds?.length
-          ? { in: input.providerFixtureIds }
-          : undefined),
+        (input.providerFixtureIds == null ? undefined : { in: input.providerFixtureIds }),
     },
     select: {
       id: true,
@@ -335,6 +351,19 @@ async function loadSnapshots(input: {
         ? Math.max(1, Math.min(5000, Math.floor(input.maximumSnapshots ?? 5000)))
         : Math.max(1, Math.min(5000, Math.floor(input.maximumSnapshots ?? 5000))),
   })) as CurrentSignalSnapshotRow[];
+}
+
+export async function loadPaperShadowHistoryCandidates(input: {
+  hours: number;
+  reportAsOf: Date;
+  maximumSnapshots?: number;
+}): Promise<PaperShadowHistoryCandidate[]> {
+  return selectPaperShadowHistoryCandidates(
+    await loadSnapshots({
+      ...input,
+      providerFixtureId: null,
+    }),
+  );
 }
 
 async function loadOutcomeSnapshots(input: {

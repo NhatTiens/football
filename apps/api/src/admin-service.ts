@@ -44,10 +44,20 @@ export async function loadAdminDashboard(
   ] = await Promise.all([
     db.authUser.count(),
     db.authUser.count({ where: { emailVerifiedAt: { not: null } } }),
-    db.authUser.count({ where: { plan: 'FREE' } }),
-    db.authUser.count({ where: { plan: 'PRO' } }),
+    db.authUser.count({ where: { plan: 'FREE', role: { not: 'ADMIN' } } }),
     db.authUser.count({
-      where: { plan: 'PRO', proExpiresAt: { gt: now } },
+      where: { OR: [{ role: 'ADMIN' }, { plan: 'PRO' }] },
+    }),
+    db.authUser.count({
+      where: {
+        OR: [
+          { role: 'ADMIN' },
+          {
+            plan: 'PRO',
+            OR: [{ proExpiresAt: null }, { proExpiresAt: { gt: now } }],
+          },
+        ],
+      },
     }),
     db.authUser.count({ where: { createdAt: { gte: since1d } } }),
     db.authUser.count({ where: { createdAt: { gte: since7d } } }),

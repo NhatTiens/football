@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { apiFetch } from '../../lib/api';
+import { unresolvedHistoryLabel, type HistoryReplayStatus } from '../../lib/history-display';
 
 type PaperHistorySummary = {
   paperProposals: number;
@@ -43,12 +44,7 @@ type BetRow = {
   sourcePredictionLineValue: number | null;
   sourcePredictionProbability: number | null;
   ouRuleVersion: string | null;
-  historyReplayStatus:
-    | 'NOT_OU'
-    | 'CURRENT_HALF_GOAL_RULE'
-    | 'REPLAYED_FROM_PIT_ODDS'
-    | 'MISSING_SOURCE_AUDIT'
-    | 'MISSING_TARGET_PIT_ODDS';
+  historyReplayStatus: HistoryReplayStatus;
   historyStrategyEligible: boolean;
   settlement: {
     result: string;
@@ -90,11 +86,7 @@ function settlementLabel(result: string): string {
 }
 
 function normalizedMarket(value: string | null): string {
-  return (value ?? '')
-    .trim()
-    .toUpperCase()
-    .replaceAll('-', '_')
-    .replaceAll(' ', '_');
+  return (value ?? '').trim().toUpperCase().replaceAll('-', '_').replaceAll(' ', '_');
 }
 
 function marketLabel(row: BetRow): string {
@@ -174,11 +166,11 @@ export default async function HistoryPage({
           <span className="science-kicker">LỊCH SỬ ĐÁNH GIÁ MÔ HÌNH</span>
           <h1>Lịch sử dự đoán</h1>
           <p>
-            Mỗi trận chỉ hiển thị một lần. Các checkpoint nội bộ vẫn được lưu
-            đầy đủ để phục vụ nghiên cứu nhưng không lặp lại trên giao diện.
+            Chỉ hiển thị các trận từ 01/08/2026 theo giờ Việt Nam, mỗi trận một lần. Checkpoint cũ
+            vẫn được giữ để phục vụ nghiên cứu.
           </p>
         </div>
-        <span className="science-pill">Giờ Việt Nam · UTC+7</span>
+        <span className="science-pill">Từ 01/08/2026 · UTC+7</span>
       </section>
 
       <section className="science-metric-grid">
@@ -205,9 +197,7 @@ export default async function HistoryPage({
         <article className="science-metric-card">
           <span>Độ chính xác</span>
           <strong>{percent(paper.paperHitRate)}</strong>
-          <small>
-            Thống kê từ các bản ghi đã được đối chiếu kết quả
-          </small>
+          <small>Thống kê từ các bản ghi đã được đối chiếu kết quả</small>
         </article>
       </section>
 
@@ -222,20 +212,14 @@ export default async function HistoryPage({
         </div>
 
         {visibleFixtures.length === 0 ? (
-          <p className="science-empty-cell">
-            Chưa có lịch sử đánh giá phù hợp.
-          </p>
+          <p className="science-empty-cell">Chưa có lịch sử đánh giá phù hợp.</p>
         ) : (
           visibleFixtures.map((fixture) => {
-            const settled = fixture.rows.filter(
-              (row) => row.settlement,
-            ).length;
+            const settled = fixture.rows.filter((row) => row.settlement).length;
+            const eligible = fixture.rows.filter((row) => row.historyStrategyEligible).length;
 
             return (
-              <article
-                className="science-panel"
-                key={fixture.providerFixtureId}
-              >
+              <article className="science-panel" key={fixture.providerFixtureId}>
                 <div className="science-panel-header">
                   <div>
                     <h3>
@@ -247,8 +231,7 @@ export default async function HistoryPage({
                   </div>
 
                   <span className="science-pill">
-                    {fixture.rows.length} đánh giá · {settled}/
-                    {fixture.rows.length} đã đối chiếu
+                    {eligible}/{fixture.rows.length} hợp lệ · {settled}/{eligible} đã đối chiếu
                   </span>
                 </div>
 
@@ -281,25 +264,16 @@ export default async function HistoryPage({
                                 <strong
                                   className={`science-result science-result-${row.settlement.result.toLowerCase()}`}
                                 >
-                                  {settlementLabel(
-                                    row.settlement.result,
-                                  )}
+                                  {settlementLabel(row.settlement.result)}
                                 </strong>
                                 <small>
-                                  Tỷ số{' '}
-                                  {row.settlement.fulltimeHomeGoals}-
+                                  Tỷ số {row.settlement.fulltimeHomeGoals}-
                                   {row.settlement.fulltimeAwayGoals}
                                 </small>
                               </>
-                            ) : new Date(
-                                row.kickoffAt,
-                              ).getTime() > reportAsOf ? (
-                              <span className="science-muted">
-                                Chờ trận đấu
-                              </span>
                             ) : (
                               <span className="science-muted">
-                                Chờ kết quả
+                                {unresolvedHistoryLabel(row, reportAsOf)}
                               </span>
                             )}
                           </td>
@@ -316,10 +290,7 @@ export default async function HistoryPage({
         <div className="science-panel-header">
           <div>
             {page > 1 ? (
-              <Link
-                className="science-pill"
-                href={`/history?page=${page - 1}`}
-              >
+              <Link className="science-pill" href={`/history?page=${page - 1}`}>
                 ← Trang trước
               </Link>
             ) : null}
@@ -327,10 +298,7 @@ export default async function HistoryPage({
 
           <div>
             {page < totalPages ? (
-              <Link
-                className="science-pill"
-                href={`/history?page=${page + 1}`}
-              >
+              <Link className="science-pill" href={`/history?page=${page + 1}`}>
                 Xem thêm →
               </Link>
             ) : null}

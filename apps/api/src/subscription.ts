@@ -49,6 +49,25 @@ export async function reconcileSubscriptionLifecycle(
 
   if (!user) return null;
 
+  if (user.role === 'ADMIN') {
+    if (user.plan !== 'PRO' || user.proExpiresAt != null) {
+      user = await db.authUser.update({
+        where: { id: userId },
+        data: {
+          plan: 'PRO',
+          proExpiresAt: null,
+        },
+      });
+    }
+
+    return {
+      userId,
+      plan: 'PRO',
+      proExpiresAt: null,
+      expiredSubscriptions: Number(expired.count ?? 0),
+    };
+  }
+
   const expiry =
     user.proExpiresAt instanceof Date
       ? user.proExpiresAt

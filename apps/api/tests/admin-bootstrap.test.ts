@@ -55,7 +55,7 @@ function txDb(input: {
 }
 
 describe('ADMIN-1 safe bootstrap', () => {
-  it('creates only the first admin, FREE plan, verified and forced password change', async () => {
+  it('creates only the first admin, permanent PRO, verified and forced password change', async () => {
     const fixture = txDb({});
     const hasher = vi.fn(async () => 'argon2id-hash');
 
@@ -72,7 +72,7 @@ describe('ADMIN-1 safe bootstrap', () => {
       data: expect.objectContaining({
         role: 'ADMIN',
         status: 'ACTIVE',
-        plan: 'FREE',
+        plan: 'PRO',
         passwordHash: 'argon2id-hash',
         forcePasswordChange: true,
         proExpiresAt: null,

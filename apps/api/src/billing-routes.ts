@@ -125,6 +125,13 @@ billingRouter.post(
     const auth = await requireAuth(request, response);
     if (!auth) return;
 
+    if (auth.user.role === 'ADMIN') {
+      response.status(409).json({
+        error: 'ADMIN accounts already have permanent PRO entitlement.',
+      });
+      return;
+    }
+
     const parsed = orderSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       response.status(400).json({

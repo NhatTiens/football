@@ -86,6 +86,7 @@ export default function PricingPage() {
   const free = plans.find((plan) => plan.code === 'FREE');
   const pro = plans.find((plan) => plan.code === 'PRO');
   const activePro = account?.plan === 'PRO';
+  const adminPermanentPro = account?.role === 'ADMIN';
 
   return (
     <section className="billing-shell commercial-pricing-shell">
@@ -173,7 +174,11 @@ export default function PricingPage() {
             <li>Thanh toán VietQR với số tiền và nội dung do server tạo</li>
           </ul>
 
-          {!authenticated ? (
+          {adminPermanentPro ? (
+            <span className="button primary billing-action">
+              ADMIN · PRO không thời hạn
+            </span>
+          ) : !authenticated ? (
             <Link href="/login" className="button primary billing-action">
               Đăng nhập để nâng cấp
             </Link>

@@ -110,7 +110,15 @@ export * from './history-read-model.js';
 export * from './paper-hda-context-adjustment-core.js';
 export * from './paper-hda-context-adjustment-engine.js';
 export * from './shadow-settlement-core.js';
-export { buildShadowSettlementRuntimeReport } from './shadow-settlement-report-cli.js';
+export {
+  buildShadowSettlementRuntimeReport,
+  loadPaperShadowHistoryCandidates,
+  selectPaperShadowHistoryCandidates,
+} from './shadow-settlement-report-cli.js';
+export type {
+  CurrentSignalSnapshotRow,
+  PaperShadowHistoryCandidate,
+} from './shadow-settlement-report-cli.js';
 export * from './daily-outcome-report-core.js';
 export {
   getPersonalUpcomingAnalysis,
