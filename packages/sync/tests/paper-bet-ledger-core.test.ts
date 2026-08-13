@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   decidePaperBet,
+  isCompletePaperBetOutcomeSnapshot,
+  isCompletePaperBetScoreSnapshot,
   normalizePaperBetCandidate,
   settlePaperBetSelection,
   type PaperBetCandidateInput,
@@ -27,6 +29,33 @@ function candidate(overrides: Partial<PaperBetCandidateInput> = {}): PaperBetCan
 }
 
 describe('v7.0-beta.1B paper bet ledger core', () => {
+  it('refetches a final snapshot until both full-time scores are present', () => {
+    const incomplete = {
+      statusShort: 'FT',
+      fulltimeHomeGoals: 2,
+      fulltimeAwayGoals: null,
+    };
+
+    expect(isCompletePaperBetOutcomeSnapshot(incomplete)).toBe(false);
+    expect(isCompletePaperBetScoreSnapshot(incomplete)).toBe(false);
+    expect(
+      isCompletePaperBetOutcomeSnapshot({
+        ...incomplete,
+        fulltimeAwayGoals: 1,
+      }),
+    ).toBe(true);
+  });
+
+  it('treats terminal void statuses as complete without inventing a score', () => {
+    expect(
+      isCompletePaperBetOutcomeSnapshot({
+        statusShort: 'CANC',
+        fulltimeHomeGoals: null,
+        fulltimeAwayGoals: null,
+      }),
+    ).toBe(true);
+  });
+
   it('normalizes HDA candidate edge and EV', () => {
     const result = normalizePaperBetCandidate(candidate());
 

@@ -4,8 +4,12 @@ import { deterministicHash } from './scientific-evaluation-contract.js';
 import { assessBestBetCandidate } from './scientific-best-bet-policy-contract.js';
 import { syncApiFootballFixturesByIds } from './api-football-provider-engine.js';
 import {
+  PAPER_BET_FINAL_SCORE_STATUSES,
+  PAPER_BET_VOID_STATUSES,
   SCIENTIFIC_PAPER_BET_LEDGER_VERSION,
   decidePaperBet,
+  isCompletePaperBetOutcomeSnapshot,
+  isCompletePaperBetScoreSnapshot,
   settlePaperBetSelection,
   type PaperBetDecisionInput,
 } from './paper-bet-ledger-core.js';
@@ -330,7 +334,10 @@ export async function settleOpenScientificPaperBets(input: {
     ...new Set<number>([...decisionFixtureIds, ...shadowFixtureIds]),
   ];
 
-  const terminalStatuses = ['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'WO'];
+  const terminalStatuses = [
+    ...PAPER_BET_FINAL_SCORE_STATUSES,
+    ...PAPER_BET_VOID_STATUSES,
+  ];
   const existingTerminalRows =
     fixtureCandidates.length === 0
       ? []
@@ -341,17 +348,20 @@ export async function settleOpenScientificPaperBets(input: {
           },
           select: {
             providerFixtureId: true,
+            statusShort: true,
+            fulltimeHomeGoals: true,
+            fulltimeAwayGoals: true,
           },
           orderBy: [{ observedAt: 'desc' }, { id: 'desc' }],
           take: Math.min(20_000, fixtureCandidates.length * 12),
         });
-  const alreadyTerminal = new Set<number>(
-    existingTerminalRows.map(
-      (row: { providerFixtureId: number }) => row.providerFixtureId,
-    ),
+  const alreadyComplete = new Set<number>(
+    existingTerminalRows
+      .filter(isCompletePaperBetOutcomeSnapshot)
+      .map((row: { providerFixtureId: number }) => row.providerFixtureId),
   );
   const fixtureIdsToFetch: number[] = fixtureCandidates
-    .filter((providerFixtureId: number) => !alreadyTerminal.has(providerFixtureId))
+    .filter((providerFixtureId: number) => !alreadyComplete.has(providerFixtureId))
     .slice(0, maximumFixtureFetches);
 
   const fixtureSync =
@@ -378,9 +388,16 @@ export async function settleOpenScientificPaperBets(input: {
           take: Math.min(20_000, decisionFixtureIds.length * 12),
         });
   const latestOutcomeByFixture = new Map<number, (typeof outcomeRows)[number]>();
+  const latestCompleteScoreByFixture = new Map<number, (typeof outcomeRows)[number]>();
   for (const outcome of outcomeRows) {
     if (!latestOutcomeByFixture.has(outcome.providerFixtureId)) {
       latestOutcomeByFixture.set(outcome.providerFixtureId, outcome);
+    }
+    if (
+      !latestCompleteScoreByFixture.has(outcome.providerFixtureId) &&
+      isCompletePaperBetScoreSnapshot(outcome)
+    ) {
+      latestCompleteScoreByFixture.set(outcome.providerFixtureId, outcome);
     }
   }
 
@@ -389,7 +406,9 @@ export async function settleOpenScientificPaperBets(input: {
   let skippedNoFulltimeScore = 0;
 
   for (const decision of decisions) {
-    const fixture = latestOutcomeByFixture.get(decision.providerFixtureId);
+    const fixture =
+      latestCompleteScoreByFixture.get(decision.providerFixtureId) ??
+      latestOutcomeByFixture.get(decision.providerFixtureId);
     if (fixture == null || !['FT', 'AET', 'PEN'].includes(fixture.statusShort.toUpperCase())) {
       skippedNotFinal += 1;
       continue;

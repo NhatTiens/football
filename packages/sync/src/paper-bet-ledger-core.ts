@@ -7,7 +7,42 @@ import {
 import type { PaperOuModelSelectionStrategyAudit } from './paper-ou-model-selection-core.js';
 export const SCIENTIFIC_PAPER_BET_LEDGER_VERSION = 'v7.0-beta.1B-paper-bet-ledger-v1';
 
+export const PAPER_BET_FINAL_SCORE_STATUSES = ['FT', 'AET', 'PEN'] as const;
+export const PAPER_BET_VOID_STATUSES = ['CANC', 'ABD', 'AWD', 'WO'] as const;
+
 export type PaperBetSettlementResult = 'WIN' | 'LOSS' | 'VOID';
+
+export function isCompletePaperBetOutcomeSnapshot(input: {
+  statusShort: string;
+  fulltimeHomeGoals: number | null;
+  fulltimeAwayGoals: number | null;
+}): boolean {
+  const statusShort = input.statusShort.trim().toUpperCase();
+
+  if ((PAPER_BET_VOID_STATUSES as readonly string[]).includes(statusShort)) {
+    return true;
+  }
+
+  return (
+    (PAPER_BET_FINAL_SCORE_STATUSES as readonly string[]).includes(statusShort) &&
+    input.fulltimeHomeGoals != null &&
+    input.fulltimeAwayGoals != null
+  );
+}
+
+export function isCompletePaperBetScoreSnapshot(input: {
+  statusShort: string;
+  fulltimeHomeGoals: number | null;
+  fulltimeAwayGoals: number | null;
+}): boolean {
+  return (
+    (PAPER_BET_FINAL_SCORE_STATUSES as readonly string[]).includes(
+      input.statusShort.trim().toUpperCase(),
+    ) &&
+    input.fulltimeHomeGoals != null &&
+    input.fulltimeAwayGoals != null
+  );
+}
 
 export interface PaperBetCandidateInput {
   providerFixtureId: number;
