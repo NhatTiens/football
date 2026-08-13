@@ -7,19 +7,19 @@ import {
   type PaperOuSourceLine,
 } from '../src/paper-ou-opposite-line-core.js';
 
-describe('legacy O/U history PIT replay', () => {
+describe('legacy O/U history replay as direct model results', () => {
   const cases: Array<{
     sourceSelection: PaperOuSelection;
     sourceLine: PaperOuSourceLine;
     targetSelection: PaperOuSelection;
     targetLine: PaperOuLine;
   }> = [
-    { sourceSelection: 'OVER', sourceLine: 1.5, targetSelection: 'UNDER', targetLine: 2 },
-    { sourceSelection: 'OVER', sourceLine: 2.5, targetSelection: 'UNDER', targetLine: 3 },
-    { sourceSelection: 'OVER', sourceLine: 3.5, targetSelection: 'UNDER', targetLine: 3.5 },
-    { sourceSelection: 'UNDER', sourceLine: 1.5, targetSelection: 'OVER', targetLine: 1.5 },
-    { sourceSelection: 'UNDER', sourceLine: 2.5, targetSelection: 'OVER', targetLine: 2 },
-    { sourceSelection: 'UNDER', sourceLine: 3.5, targetSelection: 'OVER', targetLine: 3 },
+    { sourceSelection: 'OVER', sourceLine: 1.5, targetSelection: 'OVER', targetLine: 1.5 },
+    { sourceSelection: 'OVER', sourceLine: 2.5, targetSelection: 'OVER', targetLine: 2.5 },
+    { sourceSelection: 'OVER', sourceLine: 3.5, targetSelection: 'OVER', targetLine: 3.5 },
+    { sourceSelection: 'UNDER', sourceLine: 1.5, targetSelection: 'UNDER', targetLine: 1.5 },
+    { sourceSelection: 'UNDER', sourceLine: 2.5, targetSelection: 'UNDER', targetLine: 2.5 },
+    { sourceSelection: 'UNDER', sourceLine: 3.5, targetSelection: 'UNDER', targetLine: 3.5 },
   ];
 
   it.each(cases)(
@@ -39,13 +39,6 @@ describe('legacy O/U history PIT replay', () => {
           status: 'PAPER',
         },
         analysisCandidates: [
-          {
-            marketType: sourceMarket,
-            selection: sourceSelection,
-            lineValue: sourceLine,
-            decimalOdds: 4.99,
-            modelProbability: 0.61,
-          },
           {
             marketType: targetMarket,
             selection: targetSelection,
@@ -77,7 +70,7 @@ describe('legacy O/U history PIT replay', () => {
     },
   );
 
-  it('accepts a neighboring legacy market alias for an exact integer target line', () => {
+  it('keeps the exact calculated selection and half-goal line', () => {
     const replayed = replayLegacyOuHistorySelection({
       selected: {
         marketType: 'TOTAL_GOALS_2_5',
@@ -90,9 +83,9 @@ describe('legacy O/U history PIT replay', () => {
       },
       analysisCandidates: [
         {
-          marketType: 'TOTAL_GOALS_1_5',
-          selection: 'OVER',
-          lineValue: 2,
+          marketType: 'TOTAL_GOALS_2_5',
+          selection: 'UNDER',
+          lineValue: 2.5,
           decimalOdds: 1.73,
           sourceOddsSnapshotId: 987,
         },
@@ -101,12 +94,12 @@ describe('legacy O/U history PIT replay', () => {
 
     expect(replayed).not.toBeNull();
     expect(replayed?.marketType).toBe('TOTAL_GOALS_2_5');
-    expect(replayed?.selection).toBe('OVER');
-    expect(replayed?.lineValue).toBe(2);
+    expect(replayed?.selection).toBe('UNDER');
+    expect(replayed?.lineValue).toBe(2.5);
     expect(replayed?.decimalOdds).toBe(1.73);
     expect(replayed?.legacyOuHistoryReplay).toMatchObject({
-      observedTargetMarketType: 'TOTAL_GOALS_1_5',
-      marketAliasFallbackUsed: true,
+      observedTargetMarketType: 'TOTAL_GOALS_2_5',
+      marketAliasFallbackUsed: false,
     });
   });
 

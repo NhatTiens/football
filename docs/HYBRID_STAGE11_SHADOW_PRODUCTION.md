@@ -15,11 +15,10 @@ release tag, calls an external API, writes to the database, or places a real bet
 - Stage 10 live input is fresh and complete.
 - v7/v8 O/U execution-policy parity is explicitly certified.
 
-The current v7 paper policy can transform an O/U signal to an opposite line,
-while Stage 6/8 currently evaluates the quoted line directly. The gate therefore
-keeps `V7_V8_PAPER_OU_POLICY_PARITY_NOT_CERTIFIED` active until both policies are
-made identical and the backtest is rerun. This is deliberate and prevents an
-invalid champion comparison.
+The v7 paper runtime and Stage 6/8 now evaluate the model-selected O/U line
+directly. The gate still keeps `V7_V8_PAPER_OU_POLICY_PARITY_NOT_CERTIFIED`
+active until the comparison is rerun with fresh evidence under the direct-line
+runtime version. This prevents a stale champion comparison.
 
 ## Command
 

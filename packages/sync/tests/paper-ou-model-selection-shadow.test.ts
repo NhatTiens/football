@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapPaperOuPredictionToOppositeLine } from '../src/paper-ou-opposite-line-core.js';
+import { mapPaperOuPredictionToModelSelection } from '../src/paper-ou-model-selection-core.js';
 import { buildPaperShadowRecommendation } from '../src/paper-shadow-recommendation-core.js';
 
-describe('paper O/U strategy audit propagation', () => {
-  it('preserves the model prediction beside the mapped paper selection', () => {
-    const mapping = mapPaperOuPredictionToOppositeLine({
+describe('paper O/U direct strategy audit propagation', () => {
+  it('preserves the calculated model selection and line', () => {
+    const mapping = mapPaperOuPredictionToModelSelection({
       predictionSelection: 'OVER',
       predictionLineValue: 2.5,
     });
@@ -47,13 +47,13 @@ describe('paper O/U strategy audit propagation', () => {
     expect(result.selected?.ouOppositeLineStrategy).toMatchObject({
       predictionSelection: 'OVER',
       predictionLineValue: 2.5,
-      recommendedSelection: 'UNDER',
-      recommendedLineValue: 3,
+      recommendedSelection: 'OVER',
+      recommendedLineValue: 2.5,
       predictionProbability: 0.62,
       paperOnly: true,
     });
-    expect(result.selected?.reasonCodes).toContain('OU_OPPOSITE_PROTECTED_HALF_GOAL_APPLIED');
-    expect(result.selected?.reasonCodes).toContain('OU_LINE_SHIFTED_HALF_GOAL');
+    expect(result.selected?.reasonCodes).toContain('OU_DIRECT_MODEL_SELECTION_APPLIED');
+    expect(result.selected?.reasonCodes).toContain('OU_ORIGINAL_LINE_PRESERVED');
     expect(result.paperOnly).toBe(true);
     expect(result.realMoneyExecution).toBe(false);
   });

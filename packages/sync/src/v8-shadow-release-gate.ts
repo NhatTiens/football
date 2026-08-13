@@ -308,11 +308,11 @@ export async function getV8ShadowReleaseGate(now = new Date()) {
       blockers: liveData.blockers,
     },
     policy: {
-      // Stage 6/8 currently evaluate the quoted total directly, while the v7 paper
-      // runtime can transform an O/U signal to its opposite line. Promotion remains
-      // blocked until the policies are made identical and the comparison is rerun.
+      // v7 and v8 now both evaluate the model-selected O/U line directly. Keep
+      // promotion blocked until fresh comparison evidence is produced under the
+      // new v7 runtime version.
       ouPolicyParityCertified: false,
-      reason: 'V7_OPPOSITE_LINE_AND_V8_DIRECT_LINE_POLICIES_DIFFER',
+      reason: 'DIRECT_LINE_POLICY_CHANGED_REQUIRES_FRESH_COMPARISON',
     },
   };
   const decision = evaluateV8ShadowReleaseGate(evidence);

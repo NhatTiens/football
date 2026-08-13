@@ -1,7 +1,7 @@
-import type { PaperOuOppositeLineStrategyAudit } from './paper-ou-opposite-line-core.js';
+import type { PaperOuModelSelectionStrategyAudit } from './paper-ou-model-selection-core.js';
 
 export const PAPER_SHADOW_RECOMMENDATION_VERSION =
-  'v7.0-r4.10.2.11.6-ou-opposite-half-goal-v2';
+  'v7.0-ou-direct-model-selection-v1';
 
 export const PAPER_SHADOW_FLAT_STAKE_UNITS = 1 as const;
 
@@ -35,7 +35,7 @@ export interface PaperShadowCandidateInput {
   sourceOddsEffectiveAt?: string | null;
   currentSignalRejectionReasons?: string[];
   officialRejectionReasons?: string[];
-  ouOppositeLineStrategy?: PaperOuOppositeLineStrategyAudit | null;
+  ouOppositeLineStrategy?: PaperOuModelSelectionStrategyAudit | null;
 }
 
 export interface PaperShadowRecommendationPolicy {
@@ -59,7 +59,7 @@ export interface PaperShadowRecommendationPolicy {
   ranking: 'RAW_THEN_HIERARCHICAL_THEN_BOUNDED_WITH_FALLBACK_HDA_LONGSHOT_QUARANTINE';
   paperOnly: true;
   automaticPromotion: false;
-  ouRecommendationStrategy: 'OPPOSITE_SELECTION_SHIFT_HALF_GOAL_CLAMPED_1_5_3_5';
+  ouRecommendationStrategy: 'DIRECT_MODEL_SELECTION_KEEP_ORIGINAL_LINE';
 }
 
 export interface PaperShadowCandidateAssessment {
@@ -103,7 +103,7 @@ export interface PaperShadowCandidateAssessment {
   currentSignalRejectionReasons: string[];
   officialRejectionReasons: string[];
   reasonCodes: string[];
-  ouOppositeLineStrategy: PaperOuOppositeLineStrategyAudit | null;
+  ouOppositeLineStrategy: PaperOuModelSelectionStrategyAudit | null;
 }
 
 export interface PaperShadowRecommendationDecision {
@@ -148,7 +148,7 @@ const POLICY: PaperShadowRecommendationPolicy = Object.freeze({
   ranking: 'RAW_THEN_HIERARCHICAL_THEN_BOUNDED_WITH_FALLBACK_HDA_LONGSHOT_QUARANTINE',
   paperOnly: true,
   automaticPromotion: false,
-  ouRecommendationStrategy: 'OPPOSITE_SELECTION_SHIFT_HALF_GOAL_CLAMPED_1_5_3_5',
+  ouRecommendationStrategy: 'DIRECT_MODEL_SELECTION_KEEP_ORIGINAL_LINE',
 });
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -308,12 +308,7 @@ function assessCandidate(
     baselineFallback ? 'BASELINE_FALLBACK_RESEARCH_ONLY' : 'DYNAMIC_MODEL_OBSERVED',
     'AUTOMATIC_PROMOTION_DISABLED',
     ...(candidate.ouOppositeLineStrategy
-      ? [
-          'OU_OPPOSITE_PROTECTED_HALF_GOAL_APPLIED',
-          candidate.ouOppositeLineStrategy.boundaryClamped
-            ? 'OU_LINE_BOUNDARY_CLAMPED'
-            : 'OU_LINE_SHIFTED_HALF_GOAL',
-        ]
+      ? ['OU_DIRECT_MODEL_SELECTION_APPLIED', 'OU_ORIGINAL_LINE_PRESERVED']
       : []),
   ];
 

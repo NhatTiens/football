@@ -165,7 +165,7 @@ export type PersonalCurrentRecommendationStatus =
 
 export interface PersonalOuOppositeLineStrategyDto {
   version: string;
-  strategy: 'OU_OPPOSITE_PROTECTED_LINE';
+  strategy: 'OU_DIRECT_MODEL_SELECTION';
   predictionMarketType: 'TOTAL_GOALS_1_5' | 'TOTAL_GOALS_2_5' | 'TOTAL_GOALS_3_5';
   predictionSelection: 'OVER' | 'UNDER';
   predictionLineValue: 1.5 | 2.5 | 3.5;
@@ -173,8 +173,8 @@ export interface PersonalOuOppositeLineStrategyDto {
   recommendedMarketType: 'TOTAL_GOALS_1_5' | 'TOTAL_GOALS_2_5' | 'TOTAL_GOALS_3_5';
   recommendedSelection: 'OVER' | 'UNDER';
   recommendedLineValue: 1.5 | 2.5 | 3.5;
-  lineShiftGoals: 0 | 1;
-  boundaryClamped: boolean;
+  lineShiftGoals: 0;
+  boundaryClamped: false;
   paperOnly: true;
 }
 

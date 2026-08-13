@@ -4,7 +4,7 @@ import {
   type ScientificBetCandidate,
   type ScientificBestBetDecision,
 } from './scientific-best-bet-policy-contract.js';
-import type { PaperOuOppositeLineStrategyAudit } from './paper-ou-opposite-line-core.js';
+import type { PaperOuModelSelectionStrategyAudit } from './paper-ou-model-selection-core.js';
 export const SCIENTIFIC_PAPER_BET_LEDGER_VERSION = 'v7.0-beta.1B-paper-bet-ledger-v1';
 
 export type PaperBetSettlementResult = 'WIN' | 'LOSS' | 'VOID';
@@ -24,7 +24,8 @@ export interface PaperBetCandidateInput {
   sourceOddsSnapshotId: number | null;
   sourceOddsUpdatedAt: Date | null;
   sourceOddsObservedAt: Date | null;
-  ouOppositeLineStrategy?: PaperOuOppositeLineStrategyAudit | null;
+  /** Legacy wire key; now contains the direct model-selection audit. */
+  ouOppositeLineStrategy?: PaperOuModelSelectionStrategyAudit | null;
 }
 
 export interface PaperBetDecisionInput {

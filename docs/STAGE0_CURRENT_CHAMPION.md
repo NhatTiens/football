@@ -15,8 +15,8 @@ Removing a file from the latest commit does not revoke a leaked credential and d
 ## Required gates
 
 1. No tracked backup, patch payload, build cache or non-example environment file.
-2. O/U policy tests follow the current half-goal rule and integer totals 2.0/3.0.
-3. Legacy history replay accepts exact PIT target quotes at line 2.0/3.0 and never invents odds.
+2. O/U policy tests preserve the calculated Over/Under selection and its original 1.5/2.5/3.5 line.
+3. Legacy history replay uses the exact PIT quote for the calculated selection and never invents odds.
 4. Typecheck, all tests, lint and production build pass.
 5. GitHub Actions passes on the cleanup commit.
 6. Working tree and origin/main are synchronized before tagging.

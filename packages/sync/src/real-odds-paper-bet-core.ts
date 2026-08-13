@@ -7,11 +7,11 @@ import {
   derivePaperOuTargetProbabilities,
   isPaperOuMarketType,
   isPaperOuSourceLine,
-  mapPaperOuPredictionToOppositeLine,
+  mapPaperOuPredictionToModelSelection,
   type PaperOuSourceLine,
-} from './paper-ou-opposite-line-core.js';
+} from './paper-ou-model-selection-core.js';
 export const LIVE_PAPER_BET_ENGINE_VERSION =
-  'v7.0-r4.10.2.11.6-ou-rule-history-v2';
+  'v7.0-ou-direct-model-selection-v1';
 
 export const LIVE_PAPER_BET_HORIZONS = [90, 30, 5] as const;
 
@@ -417,22 +417,12 @@ export function buildLivePaperBetCandidates(input: {
       let candidateCount = 0;
       let completeBookmakers = 0;
 
-      // Không đọc xác suất O/U khi không có odds đích liên quan.
+      // Không đọc xác suất O/U khi không có odds đúng line mô hình đang đánh giá.
       // Benchmark HDA-only cố ý dùng NaN cho các market không được benchmark.
-      const possibleTargetOuLines = (['OVER', 'UNDER'] as const).map(
-        (predictionSelection) =>
-          mapPaperOuPredictionToOppositeLine({
-            predictionSelection,
-            predictionLineValue: definition.lineValue,
-          }).recommendedLineValue,
-      );
-
       const hasRelevantOuOdds = latest.some(
         (row) =>
           row.marketType === definition.providerMarket &&
-          possibleTargetOuLines.some((lineValue) =>
-            sameLine(row.lineValue, lineValue),
-          ),
+          sameLine(row.lineValue, definition.lineValue),
       );
 
       if (!hasRelevantOuOdds) {
@@ -465,7 +455,7 @@ export function buildLivePaperBetCandidates(input: {
       // Chỉ tạo PAPER candidate khi mô hình nghiêng rõ về một cửa.
       // Nếu xác suất hai cửa bằng nhau thì không tự ý lựa chọn.
       if (sourceSelection) {
-        const mapping = mapPaperOuPredictionToOppositeLine({
+        const mapping = mapPaperOuPredictionToModelSelection({
           predictionSelection: sourceSelection,
           predictionLineValue: definition.lineValue,
         });

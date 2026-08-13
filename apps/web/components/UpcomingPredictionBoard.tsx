@@ -1442,7 +1442,7 @@ export function UpcomingPredictionBoard({
                   </small>
                   {row.paperShadowRecommendation.selected.ouOppositeLineStrategy ? (
                     <small>
-                      Quy tắc mô phỏng O/U: model{' '}
+                      Kết quả O/U từ mô hình:{' '}
                       {
                         row.paperShadowRecommendation.selected.ouOppositeLineStrategy
                           .predictionSelection
@@ -1456,19 +1456,7 @@ export function UpcomingPredictionBoard({
                         row.paperShadowRecommendation.selected.ouOppositeLineStrategy
                           .predictionProbability,
                       )}
-                      {') → mô phỏng '}
-                      {
-                        row.paperShadowRecommendation.selected.ouOppositeLineStrategy
-                          .recommendedSelection
-                      }{' '}
-                      {
-                        row.paperShadowRecommendation.selected.ouOppositeLineStrategy
-                          .recommendedLineValue
-                      }
-                      {' | '}
-                      {row.paperShadowRecommendation.selected.ouOppositeLineStrategy.boundaryClamped
-                        ? 'boundary kept'
-                        : 'line shifted by 1 goal'}
+                      {') · giữ nguyên cửa và line tính toán'}
                     </small>
                   ) : null}
                   <small>
@@ -1503,18 +1491,12 @@ export function UpcomingPredictionBoard({
                   </small>
                   {row.currentRecommendation.ouOppositeLineStrategy ? (
                     <small>
-                      Quy tắc mô phỏng O/U: model{' '}
+                      Kết quả O/U từ mô hình:{' '}
                       {row.currentRecommendation.ouOppositeLineStrategy.predictionSelection}{' '}
                       {row.currentRecommendation.ouOppositeLineStrategy.predictionLineValue}
                       {' ('}
                       {pct(row.currentRecommendation.ouOppositeLineStrategy.predictionProbability)}
-                      {') → mô phỏng '}
-                      {row.currentRecommendation.ouOppositeLineStrategy.recommendedSelection}{' '}
-                      {row.currentRecommendation.ouOppositeLineStrategy.recommendedLineValue}
-                      {' | '}
-                      {row.currentRecommendation.ouOppositeLineStrategy.boundaryClamped
-                        ? 'boundary kept'
-                        : 'line shifted by 1 goal'}
+                      {') · giữ nguyên cửa và line tính toán'}
                     </small>
                   ) : null}
 

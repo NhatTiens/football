@@ -2,16 +2,16 @@ import {
   isPaperOuMarketType,
   isPaperOuSourceLine,
   isPaperOuSupportedLine,
-  mapPaperOuPredictionToOppositeLine,
+  mapPaperOuPredictionToModelSelection,
   paperOuLineForMarket,
   paperOuMarketForLine,
   type PaperOuLine,
   type PaperOuMarketType,
   type PaperOuSelection,
-} from './paper-ou-opposite-line-core.js';
+} from './paper-ou-model-selection-core.js';
 
 export const OU_LEGACY_HISTORY_REPLAY_VERSION =
-  'v7.0-ou-legacy-history-pit-replay-v3-market-alias';
+  'v7.0-ou-direct-model-history-replay-v1';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -125,7 +125,7 @@ export function replayLegacyOuHistorySelection(input: {
   const source = normalizedOuIdentity(selected);
   if (source == null || !isPaperOuSourceLine(source.lineValue)) return null;
 
-  const mapping = mapPaperOuPredictionToOppositeLine({
+  const mapping = mapPaperOuPredictionToModelSelection({
     predictionSelection: source.selection,
     predictionLineValue: source.lineValue,
   });

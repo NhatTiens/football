@@ -43,10 +43,10 @@ import {
   getPaperHdaContextAdjustment,
   type PaperHdaContextAdjustmentEngineResult,
 } from './paper-hda-context-adjustment-engine.js';
-import type { PaperOuOppositeLineStrategyAudit } from './paper-ou-opposite-line-core.js';
+import type { PaperOuModelSelectionStrategyAudit } from './paper-ou-model-selection-core.js';
 
 export const CURRENT_SCIENTIFIC_RECOMMENDATION_VERSION =
-  'v7.0-r4.10.2.11.5-ou-opposite-protected-line-v1';
+  'v7.0-ou-direct-model-selection-v1';
 
 export type CurrentRecommendationModelSource =
   'DYNAMIC_DIXON_COLES' | 'SCIENTIFIC_BASELINE_FALLBACK';
@@ -139,7 +139,7 @@ export interface CurrentScientificCandidate {
   oddsFreshnessBasis: 'SOURCE_EFFECTIVE_AT' | 'REOBSERVED_AT' | null;
   reobservationRawSnapshotId: number | null;
   reobservationKind: string | null;
-  ouOppositeLineStrategy: PaperOuOppositeLineStrategyAudit | null;
+  ouOppositeLineStrategy: PaperOuModelSelectionStrategyAudit | null;
 }
 
 export interface CurrentScientificRecommendation {
@@ -192,7 +192,7 @@ export interface CurrentScientificRecommendation {
   oddsFreshnessBasis: 'SOURCE_EFFECTIVE_AT' | 'REOBSERVED_AT' | null;
   reobservationRawSnapshotId: number | null;
   reobservationKind: string | null;
-  ouOppositeLineStrategy: PaperOuOppositeLineStrategyAudit | null;
+  ouOppositeLineStrategy: PaperOuModelSelectionStrategyAudit | null;
   note: 'CURRENT_SIGNAL_NOT_OFFICIAL_BEST_BET';
 }
 

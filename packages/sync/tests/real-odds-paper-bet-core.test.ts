@@ -310,8 +310,8 @@ describe('beta.1B.1 real-odds paper-bet core', () => {
     push('MATCH_WINNER', 'DRAW', null, 3.4);
     push('MATCH_WINNER', 'AWAY', null, 3.8);
 
-    // Include the exact integer target lines. The engine must never relabel
-    // half-line odds as 2.0/3.0 odds.
+    // Integer lines may exist in provider odds, but the direct model result
+    // must keep its original 1.5/2.5/3.5 line.
     push('TOTAL_GOALS', 'OVER', 1.5, 1.91);
     push('TOTAL_GOALS', 'UNDER', 1.5, 1.81);
     push('TOTAL_GOALS', 'OVER', 2.0, 2.02);
@@ -350,30 +350,33 @@ describe('beta.1B.1 real-odds paper-bet core', () => {
 
     const from15 = bySourceLine.get(1.5);
     expect(from15?.marketType).toBe('TOTAL_GOALS_1_5');
-    expect(from15?.selection).toBe('UNDER');
-    expect(from15?.lineValue).toBe(2);
-    expect(from15?.decimalOdds).toBe(2.12);
+    expect(from15?.selection).toBe('OVER');
+    expect(from15?.lineValue).toBe(1.5);
+    expect(from15?.decimalOdds).toBe(1.91);
     expect(from15?.ouOppositeLineStrategy?.predictionSelection).toBe('OVER');
-    expect(from15?.ouOppositeLineStrategy?.recommendedLineValue).toBe(2);
-    expect(from15?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0.5);
+    expect(from15?.ouOppositeLineStrategy?.recommendedSelection).toBe('OVER');
+    expect(from15?.ouOppositeLineStrategy?.recommendedLineValue).toBe(1.5);
+    expect(from15?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0);
 
     const from25 = bySourceLine.get(2.5);
     expect(from25?.marketType).toBe('TOTAL_GOALS_2_5');
-    expect(from25?.selection).toBe('UNDER');
-    expect(from25?.lineValue).toBe(3);
-    expect(from25?.decimalOdds).toBe(2.33);
+    expect(from25?.selection).toBe('OVER');
+    expect(from25?.lineValue).toBe(2.5);
+    expect(from25?.decimalOdds).toBe(1.93);
     expect(from25?.ouOppositeLineStrategy?.predictionSelection).toBe('OVER');
-    expect(from25?.ouOppositeLineStrategy?.recommendedLineValue).toBe(3);
-    expect(from25?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0.5);
+    expect(from25?.ouOppositeLineStrategy?.recommendedSelection).toBe('OVER');
+    expect(from25?.ouOppositeLineStrategy?.recommendedLineValue).toBe(2.5);
+    expect(from25?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0);
 
     const from35 = bySourceLine.get(3.5);
     expect(from35?.marketType).toBe('TOTAL_GOALS_3_5');
-    expect(from35?.selection).toBe('OVER');
-    expect(from35?.lineValue).toBe(3);
-    expect(from35?.decimalOdds).toBe(2.23);
+    expect(from35?.selection).toBe('UNDER');
+    expect(from35?.lineValue).toBe(3.5);
+    expect(from35?.decimalOdds).toBe(1.85);
     expect(from35?.ouOppositeLineStrategy?.predictionSelection).toBe('UNDER');
-    expect(from35?.ouOppositeLineStrategy?.recommendedLineValue).toBe(3);
-    expect(from35?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0.5);
+    expect(from35?.ouOppositeLineStrategy?.recommendedSelection).toBe('UNDER');
+    expect(from35?.ouOppositeLineStrategy?.recommendedLineValue).toBe(3.5);
+    expect(from35?.ouOppositeLineStrategy?.lineShiftGoals).toBe(0);
   });
 
 });

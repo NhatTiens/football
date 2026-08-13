@@ -100,7 +100,7 @@ export * from './real-odds-paper-bet-engine.js';
 export * from './paper-bet-operations-core.js';
 export * from './paper-bet-operations-engine.js';
 export * from './paper-shadow-recommendation-core.js';
-export * from './paper-ou-opposite-line-core.js';
+export * from './paper-ou-model-selection-core.js';
 export * from './prediction-chatbot-core.js';
 export * from './prediction-chatbot-engine.js';
 export * from './prediction-chatbot-conversation-core.js';

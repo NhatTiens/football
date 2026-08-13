@@ -81,16 +81,9 @@ function expectedHistoryOuTarget(input: {
     return null;
   }
 
-  if (input.sourceSelection === 'OVER') {
-    return {
-      selection: 'UNDER',
-      lineValue: input.sourceLineValue === 1.5 ? 2.5 : 3.5,
-    };
-  }
-
   return {
-    selection: 'OVER',
-    lineValue: input.sourceLineValue === 3.5 ? 2.5 : 1.5,
+    selection: input.sourceSelection,
+    lineValue: input.sourceLineValue as 1.5 | 2.5 | 3.5,
   };
 }
 

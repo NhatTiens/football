@@ -1,15 +1,15 @@
 import { prisma } from '@football-ai/database';
 import {
-  PAPER_OU_OPPOSITE_LINE_VERSION,
+  PAPER_OU_MODEL_SELECTION_VERSION,
   isPaperOuSourceLine,
-  mapPaperOuPredictionToOppositeLine,
+  mapPaperOuPredictionToModelSelection,
   type PaperOuSelection,
 } from '@football-ai/sync';
 
 export type OuHistoryReplayStatus =
   | 'NOT_OU'
-  | 'CURRENT_HALF_GOAL_RULE'
-  | 'REPLAYED_FROM_PIT_ODDS'
+  | 'CURRENT_MODEL_RESULT'
+  | 'REPLAYED_AS_MODEL_RESULT'
   | 'MISSING_SOURCE_AUDIT'
   | 'MISSING_TARGET_PIT_ODDS';
 
@@ -285,7 +285,7 @@ export async function replayOuBetHistoryRows<T extends ReplayableOuHistoryRow>(
           where: {
             providerFixtureId: { in: fixtureIds },
             marketType: 'TOTAL_GOALS',
-            lineValue: { in: [1.5, 2, 3, 3.5] },
+            lineValue: { in: [1.5, 2.5, 3.5] },
             pitUsable: true,
             observedAt: { lte: reportAsOf },
           },
@@ -325,7 +325,7 @@ export async function replayOuBetHistoryRows<T extends ReplayableOuHistoryRow>(
       };
     }
 
-    const mapping = mapPaperOuPredictionToOppositeLine({
+    const mapping = mapPaperOuPredictionToModelSelection({
       predictionSelection: source.predictionSelection,
       predictionLineValue: source.predictionLineValue as 1.5 | 2.5 | 3.5,
     });
@@ -338,8 +338,8 @@ export async function replayOuBetHistoryRows<T extends ReplayableOuHistoryRow>(
     if (alreadyCurrent) {
       return {
         ...row,
-        ouRuleVersion: PAPER_OU_OPPOSITE_LINE_VERSION,
-        historyReplayStatus: 'CURRENT_HALF_GOAL_RULE' as const,
+        ouRuleVersion: PAPER_OU_MODEL_SELECTION_VERSION,
+        historyReplayStatus: 'CURRENT_MODEL_RESULT' as const,
         historyStrategyEligible: true,
       };
     }
@@ -366,7 +366,7 @@ export async function replayOuBetHistoryRows<T extends ReplayableOuHistoryRow>(
         edge: null,
         expectedValue: null,
         settlement: null,
-        ouRuleVersion: PAPER_OU_OPPOSITE_LINE_VERSION,
+        ouRuleVersion: PAPER_OU_MODEL_SELECTION_VERSION,
         historyReplayStatus: 'MISSING_TARGET_PIT_ODDS' as const,
         historyStrategyEligible: false,
       };
@@ -394,8 +394,8 @@ export async function replayOuBetHistoryRows<T extends ReplayableOuHistoryRow>(
               quote.decimalOdds,
               row.settlement,
             ),
-      ouRuleVersion: PAPER_OU_OPPOSITE_LINE_VERSION,
-      historyReplayStatus: 'REPLAYED_FROM_PIT_ODDS' as const,
+      ouRuleVersion: PAPER_OU_MODEL_SELECTION_VERSION,
+      historyReplayStatus: 'REPLAYED_AS_MODEL_RESULT' as const,
       historyStrategyEligible: true,
     };
   });

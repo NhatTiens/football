@@ -33,7 +33,7 @@ describe('History status labels', () => {
     expect(
       unresolvedHistoryLabel(
         {
-          historyReplayStatus: 'CURRENT_HALF_GOAL_RULE',
+          historyReplayStatus: 'CURRENT_MODEL_RESULT',
           historyStrategyEligible: true,
           kickoffAt: '2026-08-13T12:00:00.000Z',
         },
@@ -44,7 +44,7 @@ describe('History status labels', () => {
     expect(
       unresolvedHistoryLabel(
         {
-          historyReplayStatus: 'CURRENT_HALF_GOAL_RULE',
+          historyReplayStatus: 'CURRENT_MODEL_RESULT',
           historyStrategyEligible: true,
           kickoffAt: '2026-08-11T12:00:00.000Z',
         },
