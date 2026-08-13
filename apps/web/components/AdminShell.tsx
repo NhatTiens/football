@@ -11,6 +11,7 @@ const items = [
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/payments', label: 'Payments' },
   { href: '/admin/subscriptions', label: 'Subscriptions' },
+  { href: '/admin/promotions', label: 'Promotions' },
   { href: '/admin/webhooks', label: 'Webhooks' },
   { href: '/admin/audit', label: 'Audit' },
   { href: '/admin/system', label: 'System' },
@@ -77,9 +78,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
         <nav className="admin-nav" aria-label="Admin navigation">
           {items.map((item) => {
-            const active = item.exact
-              ? pathname === item.href
-              : pathname.startsWith(item.href);
+            const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
 
             return (
               <Link

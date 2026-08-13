@@ -4,15 +4,26 @@ import { prisma } from '@football-ai/database';
 
 import { canUseAdvancedChat } from './auth.js';
 import { env } from './env.js';
+import {
+  calculatePrice,
+  buildPaymentOrderPricingSnapshot,
+  claimPromotionForOrder,
+  getPricingCatalog,
+  releasePromotionClaimForOrder,
+} from './pricing-service.js';
 import { reconcileSubscriptionLifecycle } from './subscription.js';
 
 export const BILLING_PROVIDER = 'SEPAY';
 export const PRO_PLAN_CODE = 'PRO';
 
 type BillingDb = {
+  $transaction: any;
   authUser: any;
   paymentOrder: any;
   subscription: any;
+  billingPlan: any;
+  promotion: any;
+  promotionUserCounter: any;
 };
 
 export interface BillingPlanDto {
@@ -40,7 +51,6 @@ export function getBillingAvailability(): BillingAvailability {
   }
 
   const required = [
-    env.PRO_PLAN_PRICE_VND,
     env.PAYMENT_BANK_ID,
     env.PAYMENT_BANK_BIN,
     env.PAYMENT_ACCOUNT_NO,
@@ -98,7 +108,10 @@ export function formatOrderCode(date: Date, entropy: string): string {
   const y = String(date.getUTCFullYear()).slice(-2);
   const m = String(date.getUTCMonth() + 1).padStart(2, '0');
   const d = String(date.getUTCDate()).padStart(2, '0');
-  const safeEntropy = entropy.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12);
+  const safeEntropy = entropy
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 12);
   if (!safeEntropy) {
     throw new Error('Order code entropy is required.');
   }
@@ -109,10 +122,7 @@ export function generateOrderCode(now: Date = new Date()): string {
   return formatOrderCode(now, crypto.randomBytes(6).toString('hex'));
 }
 
-export function buildVietQrUrl(input: {
-  amountVnd: number;
-  transferContent: string;
-}): string {
+export function buildVietQrUrl(input: { amountVnd: number; transferContent: string }): string {
   requireBillingAvailability();
   const bankId = encodeURIComponent(env.PAYMENT_BANK_BIN || env.PAYMENT_BANK_ID);
   const accountNo = encodeURIComponent(env.PAYMENT_ACCOUNT_NO);
@@ -126,10 +136,7 @@ export function buildVietQrUrl(input: {
   return `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?${params.toString()}`;
 }
 
-export function paymentInstructions(input: {
-  amountVnd: number;
-  transferContent: string;
-}) {
+export function paymentInstructions(input: { amountVnd: number; transferContent: string }) {
   return {
     bankId: env.PAYMENT_BANK_ID,
     bankBin: env.PAYMENT_BANK_BIN,
@@ -149,7 +156,16 @@ export function serializePaymentOrder(order: any) {
     id: order.id,
     orderCode: order.orderCode,
     planCode: order.planCode,
+    planId: order.billingPlanId ?? null,
     amountVnd: order.amountVnd,
+    originalPriceVnd: order.originalPriceVnd ?? order.amountVnd,
+    discountAmountVnd: order.discountAmountVnd ?? 0,
+    finalPriceVnd: order.finalPriceVnd ?? order.amountVnd,
+    currency: order.currency ?? 'VND',
+    promotionId: order.promotionId ?? null,
+    promotionCode: order.promotionCode ?? null,
+    durationCount: order.durationCount ?? null,
+    durationUnit: order.durationUnit ?? null,
     status: order.status,
     provider: order.provider,
     transferContent: order.transferContent,
@@ -173,10 +189,14 @@ export function serializeSubscription(subscription: any) {
   return {
     id: subscription.id,
     planCode: subscription.planCode,
+    planId: subscription.billingPlanId ?? null,
     status: subscription.status,
     startsAt: toIso(subscription.startsAt),
     expiresAt: toIso(subscription.expiresAt),
     sourcePaymentOrderId: subscription.sourcePaymentOrderId ?? null,
+    autoRenew: Boolean(subscription.autoRenew),
+    pricePaidVnd: subscription.pricePaidVnd ?? null,
+    currency: subscription.currency ?? 'VND',
     createdAt: toIso(subscription.createdAt),
   };
 }
@@ -186,32 +206,45 @@ export async function expireStalePaymentOrders(
   db: BillingDb = prisma as unknown as BillingDb,
   now: Date = new Date(),
 ): Promise<number> {
-  const result = await db.paymentOrder.updateMany({
+  // Compatibility for lightweight adapters/tests created before promotion claims existed.
+  if (typeof db.paymentOrder.findMany !== 'function' || typeof db.$transaction !== 'function') {
+    const result = await db.paymentOrder.updateMany({
+      where: {
+        status: 'PENDING',
+        expiresAt: { lte: now },
+        ...(userId ? { userId } : {}),
+      },
+      data: { status: 'EXPIRED', activeKey: null },
+    });
+    return Number(result.count ?? 0);
+  }
+  const stale = await db.paymentOrder.findMany({
     where: {
       status: 'PENDING',
       expiresAt: { lte: now },
       ...(userId ? { userId } : {}),
     },
-    data: { status: 'EXPIRED', activeKey: null },
   });
-  return Number(result.count ?? 0);
+  let expired = 0;
+  for (const order of stale) {
+    await db.$transaction(async (tx: BillingDb) => {
+      const current = await tx.paymentOrder.findUnique({ where: { id: order.id } });
+      if (!current || current.status !== 'PENDING') return;
+      await releasePromotionClaimForOrder(current, tx);
+      expired += 1;
+    });
+  }
+  return expired;
 }
 
-export async function createPaymentOrderForUser(
+async function createLegacyPaymentOrder(
   userId: number,
-  planCode: string,
-  db: BillingDb = prisma as unknown as BillingDb,
-  now: Date = new Date(),
+  db: BillingDb,
+  now: Date,
 ): Promise<{ order: any; reused: boolean }> {
-  if (planCode !== PRO_PLAN_CODE) {
-    throw new Error('UNSUPPORTED_PLAN');
-  }
-
   const availability = requireBillingAvailability();
   const activeKey = `${userId}:${PRO_PLAN_CODE}:${BILLING_PROVIDER}`;
-
   await expireStalePaymentOrders(userId, db, now);
-
   const existing = await db.paymentOrder.findFirst({
     where: {
       userId,
@@ -223,29 +256,7 @@ export async function createPaymentOrderForUser(
     },
     orderBy: { createdAt: 'desc' },
   });
-
-  if (existing) {
-    if (existing.activeKey !== activeKey) {
-      try {
-        const claimed = await db.paymentOrder.update({
-          where: { id: existing.id },
-          data: { activeKey },
-        });
-        return { order: claimed, reused: true };
-      } catch (error) {
-        const code =
-          error && typeof error === 'object' && 'code' in error
-            ? String((error as { code?: unknown }).code ?? '')
-            : '';
-        if (code !== 'P2002') throw error;
-        const winner = await db.paymentOrder.findUnique({ where: { activeKey } });
-        if (winner) return { order: winner, reused: true };
-      }
-    }
-    return { order: existing, reused: true };
-  }
-
-  const expiresAt = new Date(now.getTime() + env.PAYMENT_ORDER_EXPIRE_MINUTES * 60_000);
+  if (existing) return { order: existing, reused: true };
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const orderCode = generateOrderCode(now);
@@ -261,17 +272,113 @@ export async function createPaymentOrderForUser(
           activeKey,
           transferContent: orderCode,
           qrUrl: null,
-          expiresAt,
+          expiresAt: new Date(now.getTime() + env.PAYMENT_ORDER_EXPIRE_MINUTES * 60_000),
           paidAt: null,
           providerTransactionId: null,
-          metadata: {
-            pricingSource: 'SERVER_ENV',
-            proPlanDays: env.PRO_PLAN_DAYS,
-            createdBy: 'BILLING_2',
-          },
+          metadata: { pricingSource: 'LEGACY_SERVER_ENV', proPlanDays: env.PRO_PLAN_DAYS },
         },
       });
       return { order, reused: false };
+    } catch (error) {
+      const code =
+        error && typeof error === 'object' && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+      if (code !== 'P2002') throw error;
+      const winner = await db.paymentOrder.findUnique({ where: { activeKey } });
+      if (winner) return { order: winner, reused: true };
+    }
+  }
+  throw new Error('ORDER_CODE_COLLISION');
+}
+
+export async function createPaymentOrderForUser(
+  userId: number,
+  input: string | { planId?: number; planCode?: string; promotionCode?: string | null },
+  db: BillingDb = prisma as unknown as BillingDb,
+  now: Date = new Date(),
+): Promise<{ order: any; reused: boolean }> {
+  if (typeof input === 'string' && input !== PRO_PLAN_CODE) throw new Error('UNSUPPORTED_PLAN');
+  requireBillingAvailability();
+  if (typeof input === 'string' && typeof db.billingPlan?.findFirst !== 'function') {
+    return createLegacyPaymentOrder(userId, db, now);
+  }
+  const selection = typeof input === 'string' ? { planCode: input } : input;
+  if (!selection.planId && !selection.planCode) throw new Error('PLAN_REQUIRED');
+  const activeKey = `${userId}:${PRO_PLAN_CODE}:${BILLING_PROVIDER}`;
+
+  await expireStalePaymentOrders(userId, db, now);
+  const expiresAt = new Date(now.getTime() + env.PAYMENT_ORDER_EXPIRE_MINUTES * 60_000);
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const orderCode = generateOrderCode(now);
+    try {
+      const result = await db.$transaction(async (tx: BillingDb) => {
+        const existing = await tx.paymentOrder.findUnique({ where: { activeKey } });
+        if (existing && existing.status === 'PENDING' && existing.expiresAt > now) {
+          const requestedPlanCode =
+            selection.planCode?.trim().toUpperCase() === 'PRO'
+              ? 'PRO_MONTHLY'
+              : selection.planCode?.trim().toUpperCase();
+          const requestedCoupon = selection.promotionCode?.trim().toUpperCase() || null;
+          const snapshotCoupon =
+            existing.pricingSnapshot?.requestedCoupon?.code?.trim().toUpperCase() || null;
+          const sameSelection =
+            (selection.planId != null
+              ? Number(existing.billingPlanId) === selection.planId
+              : existing.planCode === requestedPlanCode) && snapshotCoupon === requestedCoupon;
+          if (sameSelection) return { order: existing, reused: true };
+        }
+
+        const quote = await calculatePrice(
+          {
+            userId,
+            planId: selection.planId,
+            planCode: selection.planCode,
+            promotionCode: selection.promotionCode,
+            now,
+          },
+          tx,
+        );
+        if (!quote.plan.purchasable) throw new Error('PLAN_NOT_PURCHASABLE');
+        if (selection.promotionCode && quote.requestedCoupon?.valid !== true) {
+          throw new Error(`COUPON_INVALID:${quote.requestedCoupon?.reason ?? 'NOT_FOUND'}`);
+        }
+        if (quote.finalPrice <= 0) throw new Error('PAYMENT_AMOUNT_INVALID');
+
+        if (existing && existing.status === 'PENDING' && existing.expiresAt > now) {
+          await releasePromotionClaimForOrder(existing, tx);
+        }
+
+        if (quote.promotionId != null) {
+          await claimPromotionForOrder({ promotionId: quote.promotionId, userId, now }, tx);
+        }
+
+        const snapshot = buildPaymentOrderPricingSnapshot(quote);
+        const order = await tx.paymentOrder.create({
+          data: {
+            userId,
+            orderCode,
+            ...snapshot,
+            promotionClaimed: quote.promotionId != null,
+            status: 'PENDING',
+            provider: BILLING_PROVIDER,
+            activeKey,
+            transferContent: orderCode,
+            qrUrl: null,
+            expiresAt,
+            paidAt: null,
+            providerTransactionId: null,
+            metadata: {
+              pricingSource: 'PRICING_ENGINE',
+              pricingEngineVersion: quote.engineVersion,
+              createdBy: 'BILLING_3',
+            },
+          },
+        });
+        return { order, reused: false };
+      });
+      return result;
     } catch (error) {
       const code =
         error && typeof error === 'object' && 'code' in error
@@ -316,8 +423,6 @@ export async function findPaymentOrderForUser(
   });
 }
 
-
-
 export async function getAccountSubscriptionData(
   userId: number,
   db: BillingDb = prisma as unknown as BillingDb,
@@ -341,6 +446,9 @@ export async function getAccountSubscriptionData(
     plan: fresh.role === 'ADMIN' ? 'PRO' : fresh.plan,
     emailVerifiedAt: toIso(fresh.emailVerifiedAt),
     proExpiresAt: fresh.role === 'ADMIN' ? null : toIso(fresh.proExpiresAt),
+    trialStartedAt: toIso(fresh.trialStartedAt),
+    trialEndsAt: toIso(fresh.trialEndsAt),
+    trialUsed: Boolean(fresh.trialUsed),
     forcePasswordChange: Boolean(fresh.forcePasswordChange),
     canAccessAdvancedChat: canUseAdvancedChat({
       role: fresh.role,
@@ -348,6 +456,16 @@ export async function getAccountSubscriptionData(
       proExpiresAt: fresh.proExpiresAt,
     }),
     subscriptions: subscriptions.map(serializeSubscription),
+  };
+}
+
+export async function getBillingPricingCatalog(userId: number | null) {
+  const catalog = await getPricingCatalog(userId);
+  const availability = getBillingAvailability();
+  return {
+    ...catalog,
+    billingAvailable: availability.available,
+    billingUnavailableReason: availability.available ? null : availability.reason,
   };
 }
 

@@ -60,12 +60,19 @@ suite('commercial invariants with MySQL', () => {
   });
 
   it('returns one active payment order for concurrent checkout retries', async () => {
+    const plan = await prisma.billingPlan.findUnique({ where: { code: 'PRO_MONTHLY' } });
+    expect(plan).not.toBeNull();
     const results = await Promise.all(
-      Array.from({ length: 20 }, () =>
-        createPaymentOrderForUser(userId, 'PRO'),
-      ),
+      Array.from({ length: 20 }, () => createPaymentOrderForUser(userId, { planId: plan!.id })),
     );
     expect(new Set(results.map((result) => result.order.id)).size).toBe(1);
+    expect(results[0]?.order).toMatchObject({
+      billingPlanId: plan!.id,
+      originalPriceVnd: 35_000,
+      discountAmountVnd: 10_000,
+      finalPriceVnd: 25_000,
+      amountVnd: 25_000,
+    });
     expect(
       await prisma.paymentOrder.count({
         where: { userId, status: 'PENDING' },

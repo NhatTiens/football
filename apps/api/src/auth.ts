@@ -20,6 +20,9 @@ export interface AuthUserDto {
   plan: AuthPlan;
   emailVerifiedAt: string | null;
   proExpiresAt: string | null;
+  trialStartedAt: string | null;
+  trialEndsAt: string | null;
+  trialUsed: boolean;
   forcePasswordChange: boolean;
   failedLoginCount: number;
   lockedUntil: string | null;
@@ -144,7 +147,11 @@ export function effectiveProExpiresAt(
   return role === 'ADMIN' ? null : storedProExpiresAt;
 }
 
-export function canUseAdvancedChat(user: { role: AuthRole; plan: AuthPlan; proExpiresAt: Date | null }): boolean {
+export function canUseAdvancedChat(user: {
+  role: AuthRole;
+  plan: AuthPlan;
+  proExpiresAt: Date | null;
+}): boolean {
   return user.role === 'ADMIN' || isPlanActive(user.plan, user.proExpiresAt);
 }
 
@@ -234,6 +241,9 @@ function userDto(user: {
   plan: string;
   emailVerifiedAt: Date | null;
   proExpiresAt: Date | null;
+  trialStartedAt?: Date | null;
+  trialEndsAt?: Date | null;
+  trialUsed?: boolean;
   forcePasswordChange: boolean;
   failedLoginCount: number;
   lockedUntil: Date | null;
@@ -267,6 +277,9 @@ function userDto(user: {
     plan,
     emailVerifiedAt: toIso(user.emailVerifiedAt),
     proExpiresAt: toIso(proExpiresAt),
+    trialStartedAt: toIso(user.trialStartedAt),
+    trialEndsAt: toIso(user.trialEndsAt),
+    trialUsed: Boolean(user.trialUsed),
     forcePasswordChange: user.forcePasswordChange,
     failedLoginCount: user.failedLoginCount,
     lockedUntil: toIso(user.lockedUntil),
@@ -451,6 +464,9 @@ export async function loadAuthUserByEmail(email: string): Promise<{
   plan: string;
   emailVerifiedAt: Date | null;
   proExpiresAt: Date | null;
+  trialStartedAt?: Date | null;
+  trialEndsAt?: Date | null;
+  trialUsed?: boolean;
   forcePasswordChange: boolean;
   passwordHash: string;
   failedLoginCount: number;
@@ -479,6 +495,9 @@ export function serializeUser(user: {
   plan: string;
   emailVerifiedAt: Date | null;
   proExpiresAt: Date | null;
+  trialStartedAt?: Date | null;
+  trialEndsAt?: Date | null;
+  trialUsed?: boolean;
   forcePasswordChange: boolean;
   failedLoginCount: number;
   lockedUntil: Date | null;
@@ -508,7 +527,10 @@ export function isUserVerified(user: { emailVerifiedAt: string | null }): boolea
   return user.emailVerifiedAt != null;
 }
 
-export function isUserAllowedToLogin(user: { status: AuthUserStatus; emailVerifiedAt: Date | null }): boolean {
+export function isUserAllowedToLogin(user: {
+  status: AuthUserStatus;
+  emailVerifiedAt: Date | null;
+}): boolean {
   return user.status === 'ACTIVE' && user.emailVerifiedAt != null;
 }
 

@@ -4,6 +4,10 @@ import { prisma } from '@football-ai/database';
 import { z } from 'zod';
 
 import { env } from './env.js';
+import {
+  finalizePromotionUsageForPaidOrder,
+  releasePromotionClaimForOrder,
+} from './pricing-service.js';
 import { applyPaidProEntitlement } from './subscription.js';
 
 export const sepayWebhookSchema = z.object({
@@ -83,13 +87,12 @@ export function hashSepayPayload(payload: SepayWebhookPayload): string {
   return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
-
 function isPrismaUniqueError(error: unknown): boolean {
   return Boolean(
     error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      String((error as { code?: unknown }).code ?? '') === 'P2002',
+    typeof error === 'object' &&
+    'code' in error &&
+    String((error as { code?: unknown }).code ?? '') === 'P2002',
   );
 }
 
@@ -155,10 +158,7 @@ export async function processSepayWebhook(
         return { kind: 'rejected' as const, reason: 'DIRECTION' as const, orderId: null };
       }
 
-      if (
-        normalizedDigits(payload.accountNumber) !==
-        normalizedDigits(env.PAYMENT_ACCOUNT_NO)
-      ) {
+      if (normalizedDigits(payload.accountNumber) !== normalizedDigits(env.PAYMENT_ACCOUNT_NO)) {
         await recordRejected(tx, event.id, 'ACCOUNT');
         return { kind: 'rejected' as const, reason: 'ACCOUNT' as const, orderId: null };
       }
@@ -213,10 +213,7 @@ export async function processSepayWebhook(
       }
 
       if (order.expiresAt.getTime() <= now.getTime()) {
-        await tx.paymentOrder.updateMany({
-          where: { id: order.id, status: 'PENDING' },
-          data: { status: 'EXPIRED', activeKey: null },
-        });
+        await releasePromotionClaimForOrder(order, tx);
         await recordRejected(tx, event.id, 'EXPIRED', order.id);
         return {
           kind: 'rejected' as const,
@@ -273,12 +270,21 @@ export async function processSepayWebhook(
           sourcePaymentOrderId: order.id,
           provider: 'SEPAY',
           externalTransactionId: externalId,
+          billingPlanId: order.billingPlanId ?? null,
+          planCode: order.planCode,
+          durationCount: order.durationCount ?? env.PRO_PLAN_DAYS,
+          durationUnit: order.durationUnit ?? 'DAY',
+          pricePaidVnd: order.finalPriceVnd ?? order.amountVnd,
+          currency: order.currency ?? 'VND',
+          promotionId: order.promotionId ?? null,
           now,
         },
         tx,
       );
 
       const newProExpiresAt = entitlement.expiresAt;
+
+      await finalizePromotionUsageForPaidOrder(order, tx, now);
 
       await tx.paymentWebhookEvent.update({
         where: { id: event.id },

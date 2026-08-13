@@ -8,7 +8,7 @@ import {
   findPaymentOrderForUser,
   getAccountPaymentsData,
   getAccountSubscriptionData,
-  getBillingPlans,
+  getBillingPricingCatalog,
   getBillingAvailability,
   paymentInstructions,
   serializePaymentOrder,
@@ -67,9 +67,16 @@ const createOrderLimit = rateLimit({
   legacyHeaders: false,
 });
 
-const orderSchema = z.object({
-  planCode: z.literal('PRO'),
-});
+export const billingOrderRequestSchema = z
+  .object({
+    planId: z.number().int().positive().optional(),
+    planCode: z.string().trim().min(1).max(32).optional(),
+    promotionCode: z.string().trim().min(1).max(64).nullable().optional(),
+  })
+  .strict()
+  .refine((value) => value.planId != null || value.planCode != null, {
+    message: 'planId or planCode is required.',
+  });
 
 function positiveLimit(value: unknown): number {
   const parsed = Number(value ?? 50);
@@ -112,8 +119,10 @@ billingRouter.post(
 
 billingRouter.get(
   '/plans',
-  asyncRoute(async (_request, response) => {
-    response.json(getBillingPlans());
+  asyncRoute(async (request, response) => {
+    const auth = await resolveAuthContext(request);
+    const userId = auth.authenticated && auth.user?.status === 'ACTIVE' ? auth.user.id : null;
+    response.json(await getBillingPricingCatalog(userId));
   }),
 );
 
@@ -132,11 +141,11 @@ billingRouter.post(
       return;
     }
 
-    const parsed = orderSchema.safeParse(request.body ?? {});
+    const parsed = billingOrderRequestSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       response.status(400).json({
         error: 'Invalid payment order payload.',
-        acceptedPlanCodes: ['PRO'],
+        acceptedFields: ['planId', 'planCode', 'promotionCode'],
       });
       return;
     }
@@ -150,7 +159,21 @@ billingRouter.post(
       return;
     }
 
-    const result = await createPaymentOrderForUser(auth.user.id, parsed.data.planCode);
+    let result;
+    try {
+      result = await createPaymentOrderForUser(auth.user.id, parsed.data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.startsWith('COUPON_INVALID:')) {
+        response.status(409).json({ error: message, reason: message.split(':')[1] });
+        return;
+      }
+      if (message.includes('PLAN_')) {
+        response.status(400).json({ error: message });
+        return;
+      }
+      throw error;
+    }
     const order = serializePaymentOrder(result.order);
 
     response.status(result.reused ? 200 : 201).json({
@@ -188,7 +211,9 @@ billingRouter.get(
     const auth = await requireAuth(request, response);
     if (!auth) return;
 
-    const orderCode = String(request.params.orderCode ?? '').trim().toUpperCase();
+    const orderCode = String(request.params.orderCode ?? '')
+      .trim()
+      .toUpperCase();
     if (!/^[A-Z0-9-]{6,64}$/.test(orderCode)) {
       response.status(400).json({ error: 'Invalid order code.' });
       return;

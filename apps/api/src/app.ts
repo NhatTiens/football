@@ -40,9 +40,11 @@ import {
 } from './global-market-scope.js';
 import { authRouter } from './auth-routes.js';
 import { accountBillingRouter, billingRouter } from './billing-routes.js';
+import { adminPromotionRouter, pricingRouter } from './pricing-routes.js';
 import { resolveAuthContext, roleCanAccessIntent } from './auth.js';
 import { consumeUsage, getFeatureForChatIntent, refundUsage } from './auth-usage.js';
-import { openApiDocument } from './openapi.js'; import { getScientificDashboard } from './scientific-dashboard.js';
+import { openApiDocument } from './openapi.js';
+import { getScientificDashboard } from './scientific-dashboard.js';
 import { scientificRouter } from './scientific-routes.js';
 import { fixtureSummary, recommendationDto } from './serializers.js';
 
@@ -50,7 +52,9 @@ export const app = express();
 
 app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: false }));
-const allowedOrigins = env.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean);
+const allowedOrigins = env.CORS_ORIGIN.split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
 app.use(
   cors({
     origin(origin, callback) {
@@ -129,9 +133,14 @@ app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use(['/api/auth', '/api/account', '/api/admin', '/api/billing'], sensitiveNoStore);
+app.use(
+  ['/api/auth', '/api/account', '/api/admin', '/api/billing', '/api/pricing'],
+  sensitiveNoStore,
+);
 app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/pricing', pricingRouter);
+app.use('/api/admin/promotions', adminPromotionRouter);
 app.use('/api/account', accountBillingRouter);
 // Keep billing-specific /api/account routes first; authRouter supplies
 // /api/account/usage, profile/sessions and /api/admin/* compatibility paths.
@@ -408,7 +417,6 @@ app.get(
     response.json(run);
   }),
 );
-
 
 app.post(
   '/api/backtests/run',
@@ -698,7 +706,12 @@ app.post(
 
 app.use('/api/scientific', scientificRouter);
 
-app.get( '/api/scientific/dashboard', asyncRoute(async (_request, response) => { response.json(await getScientificDashboard(prisma as any)); }), ); 
+app.get(
+  '/api/scientific/dashboard',
+  asyncRoute(async (_request, response) => {
+    response.json(await getScientificDashboard(prisma as any));
+  }),
+);
 
 app.get(
   '/api/backtest/leagues',
@@ -749,24 +762,18 @@ app.get(
     })) as PersonalLeagueCount[];
 
     const finishedMap = new Map<number, number>(
-      finished.map(
-        (row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all],
-      ),
+      finished.map((row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all]),
     );
     const upcomingMap = new Map<number, number>(
-      upcoming.map(
-        (row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all],
-      ),
+      upcoming.map((row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all]),
     );
 
     const data: PersonalLeagueCoverage[] = leagues
-      .map(
-        (league: PersonalLeagueCoverageBase): PersonalLeagueCoverage => ({
-          ...league,
-          finishedFixtures: finishedMap.get(league.id) ?? 0,
-          upcomingFixtures: upcomingMap.get(league.id) ?? 0,
-        }),
-      )
+      .map((league: PersonalLeagueCoverageBase): PersonalLeagueCoverage => ({
+        ...league,
+        finishedFixtures: finishedMap.get(league.id) ?? 0,
+        upcomingFixtures: upcomingMap.get(league.id) ?? 0,
+      }))
       .sort(
         (left: PersonalLeagueCoverage, right: PersonalLeagueCoverage): number =>
           right.finishedFixtures - left.finishedFixtures ||
@@ -778,7 +785,6 @@ app.get(
   }),
 );
 
-
 app.get(
   '/api/backtest/leagues',
   asyncRoute(async (_request, response) => {
@@ -828,24 +834,18 @@ app.get(
     })) as PersonalLeagueCount[];
 
     const finishedMap = new Map<number, number>(
-      finished.map(
-        (row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all],
-      ),
+      finished.map((row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all]),
     );
     const upcomingMap = new Map<number, number>(
-      upcoming.map(
-        (row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all],
-      ),
+      upcoming.map((row: PersonalLeagueCount): [number, number] => [row.leagueId, row._count._all]),
     );
 
     const data: PersonalLeagueCoverage[] = leagues
-      .map(
-        (league: PersonalLeagueCoverageBase): PersonalLeagueCoverage => ({
-          ...league,
-          finishedFixtures: finishedMap.get(league.id) ?? 0,
-          upcomingFixtures: upcomingMap.get(league.id) ?? 0,
-        }),
-      )
+      .map((league: PersonalLeagueCoverageBase): PersonalLeagueCoverage => ({
+        ...league,
+        finishedFixtures: finishedMap.get(league.id) ?? 0,
+        upcomingFixtures: upcomingMap.get(league.id) ?? 0,
+      }))
       .sort(
         (left: PersonalLeagueCoverage, right: PersonalLeagueCoverage): number =>
           right.finishedFixtures - left.finishedFixtures ||
@@ -897,29 +897,13 @@ app.post(
       ? body.groups
           .map((value: unknown) => String(value).toUpperCase())
           .filter((value: string) => allowedGroups.has(value))
-      : [
-          'WAFCON',
-          'UCL',
-          'UEFA_EUROPA',
-          'ASEAN',
-          'SEA',
-          'ASIA',
-          'EPL',
-          'LALIGA',
-        ];
+      : ['WAFCON', 'UCL', 'UEFA_EUROPA', 'ASEAN', 'SEA', 'ASIA', 'EPL', 'LALIGA'];
 
     response.json(
       await refreshPersonalUpcomingAnalysis({
         days: body.days ? Number(body.days) : undefined,
         groups: groups as Array<
-          | 'ASEAN'
-          | 'WAFCON'
-          | 'UCL'
-          | 'UEFA_EUROPA'
-          | 'SEA'
-          | 'ASIA'
-          | 'EPL'
-          | 'LALIGA'
+          'ASEAN' | 'WAFCON' | 'UCL' | 'UEFA_EUROPA' | 'SEA' | 'ASIA' | 'EPL' | 'LALIGA'
         >,
       }),
     );
@@ -950,8 +934,7 @@ app.post(
       return;
     }
 
-    const message =
-      typeof request.body?.message === 'string' ? request.body.message.trim() : '';
+    const message = typeof request.body?.message === 'string' ? request.body.message.trim() : '';
 
     if (message.length === 0) {
       response.status(400).json({ error: 'Vui lòng nhập tên trận hoặc câu hỏi dự đoán.' });
@@ -972,7 +955,14 @@ app.post(
     }
 
     const intent = detectAdvancedPredictionChatIntent(message);
-    if (!roleCanAccessIntent(auth.user.role, intent, auth.user.plan, auth.user.proExpiresAt ? new Date(auth.user.proExpiresAt) : null)) {
+    if (
+      !roleCanAccessIntent(
+        auth.user.role,
+        intent,
+        auth.user.plan,
+        auth.user.proExpiresAt ? new Date(auth.user.proExpiresAt) : null,
+      )
+    ) {
       response.status(403).json({
         error: 'This question requires a PRO account.',
         requiredRole: 'PRO',

@@ -4,11 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 
-import {
-  formatVnd,
-  getBillingOrder,
-  type BillingOrderResponse,
-} from '../lib/billing';
+import { formatVnd, getBillingOrder, type BillingOrderResponse } from '../lib/billing';
 
 function remainingText(expiresAt: string | null, now: number): string {
   if (!expiresAt) return 'Không xác định';
@@ -49,9 +45,7 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
         }
       } catch (reason) {
         if (active) {
-          setError(
-            reason instanceof Error ? reason.message : 'Không tải được đơn hàng.',
-          );
+          setError(reason instanceof Error ? reason.message : 'Không tải được đơn hàng.');
         }
       }
     }
@@ -117,13 +111,11 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
           <span className="eyebrow">CHECKOUT</span>
           <h1>Thanh toán gói {order.planCode}</h1>
           <p>
-            Quét VietQR hoặc chuyển khoản thủ công. Giữ nguyên chính xác số tiền
-            và nội dung chuyển khoản.
+            Quét VietQR hoặc chuyển khoản thủ công. Giữ nguyên chính xác số tiền và nội dung chuyển
+            khoản.
           </p>
         </div>
-        <div
-          className={`checkout-status checkout-status-${order.status.toLowerCase()}`}
-        >
+        <div className={`checkout-status checkout-status-${order.status.toLowerCase()}`}>
           <span>{statusLabel(order.status)}</span>
           <strong>{order.status === 'PENDING' ? countdown : order.status}</strong>
         </div>
@@ -131,8 +123,8 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
 
       {order.status === 'PAID' ? (
         <div className="billing-alert billing-alert-success">
-          <strong>Thanh toán đã được xác nhận.</strong> SePay webhook đã xử lý
-          PaymentOrder và entitlement PRO. Bạn có thể kiểm tra ngay trong tài khoản.
+          <strong>Thanh toán đã được xác nhận.</strong> SePay webhook đã xử lý PaymentOrder và
+          entitlement PRO. Bạn có thể kiểm tra ngay trong tài khoản.
           <div className="hero-actions">
             <Link href="/account/subscription" className="button primary">
               Xem quyền PRO
@@ -146,8 +138,8 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
 
       {order.status === 'EXPIRED' ? (
         <div className="billing-alert billing-alert-error">
-          <strong>Đơn hàng đã hết hạn.</strong> Không chuyển khoản theo QR này.
-          Hãy tạo đơn mới từ trang Pricing.
+          <strong>Đơn hàng đã hết hạn.</strong> Không chuyển khoản theo QR này. Hãy tạo đơn mới từ
+          trang Pricing.
         </div>
       ) : null}
 
@@ -166,17 +158,33 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
           ) : (
             <div className="checkout-qr-placeholder">QR chưa khả dụng</div>
           )}
-          <small>
-            QR chứa sẵn số tiền và nội dung chuyển khoản của riêng đơn hàng này.
-          </small>
+          <small>QR chứa sẵn số tiền và nội dung chuyển khoản của riêng đơn hàng này.</small>
         </article>
 
         <article className="checkout-detail-card">
           <div className="checkout-amount">
             <span>Số tiền</span>
             <strong>{formatVnd(order.amountVnd)}</strong>
+            {order.discountAmountVnd > 0 ? (
+              <small>
+                Giá gốc {formatVnd(order.originalPriceVnd)} · giảm{' '}
+                {formatVnd(order.discountAmountVnd)}
+                {order.promotionCode ? ` · ${order.promotionCode}` : ''}
+              </small>
+            ) : null}
           </div>
           <dl className="checkout-details">
+            <div>
+              <dt>Thời hạn</dt>
+              <dd>
+                {order.durationCount ?? '—'}{' '}
+                {order.durationUnit === 'MONTH'
+                  ? 'tháng'
+                  : order.durationUnit === 'DAY'
+                    ? 'ngày'
+                    : ''}
+              </dd>
+            </div>
             <div>
               <dt>Ngân hàng</dt>
               <dd>{payment.bankName}</dd>
@@ -215,10 +223,7 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
               <dt>Mã đơn</dt>
               <dd>
                 <code>{order.orderCode}</code>
-                <button
-                  type="button"
-                  onClick={() => void copy(order.orderCode, 'order')}
-                >
+                <button type="button" onClick={() => void copy(order.orderCode, 'order')}>
                   {copied === 'order' ? 'Đã copy' : 'Copy'}
                 </button>
               </dd>
@@ -230,9 +235,9 @@ export function BillingCheckout({ orderCode }: { orderCode: string }) {
           </dl>
 
           <div className="checkout-note">
-            <strong>Tự động xác nhận:</strong> checkout polling trạng thái
-            PaymentOrder. Khi SePay webhook xác nhận đúng tài khoản, số tiền và
-            orderCode, backend chuyển đơn sang PAID và cập nhật PRO.
+            <strong>Tự động xác nhận:</strong> checkout polling trạng thái PaymentOrder. Khi SePay
+            webhook xác nhận đúng tài khoản, số tiền và orderCode, backend chuyển đơn sang PAID và
+            cập nhật PRO.
           </div>
 
           <div className="hero-actions">

@@ -27,6 +27,23 @@ function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 86_400_000);
 }
 
+export function addBillingDuration(date: Date, count: number, unit: 'DAY' | 'MONTH'): Date {
+  if (!Number.isInteger(count) || count <= 0 || count > 3650) {
+    throw new Error('Billing duration must be a positive bounded integer.');
+  }
+  if (unit === 'DAY') return addDays(date, count);
+
+  const result = new Date(date.getTime());
+  const targetDay = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + count);
+  const lastDay = new Date(
+    Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  result.setUTCDate(Math.min(targetDay, lastDay));
+  return result;
+}
+
 export async function reconcileSubscriptionLifecycle(
   userId: number,
   db: SubscriptionDb = prisma as unknown as SubscriptionDb,
@@ -75,10 +92,7 @@ export async function reconcileSubscriptionLifecycle(
         ? new Date(user.proExpiresAt)
         : null;
 
-  if (
-    user.plan === 'PRO' &&
-    (!expiry || expiry.getTime() <= now.getTime())
-  ) {
+  if (user.plan === 'PRO' && (!expiry || expiry.getTime() <= now.getTime())) {
     user = await db.authUser.update({
       where: { id: userId },
       data: {
@@ -110,6 +124,13 @@ export async function applyPaidProEntitlement(
     sourcePaymentOrderId: number;
     provider: string;
     externalTransactionId: string;
+    billingPlanId?: number | null;
+    planCode?: string;
+    durationCount?: number;
+    durationUnit?: 'DAY' | 'MONTH';
+    pricePaidVnd?: number | null;
+    currency?: string;
+    promotionId?: number | null;
     now?: Date;
   },
   db: SubscriptionDb = prisma as unknown as SubscriptionDb,
@@ -134,27 +155,33 @@ export async function applyPaidProEntitlement(
         : null;
 
   const activeExpiry =
-    user.plan === 'PRO' &&
-    currentExpiry &&
-    currentExpiry.getTime() > now.getTime()
+    user.plan === 'PRO' && currentExpiry && currentExpiry.getTime() > now.getTime()
       ? currentExpiry
       : null;
 
   const startsAt = activeExpiry ?? now;
-  const expiresAt = addDays(startsAt, env.PRO_PLAN_DAYS);
+  const durationCount = input.durationCount ?? env.PRO_PLAN_DAYS;
+  const durationUnit = input.durationUnit ?? 'DAY';
+  const expiresAt = addBillingDuration(startsAt, durationCount, durationUnit);
 
   const subscription = await db.subscription.create({
     data: {
       userId: user.id,
-      planCode: 'PRO',
+      planCode: input.planCode ?? 'PRO',
+      billingPlanId: input.billingPlanId ?? null,
       status: 'ACTIVE',
       startsAt,
       expiresAt,
       sourcePaymentOrderId: input.sourcePaymentOrderId,
+      autoRenew: false,
+      pricePaidVnd: input.pricePaidVnd ?? null,
+      currency: input.currency ?? 'VND',
       metadata: {
         provider: input.provider,
         externalTransactionId: input.externalTransactionId,
-        proPlanDays: env.PRO_PLAN_DAYS,
+        durationCount,
+        durationUnit,
+        promotionId: input.promotionId ?? null,
       },
     },
   });
@@ -211,9 +238,7 @@ export async function grantManualProEntitlement(
         : null;
 
   const activeExpiry =
-    user.plan === 'PRO' &&
-    currentExpiry &&
-    currentExpiry.getTime() > now.getTime()
+    user.plan === 'PRO' && currentExpiry && currentExpiry.getTime() > now.getTime()
       ? currentExpiry
       : null;
 
@@ -228,6 +253,7 @@ export async function grantManualProEntitlement(
       startsAt,
       expiresAt,
       sourcePaymentOrderId: null,
+      autoRenew: false,
       metadata: {
         source: 'ADMIN_GRANT',
         adminUserId: input.adminUserId,

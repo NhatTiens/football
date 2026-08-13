@@ -3,10 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
-import {
-  getAccountSubscription,
-  type AccountSubscriptionResponse,
-} from '../../../lib/auth';
+import { getAccountSubscription, type AccountSubscriptionResponse } from '../../../lib/auth';
 import {
   formatAccountDate,
   remainingEntitlementText,
@@ -15,8 +12,7 @@ import {
 
 // USER_UI_FINAL_V1
 export default function AccountSubscriptionPage() {
-  const [subscription, setSubscription] =
-    useState<AccountSubscriptionResponse | null>(null);
+  const [subscription, setSubscription] = useState<AccountSubscriptionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,11 +23,7 @@ export default function AccountSubscriptionPage() {
     try {
       setSubscription(await getAccountSubscription());
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : 'Không tải được thông tin gói.',
-      );
+      setError(reason instanceof Error ? reason.message : 'Không tải được thông tin gói.');
     } finally {
       setLoading(false);
     }
@@ -79,8 +71,7 @@ export default function AccountSubscriptionPage() {
           <span className="eyebrow">SUBSCRIPTION</span>
           <h1>Quyền sử dụng {subscription.plan}</h1>
           <p>
-            Trạng thái này được đồng bộ từ entitlement phía máy chủ, không lấy
-            quyết định từ client.
+            Trạng thái này được đồng bộ từ entitlement phía máy chủ, không lấy quyết định từ client.
           </p>
         </div>
         <span
@@ -100,9 +91,7 @@ export default function AccountSubscriptionPage() {
         <article>
           <span>PRO còn lại</span>
           <strong>
-            {isPro
-              ? remainingEntitlementText(subscription.proExpiresAt)
-              : 'Chưa kích hoạt'}
+            {isPro ? remainingEntitlementText(subscription.proExpiresAt) : 'Chưa kích hoạt'}
           </strong>
         </article>
         <article>
@@ -116,14 +105,18 @@ export default function AccountSubscriptionPage() {
       </div>
 
       <div className="commercial-account-meta">
-        <span>
-          Email: {subscription.emailVerifiedAt ? 'Đã xác minh' : 'Chưa xác minh'}
-        </span>
+        <span>Email: {subscription.emailVerifiedAt ? 'Đã xác minh' : 'Chưa xác minh'}</span>
         <span>Role: {subscription.role}</span>
+        <span>
+          Trial:{' '}
+          {subscription.trialStartedAt
+            ? `${formatAccountDate(subscription.trialStartedAt)} → ${formatAccountDate(subscription.trialEndsAt)}`
+            : subscription.trialUsed
+              ? 'Đã sử dụng trước đây'
+              : 'Chưa sử dụng'}
+        </span>
         {subscription.forcePasswordChange ? (
-          <span className="commercial-warning-text">
-            Tài khoản cần đổi mật khẩu.
-          </span>
+          <span className="commercial-warning-text">Tài khoản cần đổi mật khẩu.</span>
         ) : null}
       </div>
 

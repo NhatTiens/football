@@ -4,7 +4,6 @@ Nền tảng dùng **Next.js + React + Node.js/Express + MySQL/Prisma** để l�
 
 > Đây là công cụ hỗ trợ nghiên cứu xác suất. Không bảo đảm lợi nhuận, không tự động đặt cược và không thay thế việc đánh giá pháp lý/dữ liệu tại thị trường vận hành.
 
-
 ## Bản 1.2 bổ sung đội hình
 
 - Đồng bộ `fixtures/lineups` thành snapshot, không ghi đè lịch sử.
@@ -48,6 +47,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 docker compose up -d mysql
 npm run db:deploy
 npm run db:seed
+npm run db:seed:pricing
 npm run worker -- generate
 npm run worker -- backtest
 npm run dev
@@ -69,6 +69,7 @@ npm install
 npm run db:generate
 npm run db:deploy
 npm run db:seed
+npm run db:seed:pricing
 npm run worker -- generate
 npm run worker -- backtest
 npm run dev
@@ -139,18 +140,25 @@ dependency audit, production build và Playwright browser smoke.
 
 ## Mở thanh toán production
 
-Thanh toán mặc định bị khóa. Chỉ đặt
-`REQUIRES_PRODUCTION_PRICE_CONFIRMATION=false` sau khi đã xác nhận giá và cấu
-hình đầy đủ `PRO_PLAN_PRICE_VND`, `PAYMENT_BANK_ID`, `PAYMENT_BANK_BIN`,
-`PAYMENT_ACCOUNT_NO`, `PAYMENT_ACCOUNT_NAME`. Thiếu bất kỳ giá trị nào, API
-plans trả `purchasable=false` và tạo order trả `503`.
+Thanh toán mặc định bị khóa. Chạy migration và seed pricing an toàn bằng
+`npm run db:deploy && npm run db:seed:pricing`, sau đó chỉ đặt
+`REQUIRES_PRODUCTION_PRICE_CONFIRMATION=false` khi đã xác nhận các bản ghi
+`BillingPlan`/`Promotion` và cấu hình đầy đủ `PAYMENT_BANK_ID`,
+`PAYMENT_BANK_BIN`, `PAYMENT_ACCOUNT_NO`, `PAYMENT_ACCOUNT_NAME`. Biến
+`PRO_PLAN_PRICE_VND` chỉ còn là fallback cho client/đơn cũ; purchase mới luôn
+được Pricing Engine tính từ database.
+
+`db:seed:pricing` là idempotent và không xóa dữ liệu bóng đá. Không dùng
+`db:seed` demo để chỉ triển khai pricing trên production. Promotion 6 tháng có
+hiệu lực đến hết 01/01/2027 theo `Asia/Ho_Chi_Minh` (mốc end-exclusive lưu UTC:
+`2027-01-01T17:00:00.000Z`).
 
 Điều kiện đóng băng CURRENT_CHAMPION:
 
-* Secret scan: PASS.
-* Stage 0 repository audit: PASS.
-* TypeScript, Vitest, ESLint và Next.js production build: PASS.
-* GitHub Actions trên commit đóng băng: PASS.
+- Secret scan: PASS.
+- Stage 0 repository audit: PASS.
+- TypeScript, Vitest, ESLint và Next.js production build: PASS.
+- GitHub Actions trên commit đóng băng: PASS.
 
 Xem checklist tại `docs/STAGE0_CURRENT_CHAMPION.md`.
 

@@ -1,4 +1,7 @@
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(
+  /\/$/,
+  '',
+);
 
 export type AuthRole = 'USER' | 'ANALYST' | 'ADMIN';
 export type AuthPlan = 'FREE' | 'PRO';
@@ -13,6 +16,9 @@ export interface PublicAuthUser {
   plan: AuthPlan;
   emailVerifiedAt: string | null;
   proExpiresAt: string | null;
+  trialStartedAt: string | null;
+  trialEndsAt: string | null;
+  trialUsed: boolean;
   forcePasswordChange: boolean;
   failedLoginCount: number;
   lockedUntil: string | null;
@@ -106,6 +112,9 @@ export interface AccountSubscriptionResponse {
   plan: AuthPlan;
   emailVerifiedAt: string | null;
   proExpiresAt: string | null;
+  trialStartedAt: string | null;
+  trialEndsAt: string | null;
+  trialUsed: boolean;
   forcePasswordChange: boolean;
   canAccessAdvancedChat: boolean;
   subscriptions: AccountSubscriptionHistoryItem[];
@@ -130,9 +139,10 @@ async function authFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | { error?: string; message?: string }
-      | null;
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+      message?: string;
+    } | null;
     throw new Error(payload?.error ?? payload?.message ?? `API ${response.status}`);
   }
 
@@ -164,14 +174,18 @@ export async function registerAuth(input: {
   });
 }
 
-export async function sendVerificationAuth(input: { email: string }): Promise<VerificationResponse> {
+export async function sendVerificationAuth(input: {
+  email: string;
+}): Promise<VerificationResponse> {
   return authFetch<VerificationResponse>('/auth/email/send-verification', {
     method: 'POST',
     body: JSON.stringify(input),
   });
 }
 
-export async function resendVerificationAuth(input: { email: string }): Promise<VerificationResponse> {
+export async function resendVerificationAuth(input: {
+  email: string;
+}): Promise<VerificationResponse> {
   return authFetch<VerificationResponse>('/auth/email/resend-verification', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -224,11 +238,16 @@ export async function logoutAllAuth(): Promise<void> {
   await authFetch<{ ok: true }>('/auth/logout-all', { method: 'POST' });
 }
 
-export async function getAccountAuth(): Promise<{ user: PublicAuthUser; permissions: AuthPermissions }> {
+export async function getAccountAuth(): Promise<{
+  user: PublicAuthUser;
+  permissions: AuthPermissions;
+}> {
   return authFetch<{ user: PublicAuthUser; permissions: AuthPermissions }>('/account');
 }
 
-export async function updateAccountProfileAuth(input: { name: string }): Promise<{ user: PublicAuthUser }> {
+export async function updateAccountProfileAuth(input: {
+  name: string;
+}): Promise<{ user: PublicAuthUser }> {
   return authFetch<{ user: PublicAuthUser }>('/account/profile', {
     method: 'PATCH',
     body: JSON.stringify(input),

@@ -77,29 +77,57 @@ enum SubscriptionStatus {
   REVOKED
 }
 
+enum BillingPlanStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BillingDurationUnit {
+  DAY
+  MONTH
+}
+
+enum PromotionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FIXED_PRICE
+}
+
+enum PromotionStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
 model AuthUser {
-  id                 Int                 @id @default(autoincrement())
-  email              String              @unique
-  name               String
-  passwordHash       String
-  role               AuthRole            @default(USER)
-  status             AuthUserStatus      @default(PENDING_VERIFICATION)
-  plan               AuthPlan            @default(FREE)
-  emailVerifiedAt    DateTime?
-  proExpiresAt       DateTime?
-  forcePasswordChange Boolean             @default(false)
-  failedLoginCount   Int                 @default(0)
-  lockedUntil        DateTime?
-  lastLoginAt        DateTime?
-  lastLoginIp        String?             @db.VarChar(64)
-  lastLoginUserAgent String?             @db.VarChar(255)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  sessions           AuthSession[]
-  verificationCodes  AuthVerificationCode[]
-  usageEntries       AuthUsageDaily[]
-  paymentOrders      PaymentOrder[]
-  subscriptions      Subscription[]
+  id                  Int                    @id @default(autoincrement())
+  email               String                 @unique
+  name                String
+  passwordHash        String
+  role                AuthRole               @default(USER)
+  status              AuthUserStatus         @default(PENDING_VERIFICATION)
+  plan                AuthPlan               @default(FREE)
+  emailVerifiedAt     DateTime?
+  proExpiresAt        DateTime?
+  trialStartedAt      DateTime?
+  trialEndsAt         DateTime?
+  trialUsed           Boolean                @default(false)
+  forcePasswordChange Boolean                @default(false)
+  failedLoginCount    Int                    @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?                @db.VarChar(64)
+  lastLoginUserAgent  String?                @db.VarChar(255)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  sessions            AuthSession[]
+  verificationCodes   AuthVerificationCode[]
+  usageEntries        AuthUsageDaily[]
+  paymentOrders       PaymentOrder[]
+  subscriptions       Subscription[]
+  trialClaim          TrialClaim?
+  promotionUsages     PromotionUsage[]
+  promotionCounters   PromotionUserCounter[]
 
   @@index([role])
   @@index([status])
@@ -108,31 +136,31 @@ model AuthUser {
 }
 
 model AuthSession {
-  id          Int       @id @default(autoincrement())
-  userId      Int
-  tokenHash   String    @unique
-  expiresAt   DateTime
-  lastSeenAt  DateTime?
-  revokedAt   DateTime?
-  ipAddress   String?   @db.VarChar(64)
-  userAgent   String?   @db.VarChar(255)
-  createdAt   DateTime  @default(now())
-  user        AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+  ipAddress  String?   @db.VarChar(64)
+  userAgent  String?   @db.VarChar(255)
+  createdAt  DateTime  @default(now())
+  user       AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@index([expiresAt, revokedAt])
 }
 
 model AuthVerificationCode {
-  id            Int              @id @default(autoincrement())
-  userId        Int
-  purpose       AuthCodePurpose
-  codeHash      String           @db.VarChar(128)
-  expiresAt     DateTime
-  usedAt        DateTime?
-  supersededAt  DateTime?
-  createdAt     DateTime         @default(now())
-  user          AuthUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           Int             @id @default(autoincrement())
+  userId       Int
+  purpose      AuthCodePurpose
+  codeHash     String          @db.VarChar(128)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  supersededAt DateTime?
+  createdAt    DateTime        @default(now())
+  user         AuthUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, purpose, expiresAt])
   @@index([purpose, expiresAt])
@@ -165,61 +193,187 @@ model AdminAuditLog {
   @@index([targetType, targetId])
 }
 
+model TrialClaim {
+  id        Int       @id @default(autoincrement())
+  emailHash String    @unique @db.VarChar(64)
+  userId    Int?      @unique
+  startedAt DateTime
+  endsAt    DateTime
+  used      Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  user      AuthUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([endsAt])
+}
+
+model BillingPlan {
+  id             Int                    @id @default(autoincrement())
+  code           String                 @unique @db.VarChar(32)
+  name           String                 @db.VarChar(120)
+  description    String?                @db.Text
+  durationCount  Int
+  durationUnit   BillingDurationUnit
+  basePriceVnd   Int
+  currency       String                 @default("VND") @db.VarChar(8)
+  purchasable    Boolean                @default(true)
+  status         BillingPlanStatus      @default(ACTIVE)
+  sortOrder      Int                    @default(0)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  promotionLinks BillingPlanPromotion[]
+  paymentOrders  PaymentOrder[]
+  subscriptions  Subscription[]
+
+  @@index([status, sortOrder])
+}
+
+model Promotion {
+  id                  Int                    @id @default(autoincrement())
+  name                String                 @db.VarChar(160)
+  code                String?                @unique @db.VarChar(64)
+  description         String?                @db.Text
+  type                PromotionType
+  discountValue       Float?
+  fixedPriceVnd       Int?
+  automatic           Boolean                @default(false)
+  startAt             DateTime
+  endAt               DateTime?
+  maxUses             Int?
+  claimedCount        Int                    @default(0)
+  usedCount           Int                    @default(0)
+  maxUsesPerUser      Int?
+  priority            Int                    @default(0)
+  status              PromotionStatus        @default(INACTIVE)
+  newUsersOnly        Boolean                @default(false)
+  firstPurchaseOnly   Boolean                @default(false)
+  minimumDurationDays Int?
+  deletedAt           DateTime?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  planLinks           BillingPlanPromotion[]
+  usages              PromotionUsage[]
+  userCounters        PromotionUserCounter[]
+  paymentOrders       PaymentOrder[]
+
+  @@index([status, startAt, endAt])
+  @@index([priority, status])
+}
+
+model BillingPlanPromotion {
+  billingPlanId Int
+  promotionId   Int
+  billingPlan   BillingPlan @relation(fields: [billingPlanId], references: [id], onDelete: Cascade)
+  promotion     Promotion   @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@id([billingPlanId, promotionId])
+  @@index([promotionId])
+}
+
+model PromotionUsage {
+  id          Int          @id @default(autoincrement())
+  promotionId Int
+  userId      Int
+  orderId     Int          @unique
+  usedAt      DateTime     @default(now())
+  promotion   Promotion    @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  user        AuthUser     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order       PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([promotionId, userId, orderId])
+  @@index([promotionId, usedAt])
+  @@index([userId, usedAt])
+}
+
+model PromotionUserCounter {
+  promotionId  Int
+  userId       Int
+  claimedCount Int       @default(0)
+  usedCount    Int       @default(0)
+  updatedAt    DateTime  @updatedAt
+  promotion    Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  user         AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, userId])
+  @@index([userId])
+}
+
 model PaymentOrder {
-  id                    Int                @id @default(autoincrement())
+  id                    Int                   @id @default(autoincrement())
   userId                Int
-  orderCode             String             @unique @db.VarChar(64)
-  planCode              String             @db.VarChar(32)
+  orderCode             String                @unique @db.VarChar(64)
+  planCode              String                @db.VarChar(32)
   amountVnd             Int
-  status                PaymentOrderStatus @default(PENDING)
-  provider              String             @db.VarChar(32)
-  activeKey             String?            @unique @db.VarChar(128)
-  transferContent       String             @db.VarChar(128)
-  qrUrl                 String?            @db.Text
+  billingPlanId         Int?
+  originalPriceVnd      Int?
+  discountAmountVnd     Int?
+  finalPriceVnd         Int?
+  currency              String                @default("VND") @db.VarChar(8)
+  promotionId           Int?
+  promotionCode         String?               @db.VarChar(64)
+  promotionClaimed      Boolean               @default(false)
+  durationCount         Int?
+  durationUnit          BillingDurationUnit?
+  pricingSnapshot       Json?
+  status                PaymentOrderStatus    @default(PENDING)
+  provider              String                @db.VarChar(32)
+  activeKey             String?               @unique @db.VarChar(128)
+  transferContent       String                @db.VarChar(128)
+  qrUrl                 String?               @db.Text
   expiresAt             DateTime
   paidAt                DateTime?
-  providerTransactionId String?            @db.VarChar(128)
+  providerTransactionId String?               @db.VarChar(128)
   metadata              Json?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  user                  AuthUser           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  user                  AuthUser              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billingPlan           BillingPlan?          @relation(fields: [billingPlanId], references: [id], onDelete: SetNull)
+  promotion             Promotion?            @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  promotionUsage        PromotionUsage?
   subscriptions         Subscription[]
   webhookEvents         PaymentWebhookEvent[]
 
-  @@index([userId, createdAt])
-  @@index([status, expiresAt])
   @@unique([provider, providerTransactionId])
+  @@index([userId, createdAt])
+  @@index([billingPlanId, status, createdAt])
+  @@index([promotionId, status, createdAt])
+  @@index([status, expiresAt])
 }
 
 model Subscription {
   id                   Int                @id @default(autoincrement())
   userId               Int
   planCode             String             @db.VarChar(32)
+  billingPlanId        Int?
   status               SubscriptionStatus @default(ACTIVE)
   startsAt             DateTime
   expiresAt            DateTime
   sourcePaymentOrderId Int?
+  autoRenew            Boolean            @default(false)
+  pricePaidVnd         Int?
+  currency             String             @default("VND") @db.VarChar(8)
   metadata             Json?
   createdAt            DateTime           @default(now())
   user                 AuthUser           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billingPlan          BillingPlan?       @relation(fields: [billingPlanId], references: [id], onDelete: SetNull)
   sourcePaymentOrder   PaymentOrder?      @relation(fields: [sourcePaymentOrderId], references: [id], onDelete: SetNull)
 
-  @@index([userId, createdAt])
-  @@index([status, expiresAt])
   @@unique([sourcePaymentOrderId])
+  @@index([userId, createdAt])
+  @@index([billingPlanId, status, expiresAt])
+  @@index([status, expiresAt])
 }
 
 model PaymentWebhookEvent {
-  id               Int       @id @default(autoincrement())
-  provider         String    @db.VarChar(32)
-  externalId       String    @db.VarChar(128)
-  payloadHash      String    @db.VarChar(64)
-  receivedAt       DateTime  @default(now())
-  processingStatus String    @db.VarChar(32)
+  id               Int           @id @default(autoincrement())
+  provider         String        @db.VarChar(32)
+  externalId       String        @db.VarChar(128)
+  payloadHash      String        @db.VarChar(64)
+  receivedAt       DateTime      @default(now())
+  processingStatus String        @db.VarChar(32)
   orderId          Int?
-  errorReason      String?   @db.Text
+  errorReason      String?       @db.Text
   rawPayload       Json?
-  createdAt        DateTime  @default(now())
+  createdAt        DateTime      @default(now())
   order            PaymentOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@unique([provider, externalId])
@@ -261,36 +415,36 @@ model Team {
 }
 
 model Fixture {
-  id                        Int                        @id @default(autoincrement())
-  apiFixtureId              Int                        @unique
-  leagueId                  Int
-  homeTeamId                Int
-  awayTeamId                Int
-  kickoffAt                 DateTime
-  timezone                  String?
-  round                     String?
-  venueName                 String?
-  referee                   String?
-  status                    FixtureStatus              @default(UPCOMING)
-  apiStatusShort            String?
-  elapsedMinutes            Int?
-  homeGoals                 Int?
-  awayGoals                 Int?
-  halftimeHomeGoals         Int?
-  halftimeAwayGoals         Int?
-  rawPayload                Json?
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
-  league                    League                     @relation(fields: [leagueId], references: [id])
-  homeTeam                  Team                       @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeam                  Team                       @relation("AwayTeam", fields: [awayTeamId], references: [id])
-  oddsSnapshots             OddsSnapshot[]
-  oddsCollectionCheckpoints OddsCollectionCheckpoint[]
+  id                           Int                                  @id @default(autoincrement())
+  apiFixtureId                 Int                                  @unique
+  leagueId                     Int
+  homeTeamId                   Int
+  awayTeamId                   Int
+  kickoffAt                    DateTime
+  timezone                     String?
+  round                        String?
+  venueName                    String?
+  referee                      String?
+  status                       FixtureStatus                        @default(UPCOMING)
+  apiStatusShort               String?
+  elapsedMinutes               Int?
+  homeGoals                    Int?
+  awayGoals                    Int?
+  halftimeHomeGoals            Int?
+  halftimeAwayGoals            Int?
+  rawPayload                   Json?
+  createdAt                    DateTime                             @default(now())
+  updatedAt                    DateTime                             @updatedAt
+  league                       League                               @relation(fields: [leagueId], references: [id])
+  homeTeam                     Team                                 @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam                     Team                                 @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  oddsSnapshots                OddsSnapshot[]
+  oddsCollectionCheckpoints    OddsCollectionCheckpoint[]
   contextCollectionCheckpoints FixtureContextCollectionCheckpoint[]
-  externalPrediction        ExternalPrediction?
-  recommendations           Recommendation[]
-  backtestBets              BacktestBet[]
-  lineupSnapshots           FixtureLineupSnapshot[]
+  externalPrediction           ExternalPrediction?
+  recommendations              Recommendation[]
+  backtestBets                 BacktestBet[]
+  lineupSnapshots              FixtureLineupSnapshot[]
 
   @@index([kickoffAt])
   @@index([leagueId, status, kickoffAt])
@@ -1321,15 +1475,14 @@ model FixtureInjury {
   @@index([capturedAt])
 }
 
-
 model FixtureInjurySnapshot {
-  id          Int      @id @default(autoincrement())
+  id          Int                           @id @default(autoincrement())
   fixtureId   Int
   capturedAt  DateTime
-  contentHash String   @db.VarChar(64)
-  playerCount Int      @default(0)
+  contentHash String                        @db.VarChar(64)
+  playerCount Int                           @default(0)
   rawPayload  Json?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime                      @default(now())
   players     FixtureInjurySnapshotPlayer[]
 
   @@unique([fixtureId, capturedAt], map: "FixtureInjurySnapshot_fixture_captured_key")
@@ -1410,74 +1563,74 @@ model FixtureScientificCoverage {
 }
 
 model ApiFootballProviderRun {
-  id                    Int      @id @default(autoincrement())
-  providerVersion       String   @db.VarChar(160)
-  command               String   @db.VarChar(64)
-  status                String   @db.VarChar(24)
-  requestCount          Int      @default(0)
-  insertedFixtures      Int      @default(0)
-  insertedOdds          Int      @default(0)
-  insertedDataSnapshots Int      @default(0)
+  id                    Int       @id @default(autoincrement())
+  providerVersion       String    @db.VarChar(160)
+  command               String    @db.VarChar(64)
+  status                String    @db.VarChar(24)
+  requestCount          Int       @default(0)
+  insertedFixtures      Int       @default(0)
+  insertedOdds          Int       @default(0)
+  insertedDataSnapshots Int       @default(0)
   quotaBefore           Json?
   quotaAfter            Json?
   metadata              Json
-  payloadHash           String   @unique @db.VarChar(64)
-  startedAt             DateTime @default(now())
+  payloadHash           String    @unique @db.VarChar(64)
+  startedAt             DateTime  @default(now())
   finishedAt            DateTime?
-  errorMessage          String?  @db.Text
+  errorMessage          String?   @db.Text
 
   @@index([command, startedAt], map: "ApiFootballProviderRun_command_started_idx")
   @@index([status, startedAt], map: "ApiFootballProviderRun_status_started_idx")
 }
 
 model ApiFootballFixtureSnapshot {
-  id                   Int      @id @default(autoincrement())
-  providerFixtureId    Int
-  providerLeagueId     Int
-  season               Int
-  kickoffAt            DateTime
-  statusShort          String   @db.VarChar(24)
-  homeProviderTeamId   Int
-  awayProviderTeamId   Int
-  homeTeamName         String   @db.VarChar(160)
-  awayTeamName         String   @db.VarChar(160)
-  homeGoals            Int?
-  awayGoals            Int?
-  fulltimeHomeGoals    Int?
-  fulltimeAwayGoals    Int?
-  observedAt           DateTime
-  rawPayload           Json
-  payloadHash          String   @unique @db.VarChar(64)
-  createdAt            DateTime @default(now())
+  id                 Int      @id @default(autoincrement())
+  providerFixtureId  Int
+  providerLeagueId   Int
+  season             Int
+  kickoffAt          DateTime
+  statusShort        String   @db.VarChar(24)
+  homeProviderTeamId Int
+  awayProviderTeamId Int
+  homeTeamName       String   @db.VarChar(160)
+  awayTeamName       String   @db.VarChar(160)
+  homeGoals          Int?
+  awayGoals          Int?
+  fulltimeHomeGoals  Int?
+  fulltimeAwayGoals  Int?
+  observedAt         DateTime
+  rawPayload         Json
+  payloadHash        String   @unique @db.VarChar(64)
+  createdAt          DateTime @default(now())
 
   @@index([providerFixtureId, observedAt], map: "ApiFootballFixtureSnapshot_fixture_observed_idx")
   @@index([providerLeagueId, kickoffAt], map: "ApiFootballFixtureSnapshot_league_kickoff_idx")
 }
 
 model HistoricalExternalOddsSnapshot {
-  id                    Int      @id @default(autoincrement())
-  sourceProvider        String   @db.VarChar(64)
-  sourceSportKey        String   @db.VarChar(160)
-  sourceEventId         String   @db.VarChar(160)
-  sourceSnapshotAt      DateTime
-  sourceUpdatedAt       DateTime?
-  observedAt            DateTime
-  localFixtureId        Int
-  providerFixtureId     Int
-  providerLeagueId      Int
-  season                Int
-  kickoffAt             DateTime
-  bookmakerNamespaceId  Int
-  bookmakerKey          String   @db.VarChar(120)
-  bookmakerName         String   @db.VarChar(160)
-  marketType            String   @db.VarChar(32)
-  selection             String   @db.VarChar(24)
-  lineValue             Float?
-  decimalOdds           Float
-  pitUsable             Boolean  @default(false)
-  rawPayloadHash        String   @db.VarChar(64)
-  payloadHash           String   @unique @db.VarChar(64)
-  createdAt             DateTime @default(now())
+  id                   Int       @id @default(autoincrement())
+  sourceProvider       String    @db.VarChar(64)
+  sourceSportKey       String    @db.VarChar(160)
+  sourceEventId        String    @db.VarChar(160)
+  sourceSnapshotAt     DateTime
+  sourceUpdatedAt      DateTime?
+  observedAt           DateTime
+  localFixtureId       Int
+  providerFixtureId    Int
+  providerLeagueId     Int
+  season               Int
+  kickoffAt            DateTime
+  bookmakerNamespaceId Int
+  bookmakerKey         String    @db.VarChar(120)
+  bookmakerName        String    @db.VarChar(160)
+  marketType           String    @db.VarChar(32)
+  selection            String    @db.VarChar(24)
+  lineValue            Float?
+  decimalOdds          Float
+  pitUsable            Boolean   @default(false)
+  rawPayloadHash       String    @db.VarChar(64)
+  payloadHash          String    @unique @db.VarChar(64)
+  createdAt            DateTime  @default(now())
 
   @@index([localFixtureId, marketType, sourceSnapshotAt], map: "HistoricalExternalOdds_local_market_snapshot_idx")
   @@index([providerFixtureId, marketType, sourceSnapshotAt], map: "HistoricalExternalOdds_provider_market_snapshot_idx")
@@ -1487,24 +1640,24 @@ model HistoricalExternalOddsSnapshot {
 }
 
 model ApiFootballOddsSnapshot {
-  id                 Int      @id @default(autoincrement())
-  providerFixtureId  Int
-  providerLeagueId   Int
-  season             Int
-  kickoffAt          DateTime
-  sourceUpdatedAt    DateTime?
-  observedAt         DateTime
-  bookmakerId        Int
-  bookmakerName      String   @db.VarChar(160)
-  betId              Int
-  betName            String   @db.VarChar(160)
-  marketType         String   @db.VarChar(32)
-  selection          String   @db.VarChar(24)
-  lineValue          Float?
-  decimalOdds        Float
-  pitUsable          Boolean  @default(false)
-  payloadHash        String   @unique @db.VarChar(64)
-  createdAt          DateTime @default(now())
+  id                Int       @id @default(autoincrement())
+  providerFixtureId Int
+  providerLeagueId  Int
+  season            Int
+  kickoffAt         DateTime
+  sourceUpdatedAt   DateTime?
+  observedAt        DateTime
+  bookmakerId       Int
+  bookmakerName     String    @db.VarChar(160)
+  betId             Int
+  betName           String    @db.VarChar(160)
+  marketType        String    @db.VarChar(32)
+  selection         String    @db.VarChar(24)
+  lineValue         Float?
+  decimalOdds       Float
+  pitUsable         Boolean   @default(false)
+  payloadHash       String    @unique @db.VarChar(64)
+  createdAt         DateTime  @default(now())
 
   @@index([providerFixtureId, marketType, observedAt], map: "ApiFootballOddsSnapshot_fixture_market_observed_idx")
   @@index([providerFixtureId, bookmakerId, betId, sourceUpdatedAt], map: "ApiFootballOddsSnapshot_fixture_bookmaker_bet_source_idx")
@@ -1513,30 +1666,30 @@ model ApiFootballOddsSnapshot {
 }
 
 model ApiFootballFreshOddsCheckpoint {
-  id                    Int      @id @default(autoincrement())
-  providerFixtureId     Int
-  providerLeagueId      Int
-  season                 Int
-  kickoffAt              DateTime
-  horizonMinutes         Int
-  horizonLabel           String   @db.VarChar(32)
-  dueAt                  DateTime
-  status                 String   @default("PENDING") @db.VarChar(24)
-  attempts               Int      @default(0)
-  attemptedAt            DateTime?
-  completedAt            DateTime?
-  nextRetryAt            DateTime?
-  lockToken              String?  @db.VarChar(64)
-  requestCount           Int      @default(0)
-  normalizedOdds         Int      @default(0)
-  insertedOdds           Int      @default(0)
-  pitUsableOdds          Int      @default(0)
-  quotaRemainingDay      Int?
-  quotaRemainingMinute   Int?
-  errorMessage           String?  @db.Text
-  metadata               Json?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                   Int       @id @default(autoincrement())
+  providerFixtureId    Int
+  providerLeagueId     Int
+  season               Int
+  kickoffAt            DateTime
+  horizonMinutes       Int
+  horizonLabel         String    @db.VarChar(32)
+  dueAt                DateTime
+  status               String    @default("PENDING") @db.VarChar(24)
+  attempts             Int       @default(0)
+  attemptedAt          DateTime?
+  completedAt          DateTime?
+  nextRetryAt          DateTime?
+  lockToken            String?   @db.VarChar(64)
+  requestCount         Int       @default(0)
+  normalizedOdds       Int       @default(0)
+  insertedOdds         Int       @default(0)
+  pitUsableOdds        Int       @default(0)
+  quotaRemainingDay    Int?
+  quotaRemainingMinute Int?
+  errorMessage         String?   @db.Text
+  metadata             Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@unique([providerFixtureId, horizonMinutes], map: "ApiFootballFreshOddsCheckpoint_fixture_horizon_key")
   @@index([status, dueAt], map: "ApiFootballFreshOddsCheckpoint_status_due_idx")
@@ -1545,17 +1698,17 @@ model ApiFootballFreshOddsCheckpoint {
 }
 
 model ApiFootballDataSnapshot {
-  id                 Int      @id @default(autoincrement())
-  kind               String   @db.VarChar(48)
-  providerFixtureId  Int?
-  providerLeagueId   Int?
-  providerTeamId     Int?
-  sourceAsOf         DateTime?
-  observedAt         DateTime
-  queryPayload       Json
-  rawPayload         Json
-  payloadHash        String   @unique @db.VarChar(64)
-  createdAt          DateTime @default(now())
+  id                Int       @id @default(autoincrement())
+  kind              String    @db.VarChar(48)
+  providerFixtureId Int?
+  providerLeagueId  Int?
+  providerTeamId    Int?
+  sourceAsOf        DateTime?
+  observedAt        DateTime
+  queryPayload      Json
+  rawPayload        Json
+  payloadHash       String    @unique @db.VarChar(64)
+  createdAt         DateTime  @default(now())
 
   @@index([kind, observedAt], map: "ApiFootballDataSnapshot_kind_observed_idx")
   @@index([providerFixtureId, kind, observedAt], map: "ApiFootballDataSnapshot_fixture_kind_observed_idx")
@@ -1563,38 +1716,38 @@ model ApiFootballDataSnapshot {
 }
 
 model ScientificPaperBetDecision {
-  id                     Int      @id @default(autoincrement())
+  id                     Int       @id @default(autoincrement())
   providerFixtureId      Int
   localFixtureId         Int?
   horizonMinutes         Int
   decisionAsOf           DateTime
   kickoffAt              DateTime
-  decisionType           String   @db.VarChar(16)
-  selectedMarket         String?  @db.VarChar(32)
-  selectedSelection      String?  @db.VarChar(24)
+  decisionType           String    @db.VarChar(16)
+  selectedMarket         String?   @db.VarChar(32)
+  selectedSelection      String?   @db.VarChar(24)
   lineValue              Float?
   decimalOdds            Float?
   bookmakerId            Int?
-  bookmakerName          String?  @db.VarChar(160)
+  bookmakerName          String?   @db.VarChar(160)
   modelProbability       Float?
   fairMarketProbability  Float?
   impliedProbability     Float?
-  edge                    Float?
-  expectedValue           Float?
-  modelVersion            String   @db.VarChar(192)
-  policyVersion           String   @db.VarChar(192)
-  reliabilityStatus      String?  @db.VarChar(64)
+  edge                   Float?
+  expectedValue          Float?
+  modelVersion           String    @db.VarChar(192)
+  policyVersion          String    @db.VarChar(192)
+  reliabilityStatus      String?   @db.VarChar(64)
   sourceOddsSnapshotId   Int?
   sourceOddsUpdatedAt    DateTime?
   sourceOddsObservedAt   DateTime?
   candidateCount         Int
   rejectedCandidateCount Int
   decisionPayload        Json
-  decisionHash           String   @unique @db.VarChar(64)
-  createdAt              DateTime @default(now())
+  decisionHash           String    @unique @db.VarChar(64)
+  createdAt              DateTime  @default(now())
 
-  candidates             ScientificPaperBetCandidate[]
-  settlement             ScientificPaperBetSettlement?
+  candidates ScientificPaperBetCandidate[]
+  settlement ScientificPaperBetSettlement?
 
   @@index([providerFixtureId, horizonMinutes, decisionAsOf], map: "ScientificPaperBetDecision_fixture_horizon_asof_idx")
   @@index([decisionType, decisionAsOf], map: "ScientificPaperBetDecision_type_asof_idx")
@@ -1614,8 +1767,8 @@ model ScientificPaperBetCandidate {
   modelProbability      Float
   fairMarketProbability Float
   impliedProbability    Float
-  edge                   Float
-  expectedValue          Float
+  edge                  Float
+  expectedValue         Float
   reliabilityStatus     String   @db.VarChar(64)
   eligible              Boolean
   rejectionReasons      Json
@@ -1631,23 +1784,23 @@ model ScientificPaperBetCandidate {
 }
 
 model ScientificPaperBetSettlement {
-  id                       Int      @id @default(autoincrement())
-  decisionId               Int      @unique
-  providerFixtureId        Int
-  settledAt                DateTime
-  sourceFixtureObservedAt  DateTime
-  statusShort              String   @db.VarChar(24)
-  fulltimeHomeGoals        Int
-  fulltimeAwayGoals        Int
-  result                   String   @db.VarChar(16)
-  stakeUnits               Float
-  profitUnits              Float
-  closingDecimalOdds       Float?
-  closingFairProbability   Float?
-  clv                      Float?
-  settlementPayload        Json
-  settlementHash           String   @unique @db.VarChar(64)
-  createdAt                DateTime @default(now())
+  id                      Int      @id @default(autoincrement())
+  decisionId              Int      @unique
+  providerFixtureId       Int
+  settledAt               DateTime
+  sourceFixtureObservedAt DateTime
+  statusShort             String   @db.VarChar(24)
+  fulltimeHomeGoals       Int
+  fulltimeAwayGoals       Int
+  result                  String   @db.VarChar(16)
+  stakeUnits              Float
+  profitUnits             Float
+  closingDecimalOdds      Float?
+  closingFairProbability  Float?
+  clv                     Float?
+  settlementPayload       Json
+  settlementHash          String   @unique @db.VarChar(64)
+  createdAt               DateTime @default(now())
 
   decision ScientificPaperBetDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
 
@@ -1683,48 +1836,48 @@ model ScientificBankrollRiskPolicy {
 }
 
 model ScientificPaperStakeDecision {
-  id                           Int      @id @default(autoincrement())
-  riskPolicyId                 Int
-  riskPolicyHash               String   @db.VarChar(64)
-  paperDecisionId              Int
-  paperDecisionHash            String   @db.VarChar(64)
-  providerFixtureId            Int
-  localFixtureId               Int?
-  leagueId                     Int?
-  horizonMinutes               Int
-  decisionAsOf                 DateTime
-  evaluatedAt                  DateTime
-  kickoffAt                    DateTime
-  paperDecisionType            String   @db.VarChar(16)
-  stakeDecisionType            String   @db.VarChar(16)
-  stakingMode                  String   @db.VarChar(32)
-  selectedMarket               String?  @db.VarChar(32)
-  selectedSelection            String?  @db.VarChar(24)
-  lineValue                    Float?
-  decimalOdds                  Float?
-  modelProbability             Float?
-  fairMarketProbability        Float?
-  edge                         Float?
-  expectedValue                Float?
-  stakeUnits                   Float
-  stakeFraction                Float
-  requestedStakeUnits          Float
-  fullKellyFraction            Float?
-  appliedKellyFraction         Float?
-  drawdownMultiplier           Float
-  riskBand                     String   @db.VarChar(24)
-  bankrollBeforeUnits          Float
-  peakBankrollBeforeUnits      Float
-  openExposureBeforeUnits      Float
-  dailyExposureBeforeUnits     Float
-  leagueExposureBeforeUnits    Float
-  dailyRealizedPnlBeforeUnits  Float
-  drawdownBeforeFraction       Float
-  riskReasons                  Json
-  cappedBy                     Json
-  calculationPayload           Json
-  stakeHash                    String   @unique @db.VarChar(64)
-  createdAt                    DateTime @default(now())
+  id                          Int      @id @default(autoincrement())
+  riskPolicyId                Int
+  riskPolicyHash              String   @db.VarChar(64)
+  paperDecisionId             Int
+  paperDecisionHash           String   @db.VarChar(64)
+  providerFixtureId           Int
+  localFixtureId              Int?
+  leagueId                    Int?
+  horizonMinutes              Int
+  decisionAsOf                DateTime
+  evaluatedAt                 DateTime
+  kickoffAt                   DateTime
+  paperDecisionType           String   @db.VarChar(16)
+  stakeDecisionType           String   @db.VarChar(16)
+  stakingMode                 String   @db.VarChar(32)
+  selectedMarket              String?  @db.VarChar(32)
+  selectedSelection           String?  @db.VarChar(24)
+  lineValue                   Float?
+  decimalOdds                 Float?
+  modelProbability            Float?
+  fairMarketProbability       Float?
+  edge                        Float?
+  expectedValue               Float?
+  stakeUnits                  Float
+  stakeFraction               Float
+  requestedStakeUnits         Float
+  fullKellyFraction           Float?
+  appliedKellyFraction        Float?
+  drawdownMultiplier          Float
+  riskBand                    String   @db.VarChar(24)
+  bankrollBeforeUnits         Float
+  peakBankrollBeforeUnits     Float
+  openExposureBeforeUnits     Float
+  dailyExposureBeforeUnits    Float
+  leagueExposureBeforeUnits   Float
+  dailyRealizedPnlBeforeUnits Float
+  drawdownBeforeFraction      Float
+  riskReasons                 Json
+  cappedBy                    Json
+  calculationPayload          Json
+  stakeHash                   String   @unique @db.VarChar(64)
+  createdAt                   DateTime @default(now())
 
   @@unique([riskPolicyId, paperDecisionId], map: "ScientificPaperStakeDecision_policy_decision_key")
   @@index([riskPolicyId, evaluatedAt], map: "ScientificPaperStakeDecision_policy_evaluated_idx")
@@ -1734,25 +1887,25 @@ model ScientificPaperStakeDecision {
 }
 
 model ScientificBankrollStakeSettlement {
-  id                       Int      @id @default(autoincrement())
-  riskPolicyId             Int
-  riskPolicyHash           String   @db.VarChar(64)
-  stakeDecisionId          Int      @unique
-  paperDecisionId          Int
-  paperSettlementId        Int
-  providerFixtureId        Int
-  settledAt                DateTime
-  result                   String   @db.VarChar(16)
-  stakeUnits               Float
-  decimalOdds              Float
-  profitUnits              Float
-  bankrollBeforeUnits      Float
-  bankrollAfterUnits       Float
-  peakBankrollAfterUnits   Float
-  drawdownAfterFraction    Float
-  settlementPayload        Json
-  settlementHash           String   @unique @db.VarChar(64)
-  createdAt                DateTime @default(now())
+  id                     Int      @id @default(autoincrement())
+  riskPolicyId           Int
+  riskPolicyHash         String   @db.VarChar(64)
+  stakeDecisionId        Int      @unique
+  paperDecisionId        Int
+  paperSettlementId      Int
+  providerFixtureId      Int
+  settledAt              DateTime
+  result                 String   @db.VarChar(16)
+  stakeUnits             Float
+  decimalOdds            Float
+  profitUnits            Float
+  bankrollBeforeUnits    Float
+  bankrollAfterUnits     Float
+  peakBankrollAfterUnits Float
+  drawdownAfterFraction  Float
+  settlementPayload      Json
+  settlementHash         String   @unique @db.VarChar(64)
+  createdAt              DateTime @default(now())
 
   @@unique([riskPolicyId, paperSettlementId], map: "ScientificBankrollStakeSettlement_policy_paper_key")
   @@index([riskPolicyId, settledAt], map: "ScientificBankrollStakeSettlement_policy_settled_idx")
@@ -1761,47 +1914,47 @@ model ScientificBankrollStakeSettlement {
 }
 
 model ScientificCurrentSignalSnapshot {
-  id                              Int      @id @default(autoincrement())
-  providerFixtureId               Int
-  localFixtureId                  Int?
-  checkpointMinutes               Int
-  checkpointLabel                 String   @db.VarChar(24)
-  actualHorizonMinutes            Int
-  snapshotAsOf                    DateTime
-  kickoffAt                       DateTime
-  status                          String   @db.VarChar(32)
-  selectedMarket                  String?  @db.VarChar(32)
-  selectedSelection               String?  @db.VarChar(24)
-  lineValue                       Float?
-  decimalOdds                     Float?
-  bookmakerName                   String?  @db.VarChar(160)
-  modelProbability                Float?
-  fairMarketProbability           Float?
-  impliedProbability              Float?
-  edge                            Float?
-  expectedValue                   Float?
-  reliabilityStatus               String?  @db.VarChar(96)
-  modelSource                     String?  @db.VarChar(64)
-  modelFallbackReason             String?  @db.VarChar(128)
-  modelConfidenceTier             String?  @db.VarChar(16)
-  modelHistorySampleSize          Int?
-  dataQualityScore                Float?
-  modelVersion                    String?  @db.Text
-  sourceOddsSnapshotId            Int?
-  sourceOddsUpdatedAt             DateTime?
-  sourceOddsFirstObservedAt       DateTime?
-  sourceOddsReobservedAt          DateTime?
-  sourceOddsFreshnessAt           DateTime?
-  oddsFreshnessBasis              String?  @db.VarChar(32)
-  reobservationRawSnapshotId      Int?
-  latestLineupCapturedAt          DateTime?
-  latestInjuryCapturedAt          DateTime?
-  candidateCount                  Int      @default(0)
-  currentEligibleCandidateCount   Int      @default(0)
-  officialEligibleCandidateCount  Int      @default(0)
-  analysisPayload                 Json
-  snapshotHash                    String   @unique @db.VarChar(64)
-  createdAt                       DateTime @default(now())
+  id                             Int       @id @default(autoincrement())
+  providerFixtureId              Int
+  localFixtureId                 Int?
+  checkpointMinutes              Int
+  checkpointLabel                String    @db.VarChar(24)
+  actualHorizonMinutes           Int
+  snapshotAsOf                   DateTime
+  kickoffAt                      DateTime
+  status                         String    @db.VarChar(32)
+  selectedMarket                 String?   @db.VarChar(32)
+  selectedSelection              String?   @db.VarChar(24)
+  lineValue                      Float?
+  decimalOdds                    Float?
+  bookmakerName                  String?   @db.VarChar(160)
+  modelProbability               Float?
+  fairMarketProbability          Float?
+  impliedProbability             Float?
+  edge                           Float?
+  expectedValue                  Float?
+  reliabilityStatus              String?   @db.VarChar(96)
+  modelSource                    String?   @db.VarChar(64)
+  modelFallbackReason            String?   @db.VarChar(128)
+  modelConfidenceTier            String?   @db.VarChar(16)
+  modelHistorySampleSize         Int?
+  dataQualityScore               Float?
+  modelVersion                   String?   @db.Text
+  sourceOddsSnapshotId           Int?
+  sourceOddsUpdatedAt            DateTime?
+  sourceOddsFirstObservedAt      DateTime?
+  sourceOddsReobservedAt         DateTime?
+  sourceOddsFreshnessAt          DateTime?
+  oddsFreshnessBasis             String?   @db.VarChar(32)
+  reobservationRawSnapshotId     Int?
+  latestLineupCapturedAt         DateTime?
+  latestInjuryCapturedAt         DateTime?
+  candidateCount                 Int       @default(0)
+  currentEligibleCandidateCount  Int       @default(0)
+  officialEligibleCandidateCount Int       @default(0)
+  analysisPayload                Json
+  snapshotHash                   String    @unique @db.VarChar(64)
+  createdAt                      DateTime  @default(now())
 
   @@unique([providerFixtureId, checkpointMinutes], map: "ScientificCurrentSignal_fixture_checkpoint_key")
   @@index([providerFixtureId, snapshotAsOf], map: "ScientificCurrentSignal_fixture_asof_idx")

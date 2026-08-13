@@ -92,7 +92,8 @@ export const openApiDocument = {
     },
     '/scientific/bets': {
       get: {
-        summary: 'Canonical fixture-paginated paper history or append-only multi-horizon audit view',
+        summary:
+          'Canonical fixture-paginated paper history or append-only multi-horizon audit view',
         parameters: [
           { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
           { name: 'pageSize', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 20 } },
@@ -109,7 +110,7 @@ export const openApiDocument = {
     },
     '/billing/orders': {
       post: {
-        summary: 'Create or reuse the single active payment order for the authenticated user',
+        summary: 'Server-calculate pricing and create or reuse the single active payment order',
         responses: {
           '200': { description: 'Existing active order reused' },
           '201': { description: 'Payment order created' },
@@ -118,16 +119,69 @@ export const openApiDocument = {
         },
       },
     },
+    '/pricing': {
+      get: {
+        summary: 'Server-owned plan catalog with automatic promotions and trial terms',
+        responses: { '200': { description: 'Current pricing catalog' } },
+      },
+    },
+    '/pricing/calculate': {
+      post: {
+        summary: 'Calculate a personalized server-side price quote',
+        responses: {
+          '200': { description: 'Price quote and eligibility details' },
+          '401': { description: 'Authentication required' },
+        },
+      },
+    },
+    '/pricing/validate-coupon': {
+      post: {
+        summary: 'Validate coupon eligibility for the authenticated user and plan',
+        responses: { '200': { description: 'Coupon validation and quote' } },
+      },
+    },
+    '/admin/promotions': {
+      get: {
+        summary: 'ADMIN promotion dashboard and statistics',
+        responses: {
+          '200': { description: 'Promotion dashboard' },
+          '403': { description: 'Admin role required' },
+        },
+      },
+      post: {
+        summary: 'Create a promotion as ADMIN',
+        responses: {
+          '201': { description: 'Promotion created' },
+          '403': { description: 'Admin role required' },
+        },
+      },
+    },
+    '/admin/promotions/{id}': {
+      patch: {
+        summary: 'Update a promotion and write an admin audit log',
+        responses: { '200': { description: 'Promotion updated' } },
+      },
+      delete: {
+        summary: 'Soft-delete a promotion while preserving order and usage history',
+        responses: { '200': { description: 'Promotion disabled and soft-deleted' } },
+      },
+    },
     '/account/usage': {
       get: {
         summary: 'Authenticated daily quota usage',
-        responses: { '200': { description: 'Usage by feature' }, '401': { description: 'Authentication required' } },
+        responses: {
+          '200': { description: 'Usage by feature' },
+          '401': { description: 'Authentication required' },
+        },
       },
     },
     '/account/subscription': {
       get: {
         summary: 'Authenticated entitlement and append-only subscription history',
-        responses: { '200': { description: 'Subscription state' }, '401': { description: 'Authentication required' } },
+        responses: {
+          '200': { description: 'Subscription state' },
+          '401': { description: 'Authentication required' },
+        },
       },
     },
     '/auth/admin/users': {
@@ -200,7 +254,10 @@ export const openApiDocument = {
       get: {
         summary: 'Backtest detail, bet log, market summary and equity curve',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-        responses: { '200': { description: 'Backtest detail' }, '404': { description: 'Not found' } },
+        responses: {
+          '200': { description: 'Backtest detail' },
+          '404': { description: 'Not found' },
+        },
       },
     },
     '/admin/sync/lineups': {

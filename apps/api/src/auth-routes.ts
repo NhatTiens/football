@@ -3,7 +3,12 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '@football-ai/database';
 
-import { createAuthCode, codeExpiresAt, generateSixDigitCode, verifyAuthCode } from './auth-codes.js';
+import {
+  createAuthCode,
+  codeExpiresAt,
+  generateSixDigitCode,
+  verifyAuthCode,
+} from './auth-codes.js';
 import {
   buildClearedSessionCookie,
   buildSessionCookie,
@@ -46,11 +51,9 @@ import {
   listAdminWebhooks,
   loadAdminDashboard,
 } from './admin-service.js';
-import {
-  grantManualProEntitlement,
-  revokeProEntitlement,
-} from './subscription.js';
+import { grantManualProEntitlement, revokeProEntitlement } from './subscription.js';
 import { getAccountPaymentsData, getAccountSubscriptionData } from './billing.js';
+import { canIssueTrial, createTrialWindow, trialIdentityHash } from './trial.js';
 
 const router = express.Router();
 
@@ -118,7 +121,6 @@ const adminCreateUserSchema = z.object({
   temporaryPassword: z.string().min(12).max(128),
 });
 
-
 type SessionRecord = {
   id: number;
   userId: number;
@@ -140,6 +142,9 @@ type UserRecord = {
   plan: AuthPlan;
   emailVerifiedAt: Date | null;
   proExpiresAt: Date | null;
+  trialStartedAt: Date | null;
+  trialEndsAt: Date | null;
+  trialUsed: boolean;
   forcePasswordChange: boolean;
   passwordHash: string;
   failedLoginCount: number;
@@ -170,7 +175,9 @@ function asyncRoute(
 }
 
 function allowedOrigins(): string[] {
-  return env.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean);
+  return env.CORS_ORIGIN.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function allowWriteOrigin(request: express.Request, response: express.Response): boolean {
@@ -181,7 +188,10 @@ function allowWriteOrigin(request: express.Request, response: express.Response):
   return false;
 }
 
-async function requireAuth(request: express.Request, response: express.Response): Promise<AuthenticatedContext | null> {
+async function requireAuth(
+  request: express.Request,
+  response: express.Response,
+): Promise<AuthenticatedContext | null> {
   const auth = await resolveAuthContext(request);
   if (!auth.authenticated || !auth.user || !auth.session) {
     response.status(401).json({ error: 'Authentication required.' });
@@ -190,7 +200,10 @@ async function requireAuth(request: express.Request, response: express.Response)
   return auth as AuthenticatedContext;
 }
 
-async function requireAdmin(request: express.Request, response: express.Response): Promise<AuthenticatedContext | null> {
+async function requireAdmin(
+  request: express.Request,
+  response: express.Response,
+): Promise<AuthenticatedContext | null> {
   const auth = await requireAuth(request, response);
   if (!auth) return null;
   if (!roleCanManageRoles(auth.user.role)) {
@@ -233,7 +246,10 @@ async function touchLogin(userId: number, request: express.Request): Promise<voi
   });
 }
 
-async function createVerificationAndMail(user: UserRecord, purpose: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET'): Promise<{ previewCode: string | null }> {
+async function createVerificationAndMail(
+  user: UserRecord,
+  purpose: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET',
+): Promise<{ previewCode: string | null }> {
   const code = generateSixDigitCode();
   const expiresAt = codeExpiresAt(
     purpose === 'EMAIL_VERIFICATION'
@@ -288,25 +304,88 @@ router.post(
 
     const name = normalizeName(parsed.data.name);
     const email = normalizeEmail(parsed.data.email);
-    const existing = await prisma.authUser.findUnique({ where: { email } });
-    if (existing) {
-      response.status(409).json({ error: 'Email already exists.' });
-      return;
-    }
+    const passwordHash = await hashPassword(parsed.data.password);
+    const now = new Date();
+    const identityHash = trialIdentityHash(email);
+    let user: UserRecord;
+    try {
+      user = (await prisma.$transaction(async (tx: any) => {
+        const existing = await tx.authUser.findUnique({ where: { email } });
+        if (existing) throw new Error('REGISTER_EMAIL_EXISTS');
 
-    const user = (await prisma.authUser.create({
-      data: {
-        email,
-        name,
-        passwordHash: await hashPassword(parsed.data.password),
-        role: 'USER',
-        status: 'PENDING_VERIFICATION',
-        plan: 'FREE',
-        emailVerifiedAt: null,
-        proExpiresAt: null,
-        forcePasswordChange: false,
-      },
-    })) as UserRecord;
+        const priorClaim = await tx.trialClaim.findUnique({
+          where: { emailHash: identityHash },
+          select: { used: true },
+        });
+        const issueTrial = canIssueTrial(priorClaim);
+        const trial = createTrialWindow(now);
+        const created = await tx.authUser.create({
+          data: {
+            email,
+            name,
+            passwordHash,
+            role: 'USER',
+            status: 'PENDING_VERIFICATION',
+            plan: issueTrial ? 'PRO' : 'FREE',
+            emailVerifiedAt: null,
+            proExpiresAt: issueTrial ? trial.endsAt : null,
+            trialStartedAt: issueTrial ? trial.startedAt : null,
+            trialEndsAt: issueTrial ? trial.endsAt : null,
+            // A prior identity claim remains used even after an account was anonymized/deleted.
+            trialUsed: true,
+            forcePasswordChange: false,
+          },
+        });
+
+        if (issueTrial) {
+          await tx.trialClaim.upsert({
+            where: { emailHash: identityHash },
+            create: {
+              emailHash: identityHash,
+              userId: created.id,
+              startedAt: trial.startedAt,
+              endsAt: trial.endsAt,
+              used: true,
+            },
+            update: {
+              userId: created.id,
+              startedAt: trial.startedAt,
+              endsAt: trial.endsAt,
+              used: true,
+            },
+          });
+          await tx.subscription.create({
+            data: {
+              userId: created.id,
+              planCode: 'FREE_TRIAL',
+              status: 'ACTIVE',
+              startsAt: trial.startedAt,
+              expiresAt: trial.endsAt,
+              autoRenew: false,
+              pricePaidVnd: 0,
+              currency: 'VND',
+              metadata: {
+                source: 'REGISTRATION_TRIAL',
+                days: 7,
+              },
+            },
+          });
+        }
+
+        return created;
+      })) as UserRecord;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const code =
+        error && typeof error === 'object' && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+      if (message === 'REGISTER_EMAIL_EXISTS' || code === 'P2002') {
+        response.status(409).json({ error: 'Email already exists.' });
+        return;
+      }
+      throw error;
+    }
 
     const preview = await createVerificationAndMail(user, 'EMAIL_VERIFICATION');
     response.status(201).json({
@@ -908,7 +987,11 @@ router.get(
       orderBy: [{ revokedAt: 'asc' }, { lastSeenAt: 'desc' }, { createdAt: 'desc' }],
     })) as SessionRecord[];
     response.json({
-      user: { ...serializeUser(user), sessionCount: user._count.sessions, verificationCodeCount: user._count.verificationCodes },
+      user: {
+        ...serializeUser(user),
+        sessionCount: user._count.sessions,
+        verificationCodeCount: user._count.verificationCodes,
+      },
       sessions: sessions.map((session) => sessionPayload(session)),
     });
   }),
@@ -931,7 +1014,9 @@ router.patch(
       return;
     }
     if (id === auth.user.id && parsed.data.status === 'DISABLED') {
-      response.status(409).json({ error: 'Admin cannot disable the current admin session account.' });
+      response
+        .status(409)
+        .json({ error: 'Admin cannot disable the current admin session account.' });
       return;
     }
 
@@ -942,7 +1027,9 @@ router.patch(
     }
 
     if (before.role === 'ADMIN' && id !== auth.user.id) {
-      response.status(409).json({ error: 'ADMIN account status cannot be changed from user management.' });
+      response
+        .status(409)
+        .json({ error: 'ADMIN account status cannot be changed from user management.' });
       return;
     }
 

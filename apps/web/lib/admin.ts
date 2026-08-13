@@ -1,6 +1,7 @@
-const apiBaseUrl = (
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api'
-).replace(/\/$/, '');
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(
+  /\/$/,
+  '',
+);
 
 export type AdminPaymentStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
 export type AdminSubscriptionStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
@@ -124,10 +125,71 @@ export interface AdminDashboard {
   };
 }
 
-async function adminFetch<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+export type AdminPromotionType = 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FIXED_PRICE';
+export type AdminPromotionStatus = 'ACTIVE' | 'INACTIVE';
+export type AdminPromotionEffectiveStatus = AdminPromotionStatus | 'SCHEDULED' | 'EXPIRED';
+
+export interface AdminPromotion {
+  id: number;
+  name: string;
+  code: string | null;
+  description: string | null;
+  type: AdminPromotionType;
+  discountValue: number | null;
+  fixedPriceVnd: number | null;
+  automatic: boolean;
+  startAt: string;
+  endAt: string | null;
+  maxUses: number | null;
+  claimedCount: number;
+  usedCount: number;
+  maxUsesPerUser: number | null;
+  priority: number;
+  status: AdminPromotionStatus;
+  effectiveStatus: AdminPromotionEffectiveStatus;
+  newUsersOnly: boolean;
+  firstPurchaseOnly: boolean;
+  minimumDurationDays: number | null;
+  planIds: number[];
+  plans: Array<{ id: number; code: string; name: string }>;
+  createdAt: string;
+  updatedAt: string;
+  statistics: { revenue: number; discount: number; redemptions: number };
+}
+
+export interface AdminPromotionDashboard {
+  generatedAt: string;
+  timezone: string;
+  activePromotions: number;
+  scheduledPromotions: number;
+  expiredPromotions: number;
+  totalRedemptions: number;
+  totalRevenue: number;
+  totalDiscountGiven: number;
+  promotions: AdminPromotion[];
+}
+
+export interface AdminPromotionInput {
+  name: string;
+  code: string | null;
+  description: string | null;
+  type: AdminPromotionType;
+  discountValue: number | null;
+  fixedPriceVnd: number | null;
+  automatic: boolean;
+  planIds: number[];
+  startAt: string;
+  endAt: string | null;
+  priority: number;
+  maxUses: number | null;
+  maxUsesPerUser: number | null;
+  newUsersOnly: boolean;
+  firstPurchaseOnly: boolean;
+  minimumDurationDays: number | null;
+  status: AdminPromotionStatus;
+}
+
+async function adminFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('accept', 'application/json');
 
@@ -135,24 +197,20 @@ async function adminFetch<T>(
     headers.set('content-type', 'application/json');
   }
 
-  const response = await fetch(
-    `${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`,
-    {
-      ...init,
-      credentials: 'include',
-      cache: 'no-store',
-      headers,
-    },
-  );
+  const response = await fetch(`${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`, {
+    ...init,
+    credentials: 'include',
+    cache: 'no-store',
+    headers,
+  });
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | { error?: string; message?: string }
-      | null;
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+      message?: string;
+    } | null;
 
-    throw new Error(
-      payload?.error ?? payload?.message ?? `Admin API ${response.status}`,
-    );
+    throw new Error(payload?.error ?? payload?.message ?? `Admin API ${response.status}`);
   }
 
   return (await response.json()) as T;
@@ -175,10 +233,45 @@ export function getAdminDashboard(): Promise<AdminDashboard> {
   return adminFetch<AdminDashboard>('/admin/dashboard');
 }
 
-export function listAdminUsers(
-  query = '',
-  limit = 100,
-): Promise<{ users: AdminUserSummary[] }> {
+export function getAdminPromotions(): Promise<AdminPromotionDashboard> {
+  return adminFetch('/admin/promotions');
+}
+
+export function createAdminPromotion(
+  input: AdminPromotionInput,
+): Promise<{ promotion: AdminPromotion }> {
+  return adminFetch('/admin/promotions', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAdminPromotion(
+  promotionId: number,
+  input: AdminPromotionInput,
+): Promise<{ promotion: AdminPromotion }> {
+  return adminFetch(`/admin/promotions/${promotionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function setAdminPromotionEnabled(
+  promotionId: number,
+  enabled: boolean,
+): Promise<{ promotion: AdminPromotion }> {
+  return adminFetch(`/admin/promotions/${promotionId}/${enabled ? 'enable' : 'disable'}`, {
+    method: 'POST',
+  });
+}
+
+export function deleteAdminPromotion(
+  promotionId: number,
+): Promise<{ ok: true; mode: 'SOFT_DELETE' }> {
+  return adminFetch(`/admin/promotions/${promotionId}`, { method: 'DELETE' });
+}
+
+export function listAdminUsers(query = '', limit = 100): Promise<{ users: AdminUserSummary[] }> {
   return adminFetch<{ users: AdminUserSummary[] }>(
     `/admin/users${queryString({ q: query.trim() || undefined, limit })}`,
   );
@@ -190,18 +283,14 @@ export interface AdminCreateUserInput {
   temporaryPassword: string;
 }
 
-export function createAdminUser(
-  input: AdminCreateUserInput,
-): Promise<{ user: AdminUserSummary }> {
+export function createAdminUser(input: AdminCreateUserInput): Promise<{ user: AdminUserSummary }> {
   return adminFetch('/admin/users', {
     method: 'POST',
     body: JSON.stringify(input),
   });
 }
 
-export function deleteAdminUser(
-  userId: number,
-): Promise<{
+export function deleteAdminUser(userId: number): Promise<{
   ok: true;
   deletedUserId: number;
   mode: 'ANONYMIZED';
@@ -216,13 +305,10 @@ export function setAdminUserStatus(
   userId: number,
   status: AdminUserStatus,
 ): Promise<{ user: AdminUserSummary }> {
-  return adminFetch<{ user: AdminUserSummary }>(
-    `/admin/users/${userId}/status`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    },
-  );
+  return adminFetch<{ user: AdminUserSummary }>(`/admin/users/${userId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
 }
 
 export function grantAdminPro(
@@ -250,9 +336,7 @@ export function revokeAdminPro(
   });
 }
 
-export function revokeAdminSessions(
-  userId: number,
-): Promise<{ ok: true }> {
+export function revokeAdminSessions(userId: number): Promise<{ ok: true }> {
   return adminFetch(`/admin/users/${userId}/revoke-sessions`, {
     method: 'POST',
   });
@@ -262,18 +346,14 @@ export function getAdminPayments(
   status?: AdminPaymentStatus,
   limit = 100,
 ): Promise<{ payments: AdminPayment[] }> {
-  return adminFetch(
-    `/admin/payments${queryString({ status, limit })}`,
-  );
+  return adminFetch(`/admin/payments${queryString({ status, limit })}`);
 }
 
 export function getAdminSubscriptions(
   status?: AdminSubscriptionStatus,
   limit = 100,
 ): Promise<{ subscriptions: AdminSubscription[] }> {
-  return adminFetch(
-    `/admin/subscriptions${queryString({ status, limit })}`,
-  );
+  return adminFetch(`/admin/subscriptions${queryString({ status, limit })}`);
 }
 
 export function getAdminWebhooks(
@@ -288,8 +368,6 @@ export function getAdminWebhooks(
   );
 }
 
-export function getAdminAudit(
-  limit = 100,
-): Promise<{ rows: AdminAuditRow[] }> {
+export function getAdminAudit(limit = 100): Promise<{ rows: AdminAuditRow[] }> {
   return adminFetch(`/admin/audit${queryString({ limit })}`);
 }
