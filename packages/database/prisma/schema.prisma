@@ -1963,3 +1963,47 @@ model ScientificCurrentSignalSnapshot {
   @@index([selectedMarket, selectedSelection], map: "ScientificCurrentSignal_market_selection_idx")
   @@index([modelSource, snapshotAsOf], map: "ScientificCurrentSignal_model_source_idx")
 }
+model ResultUpdateJob {
+  id                 Int      @id @default(autoincrement())
+  providerFixtureId  Int      @unique
+  kickoffAt          DateTime
+  status             String   @default("PENDING") @db.VarChar(24)
+  attempts           Int      @default(0)
+  maxAttempts        Int      @default(12)
+  nextCheckAt        DateTime
+  lastCheckedAt      DateTime?
+  lockedAt           DateTime?
+  lockToken          String?  @db.VarChar(64)
+  completedAt        DateTime?
+  lastProviderStatus String?  @db.VarChar(24)
+  lastError          String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status, nextCheckAt], map: "ResultUpdateJob_status_next_idx")
+  @@index([lockedAt], map: "ResultUpdateJob_locked_idx")
+}
+
+model ApiQuotaDaily {
+  quotaDate  String   @id @db.VarChar(10)
+  dailyLimit Int      @default(7500)
+  used       Int      @default(0)
+  remaining  Int      @default(7500)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model RealtimeOutbox {
+  id          Int       @id @default(autoincrement())
+  eventType   String    @db.VarChar(64)
+  aggregateId String?   @db.VarChar(128)
+  payload     Json
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  lockedAt    DateTime?
+  lockToken   String?   @db.VarChar(64)
+  attempts    Int       @default(0)
+
+  @@index([publishedAt, createdAt], map: "RealtimeOutbox_published_created_idx")
+  @@index([lockedAt], map: "RealtimeOutbox_locked_idx")
+}

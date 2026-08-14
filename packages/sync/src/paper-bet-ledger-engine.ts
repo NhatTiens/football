@@ -102,6 +102,12 @@ export async function recordScientificPaperBetDecision(input: PaperBetDecisionIn
   rejectedCandidateCount: number;
   decisionHash: string;
 }> {
+  if (input.decisionAsOf.getTime() >= input.kickoffAt.getTime()) {
+    throw new Error(
+      `Refusing to create paper prediction for fixture ${input.providerFixtureId} after kickoff.`,
+    );
+  }
+
   const { normalizedCandidates, decision } = decidePaperBet(input);
   const assessments = normalizedCandidates.map((candidate) => ({
     normalized: candidate,

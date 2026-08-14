@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Header } from '../components/Header';
 import { Disclaimer } from '../components/Disclaimer';
+import { RealtimeHistoryRefresh } from '../components/RealtimeHistoryRefresh';
 import './globals.css';
 import './prediction-chatbot.css';
 import './prediction-chatbot-advanced.css';
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="vi">
       <body>
+        <RealtimeHistoryRefresh />
         <Header />
         <main className="container main-content">{children}</main>
         <footer className="container footer">
