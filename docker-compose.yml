@@ -59,6 +59,8 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: mysql://football:football_password@mysql:3306/football_ai
+      # The production image has no separate development autopilot process.
+      DEV_SCIENCE_OWNS_PROVIDER_SYNC: "false"
     depends_on:
       db-init:
         condition: service_completed_successfully

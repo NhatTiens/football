@@ -99,6 +99,7 @@ export * from './real-odds-paper-bet-core.js';
 export * from './real-odds-paper-bet-engine.js';
 export * from './paper-bet-operations-core.js';
 export * from './paper-bet-operations-engine.js';
+export * from './production-scientific-cycle.js';
 export * from './paper-shadow-recommendation-core.js';
 export * from './paper-ou-model-selection-core.js';
 export * from './prediction-chatbot-core.js';
