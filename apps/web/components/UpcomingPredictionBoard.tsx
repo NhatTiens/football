@@ -565,6 +565,7 @@ export function UpcomingPredictionBoard({
       const response = await fetch(`${apiUrl}/personal/upcoming/refresh`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           days: Number(days),
           groups: selectedGroups,

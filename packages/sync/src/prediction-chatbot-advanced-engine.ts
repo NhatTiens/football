@@ -27,8 +27,7 @@ import {
 } from './prediction-chatbot-research-engine.js';
 import { getPersonalUpcomingAnalysis } from './personal-console-engine.js';
 
-export const PREDICTION_CHATBOT_ADVANCED_VERSION =
-  'v7.0-chatbot.3-8-read-only-research-assistant-v1';
+export const PREDICTION_CHATBOT_ADVANCED_VERSION = 'v7.0-chatbot-current-analysis-security-v2';
 
 export const predictionChatCapabilities = {
   version: PREDICTION_CHATBOT_ADVANCED_VERSION,
@@ -42,6 +41,8 @@ export const predictionChatCapabilities = {
   persistentUserChatHistory: false,
   freshnessCycleBeforeAnswer: false,
   freshnessOwnedByWorker: true,
+  currentAnalysisRecalculatedBeforeAnswer: true,
+  staleSignalsRejected: true,
   generativeExternalLlm: false,
   authenticationRequired: true,
   paidPlansEnabled: false,
@@ -136,22 +137,12 @@ function hasMarket(
   });
 }
 
-function recommendationRank(row: AdvancedAnalysisFixtureRow): number {
-  if (row.state === 'BEST_BET') return 500;
-  if (row.paperShadowRecommendation?.selected?.paperTrackEligible) return 400;
-  if (row.currentRecommendation != null) return 300;
-  if (row.scientificHda.available) return 200;
-  if (row.providerHda.available) return 100;
+function answerRecommendationRank(row: PredictionChatMatchedAnswer): number {
+  if (row.recommendation.status === 'BEST_BET') return 500;
+  if (row.recommendation.status === 'PAPER_SHADOW') return 400;
+  if (row.recommendation.status === 'CURRENT_SHADOW') return 300;
+  if (row.recommendation.status === 'DIAGNOSTIC_SHADOW') return 200;
   return 0;
-}
-
-function recommendationExpectedValue(row: AdvancedAnalysisFixtureRow): number {
-  return (
-    row.decision?.expectedValue ??
-    row.paperShadowRecommendation?.selected?.boundedExpectedValue ??
-    row.currentRecommendation?.expectedValue ??
-    Number.NEGATIVE_INFINITY
-  );
 }
 
 export function buildPredictionChatCollectionFromAnalysis(input: {
@@ -163,31 +154,26 @@ export function buildPredictionChatCollectionFromAnalysis(input: {
 }): PredictionChatCollection {
   const marketFilter = requestedMarketFilter(input.message, input.intent);
   const maximumRows = Math.max(1, Math.min(8, input.limit ?? 5));
-  const ranked = analysisRows(input.analysis)
-    .filter((row) => hasMarket(row, marketFilter))
-    .filter((row) =>
-      input.intent === 'BEST_BET'
-        ? row.state === 'BEST_BET' ||
-          row.paperShadowRecommendation?.selected?.paperTrackEligible === true ||
-          row.currentRecommendation != null
-        : true,
-    )
+  const eligibleRows = analysisRows(input.analysis).filter((row) => hasMarket(row, marketFilter));
+  const answers = eligibleRows
+    .flatMap((row) => {
+      const response = answerPredictionChatForProviderFixtureFromAnalysis({
+        providerFixtureId: row.fixture.apiFixtureId,
+        analysis: input.analysis,
+        now: input.now,
+        intent: baseIntent(input.intent),
+      });
+      return response.answer == null ? [] : [response.answer];
+    })
+    .filter((row) => input.intent !== 'BEST_BET' || row.recommendation.status !== 'NONE')
     .sort(
       (left, right) =>
-        recommendationRank(right) - recommendationRank(left) ||
-        recommendationExpectedValue(right) - recommendationExpectedValue(left) ||
+        answerRecommendationRank(right) - answerRecommendationRank(left) ||
+        (right.recommendation.expectedValue ?? Number.NEGATIVE_INFINITY) -
+          (left.recommendation.expectedValue ?? Number.NEGATIVE_INFINITY) ||
         new Date(left.fixture.kickoffAt).getTime() - new Date(right.fixture.kickoffAt).getTime(),
     )
     .slice(0, maximumRows);
-  const answers = ranked.flatMap((row) => {
-    const response = answerPredictionChatForProviderFixtureFromAnalysis({
-      providerFixtureId: row.fixture.apiFixtureId,
-      analysis: input.analysis,
-      now: input.now,
-      intent: baseIntent(input.intent),
-    });
-    return response.answer == null ? [] : [response.answer];
-  });
 
   return {
     kind: input.intent === 'BEST_BET' ? 'BEST_BET' : 'UPCOMING',
@@ -399,7 +385,7 @@ export async function answerAdvancedPredictionChat(input: {
   const analysis = await getPersonalUpcomingAnalysis({
     now,
     days: input.days ?? 14,
-    limit: input.limit ?? 300,
+    limit: input.limit ?? 180,
   });
 
   return answerAdvancedPredictionChatFromAnalysis({

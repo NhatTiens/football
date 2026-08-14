@@ -41,11 +41,16 @@ function fixture(input: {
       awayProbability: null,
       predictedSelection: null,
     },
-    currentRecommendationStatus: paperShadow ? 'AVAILABLE' : 'NO_VALUE_SIGNAL',
+    currentRecommendationStatus: officialBestBet
+      ? 'NOT_EVALUATED'
+      : paperShadow
+        ? 'AVAILABLE'
+        : 'NO_VALUE_SIGNAL',
     currentRecommendationError: null,
     currentRecommendation: null,
     paperShadowRecommendation: paperShadow
       ? {
+          calculatedAt: '2026-08-04T00:59:00.000Z',
           status: 'AVAILABLE',
           selected: {
             marketType: 'TOTAL_GOALS_2_5',
@@ -58,12 +63,14 @@ function fixture(input: {
             boundedEdge: 0.04,
             boundedExpectedValue: 0.08,
             paperTrackEligible: true,
+            sourceOddsEffectiveAt: '2026-08-04T00:58:00.000Z',
             reasonCodes: [],
           },
         }
       : null,
     decision: officialBestBet
       ? {
+          decisionAsOf: '2026-08-04T00:30:00.000Z',
           decisionType: 'BEST_BET',
           selectedMarket: 'MATCH_WINNER',
           selectedSelection: 'HOME',
@@ -118,6 +125,8 @@ describe('advanced prediction chatbot engine', () => {
     expect(predictionChatCapabilities).toMatchObject({
       freshnessCycleBeforeAnswer: false,
       freshnessOwnedByWorker: true,
+      currentAnalysisRecalculatedBeforeAnswer: true,
+      staleSignalsRejected: true,
       paperOnly: true,
       realMoneyExecution: false,
     });

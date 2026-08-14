@@ -31,7 +31,8 @@ import {
   refreshPersonalUpcomingAnalysis,
 } from '@football-ai/sync';
 import { env } from './env.js';
-import { constantTimeSecretEquals, sensitiveNoStore } from './security.js';
+import { predictionChatRequestSchema } from './chat-security.js';
+import { constantTimeSecretEquals, isAllowedWriteOrigin, sensitiveNoStore } from './security.js';
 import {
   globalMarketScopeMiddleware,
   isExplicitMatchWinnerQuestion,
@@ -52,6 +53,10 @@ export const app = express();
 
 app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: false }));
+app.use((_request, response, next) => {
+  response.setHeader('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
+  next();
+});
 const allowedOrigins = env.CORS_ORIGIN.split(',')
   .map((value) => value.trim())
   .filter(Boolean);
@@ -67,7 +72,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '256kb', strict: true }));
 app.use(pinoHttp());
 app.use(
   '/api',
@@ -91,6 +96,14 @@ function requireAdmin(request: Request, response: Response, next: NextFunction):
   const token = request.header('x-admin-token');
   if (!constantTimeSecretEquals(token, env.ADMIN_API_TOKEN)) {
     response.status(401).json({ error: 'Invalid admin token.' });
+    return;
+  }
+  next();
+}
+
+function requireAllowedWriteOrigin(request: Request, response: Response, next: NextFunction): void {
+  if (!isAllowedWriteOrigin(request.header('origin'), env.CORS_ORIGIN)) {
+    response.status(403).json({ error: 'Origin is not allowed for this write request.' });
     return;
   }
   next();
@@ -880,6 +893,9 @@ app.get(
 
 app.post(
   '/api/personal/upcoming/refresh',
+  sensitiveNoStore,
+  requireAllowedWriteOrigin,
+  asyncRoute(requireBacktestResearchAccess),
   asyncRoute(async (request, response) => {
     const body = request.body ?? {};
     const allowedGroups = new Set([
@@ -910,12 +926,14 @@ app.post(
   }),
 );
 
-app.get('/api/personal/prediction-chat/capabilities', (_request, response) => {
+app.get('/api/personal/prediction-chat/capabilities', sensitiveNoStore, (_request, response) => {
   response.json(predictionChatCapabilities);
 });
 
 app.post(
   '/api/personal/prediction-chat',
+  sensitiveNoStore,
+  requireAllowedWriteOrigin,
   rateLimit({
     windowMs: 60_000,
     limit: 30,
@@ -934,16 +952,18 @@ app.post(
       return;
     }
 
-    const message = typeof request.body?.message === 'string' ? request.body.message.trim() : '';
-
-    if (message.length === 0) {
-      response.status(400).json({ error: 'Vui lòng nhập tên trận hoặc câu hỏi dự đoán.' });
+    const parsedBody = predictionChatRequestSchema.safeParse(request.body);
+    if (!parsedBody.success) {
+      response.status(400).json({
+        error: 'Dữ liệu chatbot không hợp lệ.',
+        fields: parsedBody.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
+      });
       return;
     }
-    if (message.length > 240) {
-      response.status(400).json({ error: 'Câu hỏi tối đa 240 ký tự.' });
-      return;
-    }
+    const { message, context } = parsedBody.data;
 
     // GLOBAL_MARKET_SCOPE_CHAT_BLOCK_V2
     if (isExplicitMatchWinnerQuestion(message)) {
@@ -991,9 +1011,10 @@ app.post(
     try {
       result = await answerAdvancedPredictionChat({
         message,
-        context: request.body?.context,
+        context,
         days: 14,
-        limit: 300,
+        // Keep the chatbot inside the fully evaluated current-analysis batch.
+        limit: 180,
       });
     } catch (error) {
       await refundUsage({

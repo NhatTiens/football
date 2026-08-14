@@ -410,6 +410,11 @@ interface FixtureAnalysisRow {
   currentRecommendationStatus: PersonalCurrentRecommendationStatus;
   currentRecommendationError: string | null;
   currentRecommendation: CurrentScientificRecommendationAnalysis['recommendation'];
+  currentAnalysisFreshness: {
+    calculatedAt: string;
+    latestOddsFreshnessAt: string | null;
+    engineMaximumOddsAgeMinutes: number;
+  } | null;
   paperShadowRecommendation:
     CurrentScientificRecommendationAnalysis['paperShadowRecommendation'] | null;
   state: PersonalFixtureState;
@@ -1110,6 +1115,13 @@ export async function getPersonalUpcomingAnalysis(
         currentRecommendationStatus: currentScientific?.status ?? 'NOT_EVALUATED',
         currentRecommendationError: currentScientific?.error ?? null,
         currentRecommendation: currentScientific?.recommendation ?? null,
+        currentAnalysisFreshness: currentScientific
+          ? {
+              calculatedAt: currentScientific.calculatedAt,
+              latestOddsFreshnessAt: currentScientific.oddsFreshness.latestFreshnessAt,
+              engineMaximumOddsAgeMinutes: currentScientific.oddsFreshness.maximumAgeMinutes,
+            }
+          : null,
         paperShadowRecommendation: currentScientific?.paperShadowRecommendation ?? null,
         state,
       },

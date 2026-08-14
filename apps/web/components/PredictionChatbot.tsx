@@ -93,6 +93,11 @@ interface ChatResponse extends PredictionChatbotAdvancedData {
       oddsSnapshots: number;
       pitUsableOdds: number;
       currentRecommendationStatus: string;
+      freshnessStatus: 'CURRENT' | 'STALE' | 'UNAVAILABLE';
+      freshnessSource: 'CURRENT_ANALYSIS' | 'PAPER_LEDGER' | 'NONE';
+      sourceCalculatedAt: string | null;
+      sourceAgeMinutes: number | null;
+      maximumAgeMinutes: number;
     };
   } | null;
   suggestions: ChatSuggestion[];
@@ -277,6 +282,12 @@ function AssistantDetails({ response }: { response: ChatResponse }) {
             <span>Odds snapshots: {answer.dataQuality.oddsSnapshots}</span>
             <span>PIT usable: {answer.dataQuality.pitUsableOdds}</span>
             <span>Status: {answer.dataQuality.currentRecommendationStatus}</span>
+            <span>
+              Dữ liệu: {answer.dataQuality.freshnessStatus}
+              {answer.dataQuality.sourceAgeMinutes == null
+                ? ''
+                : ` · ${answer.dataQuality.sourceAgeMinutes.toFixed(1)} phút`}
+            </span>
           </div>
         </>
       ) : null}

@@ -135,6 +135,8 @@ describe('read-only prediction chatbot core', () => {
           analysisFixture({
             currentRecommendationStatus: 'AVAILABLE',
             currentRecommendation: {
+              calculatedAt: '2026-08-04T00:59:00.000Z',
+              sourceOddsFreshnessAt: '2026-08-04T00:58:00.000Z',
               marketType: 'TOTAL_GOALS_2_5',
               selection: 'OVER',
               lineValue: 2.5,
@@ -154,5 +156,87 @@ describe('read-only prediction chatbot core', () => {
       officialBestBet: false,
       paperOnly: true,
     });
+    expect(result.answer?.dataQuality).toMatchObject({
+      freshnessStatus: 'CURRENT',
+      freshnessSource: 'CURRENT_ANALYSIS',
+    });
+  });
+
+  it('uses a fresh current-model result instead of an older ledger decision', () => {
+    const result = answerPredictionChatFromAnalysis({
+      message: 'Soi kèo O/U Arsenal và Chelsea',
+      analysis: {
+        fixtures: [
+          analysisFixture({
+            state: 'BEST_BET',
+            currentRecommendationStatus: 'AVAILABLE',
+            currentRecommendation: {
+              calculatedAt: '2026-08-04T00:59:00.000Z',
+              sourceOddsFreshnessAt: '2026-08-04T00:58:00.000Z',
+              marketType: 'TOTAL_GOALS_2_5',
+              selection: 'OVER',
+              lineValue: 2.5,
+              decimalOdds: 1.91,
+              bookmakerName: 'Current Book',
+              modelProbability: 0.58,
+              edge: 0.04,
+              expectedValue: 0.07,
+            },
+            decision: {
+              decisionAsOf: '2026-08-03T12:00:00.000Z',
+              decisionType: 'BEST_BET',
+              selectedMarket: 'TOTAL_GOALS_2_5',
+              selectedSelection: 'UNDER',
+              lineValue: 2.5,
+              decimalOdds: 1.86,
+              bookmakerName: 'Old Book',
+              modelProbability: 0.55,
+              edge: 0.03,
+              expectedValue: 0.05,
+            },
+          }),
+        ],
+      },
+      now: new Date('2026-08-04T01:00:00.000Z'),
+    });
+
+    expect(result.answer?.recommendation).toMatchObject({
+      status: 'CURRENT_SHADOW',
+      selection: 'OVER',
+      bookmakerName: 'Current Book',
+    });
+  });
+
+  it('fails closed instead of presenting a freshly calculated result from stale source odds', () => {
+    const result = answerPredictionChatFromAnalysis({
+      message: 'Soi kèo O/U Arsenal và Chelsea',
+      analysis: {
+        fixtures: [
+          analysisFixture({
+            currentRecommendationStatus: 'AVAILABLE',
+            currentRecommendation: {
+              calculatedAt: '2026-08-04T00:59:00.000Z',
+              sourceOddsFreshnessAt: '2026-08-03T23:30:00.000Z',
+              marketType: 'TOTAL_GOALS_2_5',
+              selection: 'OVER',
+              lineValue: 2.5,
+              decimalOdds: 1.91,
+              bookmakerName: 'Stale Book',
+              modelProbability: 0.58,
+              edge: 0.04,
+              expectedValue: 0.07,
+            },
+          }),
+        ],
+      },
+      now: new Date('2026-08-04T01:00:00.000Z'),
+    });
+
+    expect(result.answer?.recommendation).toMatchObject({
+      status: 'NONE',
+      selection: null,
+    });
+    expect(result.answer?.dataQuality.freshnessStatus).toBe('STALE');
+    expect(result.answer?.markets).toEqual([]);
   });
 });

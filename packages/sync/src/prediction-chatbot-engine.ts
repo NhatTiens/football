@@ -7,7 +7,7 @@ import {
 } from './prediction-chatbot-core.js';
 import { getPersonalUpcomingAnalysis } from './personal-console-engine.js';
 
-export const PREDICTION_CHATBOT_VERSION = 'v7.0-beta.2a.1-read-only-prediction-chatbot-engine-v1';
+export const PREDICTION_CHATBOT_VERSION = 'v7.0-chatbot-current-analysis-freshness-v2';
 
 type SelectionCode = 'HOME' | 'DRAW' | 'AWAY' | 'OVER' | 'UNDER' | 'YES' | 'NO';
 
@@ -37,6 +37,8 @@ interface AnalysisFixtureRow {
   currentRecommendationStatus: string;
   currentRecommendationError: string | null;
   currentRecommendation: {
+    calculatedAt?: string;
+    sourceOddsFreshnessAt?: string | null;
     marketType: string;
     selection: SelectionCode;
     lineValue: number | null;
@@ -47,6 +49,7 @@ interface AnalysisFixtureRow {
     expectedValue: number;
   } | null;
   paperShadowRecommendation: {
+    calculatedAt?: string;
     status: string;
     selected: {
       marketType: string;
@@ -59,10 +62,17 @@ interface AnalysisFixtureRow {
       boundedEdge: number;
       boundedExpectedValue: number;
       paperTrackEligible: boolean;
+      sourceOddsEffectiveAt?: string | null;
       reasonCodes: string[];
     } | null;
   } | null;
+  currentAnalysisFreshness?: {
+    calculatedAt: string;
+    latestOddsFreshnessAt: string | null;
+    engineMaximumOddsAgeMinutes: number;
+  } | null;
   decision: {
+    decisionAsOf?: string;
     decisionType: string;
     selectedMarket: string | null;
     selectedSelection: SelectionCode | null;
@@ -131,6 +141,99 @@ export interface PredictionChatMatchedAnswer {
     oddsSnapshots: number;
     pitUsableOdds: number;
     currentRecommendationStatus: string;
+    freshnessStatus: 'CURRENT' | 'STALE' | 'UNAVAILABLE';
+    freshnessSource: 'CURRENT_ANALYSIS' | 'PAPER_LEDGER' | 'NONE';
+    sourceCalculatedAt: string | null;
+    sourceAgeMinutes: number | null;
+    maximumAgeMinutes: number;
+  };
+}
+
+interface PredictionChatFreshness {
+  status: 'CURRENT' | 'STALE' | 'UNAVAILABLE';
+  source: 'CURRENT_ANALYSIS' | 'PAPER_LEDGER' | 'NONE';
+  calculatedAt: string | null;
+  ageMinutes: number | null;
+  maximumAgeMinutes: number;
+}
+
+function boundedEnvironmentInteger(
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === '') return fallback;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
+}
+
+function freshnessFor(row: AnalysisFixtureRow, now: Date): PredictionChatFreshness {
+  const usesCurrentAnalysis = row.currentRecommendationStatus !== 'NOT_EVALUATED';
+  const currentAnalysisMaximumAgeMinutes = boundedEnvironmentInteger(
+    'PREDICTION_CHAT_CURRENT_ANALYSIS_MAX_AGE_MINUTES',
+    10,
+    1,
+    60,
+  );
+  const maximumAgeMinutes = usesCurrentAnalysis
+    ? boundedEnvironmentInteger('PREDICTION_CHAT_CURRENT_DATA_MAX_AGE_MINUTES', 60, 1, 360)
+    : boundedEnvironmentInteger('PREDICTION_CHAT_LEDGER_MAX_AGE_MINUTES', 360, 1, 1440);
+  const analysisCalculatedAt = usesCurrentAnalysis
+    ? (row.currentAnalysisFreshness?.calculatedAt ??
+      row.currentRecommendation?.calculatedAt ??
+      row.paperShadowRecommendation?.calculatedAt ??
+      null)
+    : null;
+  const currentStatusCanExposeModel = ['AVAILABLE', 'NO_VALUE_SIGNAL'].includes(
+    row.currentRecommendationStatus,
+  );
+  const currentOddsFreshnessAt = currentStatusCanExposeModel
+    ? (row.currentAnalysisFreshness?.latestOddsFreshnessAt ??
+      row.currentRecommendation?.sourceOddsFreshnessAt ??
+      row.paperShadowRecommendation?.selected?.sourceOddsEffectiveAt ??
+      null)
+    : analysisCalculatedAt;
+  const calculatedAt = usesCurrentAnalysis
+    ? currentOddsFreshnessAt
+    : (row.decision?.decisionAsOf ?? null);
+  const analysisTimestamp =
+    analysisCalculatedAt == null ? Number.NaN : new Date(analysisCalculatedAt).getTime();
+  if (
+    usesCurrentAnalysis &&
+    (!Number.isFinite(analysisTimestamp) ||
+      now.getTime() - analysisTimestamp < -60_000 ||
+      now.getTime() - analysisTimestamp > currentAnalysisMaximumAgeMinutes * 60_000)
+  ) {
+    return {
+      status: Number.isFinite(analysisTimestamp) ? 'STALE' : 'UNAVAILABLE',
+      source: Number.isFinite(analysisTimestamp) ? 'CURRENT_ANALYSIS' : 'NONE',
+      calculatedAt: analysisCalculatedAt,
+      ageMinutes: Number.isFinite(analysisTimestamp)
+        ? Math.max(0, (now.getTime() - analysisTimestamp) / 60_000)
+        : null,
+      maximumAgeMinutes: currentAnalysisMaximumAgeMinutes,
+    };
+  }
+  const parsed = calculatedAt == null ? Number.NaN : new Date(calculatedAt).getTime();
+  if (!Number.isFinite(parsed)) {
+    return {
+      status: 'UNAVAILABLE',
+      source: 'NONE',
+      calculatedAt: null,
+      ageMinutes: null,
+      maximumAgeMinutes,
+    };
+  }
+  const ageMinutes = (now.getTime() - parsed) / 60_000;
+  const current = ageMinutes >= -1 && ageMinutes <= maximumAgeMinutes;
+  return {
+    status: current ? 'CURRENT' : 'STALE',
+    source: usesCurrentAnalysis ? 'CURRENT_ANALYSIS' : 'PAPER_LEDGER',
+    calculatedAt,
+    ageMinutes: Math.max(0, ageMinutes),
+    maximumAgeMinutes,
   };
 }
 
@@ -155,10 +258,10 @@ export interface PredictionChatResponse {
 }
 
 const statusReason: Record<string, string> = {
-  AVAILABLE:
-    'Có tín hiệu khoa học hiện tại nhưng chưa phải đề xuất chính thức.',
+  AVAILABLE: 'Có tín hiệu khoa học hiện tại nhưng chưa phải đề xuất chính thức.',
   NO_FRESH_PIT_ODDS: 'Chưa có dữ liệu PIT đủ mới để đánh giá mô hình.',
-  NO_PROVIDER_FIXTURE_SNAPSHOT: 'Chưa có snapshot fixture từ nhà cung cấp để liên kết dữ liệu thị trường.',
+  NO_PROVIDER_FIXTURE_SNAPSHOT:
+    'Chưa có snapshot fixture từ nhà cung cấp để liên kết dữ liệu thị trường.',
   NO_MODEL: 'Chưa có model hợp lệ cho trận này.',
   NO_COMPLETE_MARKET: 'Chưa có đủ hai phía của market để đánh giá công bằng.',
   NO_VALUE_SIGNAL: 'Mô hình đã đánh giá nhưng các chỉ số chưa đạt ngưỡng.',
@@ -189,7 +292,23 @@ function fixtureIndex(row: AnalysisFixtureRow): PredictionChatFixtureIndex {
   };
 }
 
-function hdaAnswer(row: AnalysisFixtureRow): PredictionChatHdaAnswer {
+function hdaAnswer(
+  row: AnalysisFixtureRow,
+  freshness: PredictionChatFreshness,
+): PredictionChatHdaAnswer {
+  // HDA fields in the personal read model come from the persisted ledger/provider
+  // prediction. Once a current analysis exists, do not relabel those older fields
+  // as a current-model answer.
+  if (freshness.status !== 'CURRENT' || row.currentRecommendationStatus !== 'NOT_EVALUATED') {
+    return {
+      source: 'NONE',
+      homeProbability: null,
+      drawProbability: null,
+      awayProbability: null,
+      predictedSelection: null,
+    };
+  }
+
   if (row.scientificHda.available) {
     return {
       source: 'SCIENTIFIC_DECISION',
@@ -217,7 +336,20 @@ function hdaAnswer(row: AnalysisFixtureRow): PredictionChatHdaAnswer {
   };
 }
 
-function marketAnswers(row: AnalysisFixtureRow): PredictionChatMarketAnswer[] {
+function marketAnswers(
+  row: AnalysisFixtureRow,
+  freshness: PredictionChatFreshness,
+): PredictionChatMarketAnswer[] {
+  const currentStatusCanExposeModel = ['AVAILABLE', 'NO_VALUE_SIGNAL'].includes(
+    row.currentRecommendationStatus,
+  );
+  if (
+    freshness.status !== 'CURRENT' ||
+    (row.currentRecommendationStatus !== 'NOT_EVALUATED' && !currentStatusCanExposeModel)
+  ) {
+    return [];
+  }
+
   return row.marketPredictions.flatMap((market) => {
     const candidates = market.selections
       .filter(
@@ -240,7 +372,101 @@ function marketAnswers(row: AnalysisFixtureRow): PredictionChatMarketAnswer[] {
   });
 }
 
-function recommendationAnswer(row: AnalysisFixtureRow): PredictionChatRecommendationAnswer {
+function noRecommendation(reason: string): PredictionChatRecommendationAnswer {
+  return {
+    status: 'NONE',
+    marketType: null,
+    selection: null,
+    lineValue: null,
+    decimalOdds: null,
+    bookmakerName: null,
+    modelProbability: null,
+    edge: null,
+    expectedValue: null,
+    officialBestBet: false,
+    paperOnly: true,
+    reason,
+  };
+}
+
+function recommendationAnswer(
+  row: AnalysisFixtureRow,
+  freshness: PredictionChatFreshness,
+): PredictionChatRecommendationAnswer {
+  if (freshness.status !== 'CURRENT') {
+    return noRecommendation(
+      freshness.status === 'STALE'
+        ? 'Dữ liệu phân tích đã quá thời hạn cho phép; chatbot chờ chu kỳ đồng bộ mới và không trả lại lựa chọn cũ.'
+        : 'Chưa xác minh được thời điểm tạo dữ liệu; chatbot không sử dụng bản ghi cũ làm tín hiệu hiện tại.',
+    );
+  }
+
+  const currentAnalysisAvailable = row.currentRecommendationStatus !== 'NOT_EVALUATED';
+
+  // The current scientific calculation is the source of truth for chatbot answers.
+  // An append-only ledger decision remains available for audit, but cannot mask a
+  // newer current-model result for the same fixture.
+  if (currentAnalysisAvailable && row.currentRecommendation) {
+    return {
+      status: 'CURRENT_SHADOW',
+      marketType: row.currentRecommendation.marketType,
+      selection: row.currentRecommendation.selection,
+      lineValue: row.currentRecommendation.lineValue,
+      decimalOdds: row.currentRecommendation.decimalOdds,
+      bookmakerName: row.currentRecommendation.bookmakerName,
+      modelProbability: row.currentRecommendation.modelProbability,
+      edge: row.currentRecommendation.edge,
+      expectedValue: row.currentRecommendation.expectedValue,
+      officialBestBet: false,
+      paperOnly: true,
+      reason:
+        'Kết quả mô hình hiện tại dùng dữ liệu PIT mới nhất đã được backend xác nhận; chưa phải giao dịch thực.',
+    };
+  }
+
+  const paper = row.paperShadowRecommendation?.selected;
+  if (currentAnalysisAvailable && paper?.paperTrackEligible) {
+    return {
+      status: 'PAPER_SHADOW',
+      marketType: paper.marketType,
+      selection: paper.selection,
+      lineValue: paper.lineValue,
+      decimalOdds: paper.decimalOdds,
+      bookmakerName: paper.bookmakerName,
+      modelProbability: paper.boundedAdjustedProbability,
+      edge: paper.boundedEdge,
+      expectedValue: paper.boundedExpectedValue,
+      officialBestBet: false,
+      paperOnly: true,
+      reason: 'Tín hiệu mô phỏng hiện tại đủ điều kiện theo dõi, chưa phải đề xuất chính thức.',
+    };
+  }
+
+  if (currentAnalysisAvailable && paper) {
+    return {
+      status: 'DIAGNOSTIC_SHADOW',
+      marketType: paper.marketType,
+      selection: paper.selection,
+      lineValue: paper.lineValue,
+      decimalOdds: paper.decimalOdds,
+      bookmakerName: paper.bookmakerName,
+      modelProbability: paper.boundedAdjustedProbability,
+      edge: paper.boundedEdge,
+      expectedValue: paper.boundedExpectedValue,
+      officialBestBet: false,
+      paperOnly: true,
+      reason: 'Có tín hiệu chẩn đoán hiện tại nhưng chưa đủ điều kiện theo dõi mô phỏng.',
+    };
+  }
+
+  if (currentAnalysisAvailable) {
+    return noRecommendation(
+      row.currentRecommendationError ??
+        statusReason[row.currentRecommendationStatus] ??
+        'Mô hình hiện tại chưa có lựa chọn đủ điều kiện.',
+    );
+  }
+
   if (row.state === 'BEST_BET' && row.decision?.selectedMarket && row.decision.selectedSelection) {
     return {
       status: 'BEST_BET',
@@ -258,75 +484,10 @@ function recommendationAnswer(row: AnalysisFixtureRow): PredictionChatRecommenda
     };
   }
 
-  const paper = row.paperShadowRecommendation?.selected;
-  if (paper?.paperTrackEligible) {
-    return {
-      status: 'PAPER_SHADOW',
-      marketType: paper.marketType,
-      selection: paper.selection,
-      lineValue: paper.lineValue,
-      decimalOdds: paper.decimalOdds,
-      bookmakerName: paper.bookmakerName,
-      modelProbability: paper.boundedAdjustedProbability,
-      edge: paper.boundedEdge,
-      expectedValue: paper.boundedExpectedValue,
-      officialBestBet: false,
-      paperOnly: true,
-      reason: 'Tín hiệu mô phỏng đủ điều kiện theo dõi, chưa phải đề xuất chính thức.',
-    };
-  }
-
-  if (row.currentRecommendation) {
-    return {
-      status: 'CURRENT_SHADOW',
-      marketType: row.currentRecommendation.marketType,
-      selection: row.currentRecommendation.selection,
-      lineValue: row.currentRecommendation.lineValue,
-      decimalOdds: row.currentRecommendation.decimalOdds,
-      bookmakerName: row.currentRecommendation.bookmakerName,
-      modelProbability: row.currentRecommendation.modelProbability,
-      edge: row.currentRecommendation.edge,
-      expectedValue: row.currentRecommendation.expectedValue,
-      officialBestBet: false,
-      paperOnly: true,
-      reason: 'Tín hiệu khoa học hiện tại dùng cho nghiên cứu theo dõi, chưa thay đổi đề xuất chính thức.',
-    };
-  }
-
-  if (paper) {
-    return {
-      status: 'DIAGNOSTIC_SHADOW',
-      marketType: paper.marketType,
-      selection: paper.selection,
-      lineValue: paper.lineValue,
-      decimalOdds: paper.decimalOdds,
-      bookmakerName: paper.bookmakerName,
-      modelProbability: paper.boundedAdjustedProbability,
-      edge: paper.boundedEdge,
-      expectedValue: paper.boundedExpectedValue,
-      officialBestBet: false,
-      paperOnly: true,
-      reason: 'Có tín hiệu chẩn đoán nhưng chưa đủ điều kiện theo dõi mô phỏng.',
-    };
-  }
-
-  return {
-    status: 'NONE',
-    marketType: null,
-    selection: null,
-    lineValue: null,
-    decimalOdds: null,
-    bookmakerName: null,
-    modelProbability: null,
-    edge: null,
-    expectedValue: null,
-    officialBestBet: false,
-    paperOnly: true,
-    reason:
-      row.currentRecommendationError ??
-      statusReason[row.currentRecommendationStatus] ??
+  return noRecommendation(
+    statusReason[row.currentRecommendationStatus] ??
       'Chưa có đề xuất đủ điều kiện; bot không tự tạo lựa chọn thay cho mô hình.',
-  };
+  );
 }
 
 function selectionName(
@@ -368,13 +529,22 @@ function matchedMessage(
   return `${match}. ${hdaText} ${recommendationText}`;
 }
 
+function fixtureStateFor(
+  row: AnalysisFixtureRow,
+  recommendation: PredictionChatRecommendationAnswer,
+): AnalysisFixtureRow['state'] {
+  if (row.currentRecommendationStatus === 'NOT_EVALUATED') return row.state;
+  return recommendation.status === 'NONE' ? 'NO_BET' : 'PREDICTION_ONLY';
+}
+
 export function answerPredictionChatForProviderFixtureFromAnalysis(input: {
   providerFixtureId: number;
   analysis: Record<string, unknown>;
   now?: Date;
   intent?: PredictionChatIntent;
 }): PredictionChatResponse {
-  const generatedAt = (input.now ?? new Date()).toISOString();
+  const now = input.now ?? new Date();
+  const generatedAt = now.toISOString();
   const rows = Array.isArray(input.analysis.fixtures)
     ? (input.analysis.fixtures as AnalysisFixtureRow[])
     : [];
@@ -394,8 +564,9 @@ export function answerPredictionChatForProviderFixtureFromAnalysis(input: {
     };
   }
   const fixture = fixtureIndex(row);
-  const hda = hdaAnswer(row);
-  const recommendation = recommendationAnswer(row);
+  const freshness = freshnessFor(row, now);
+  const hda = hdaAnswer(row, freshness);
+  const recommendation = recommendationAnswer(row, freshness);
   return {
     version: PREDICTION_CHATBOT_VERSION,
     coreVersion: PREDICTION_CHATBOT_CORE_VERSION,
@@ -408,14 +579,19 @@ export function answerPredictionChatForProviderFixtureFromAnalysis(input: {
         ...fixture,
         localFixtureId: row.fixture.id,
       },
-      fixtureState: row.state,
+      fixtureState: fixtureStateFor(row, recommendation),
       hda,
-      markets: marketAnswers(row),
+      markets: marketAnswers(row, freshness),
       recommendation,
       dataQuality: {
         oddsSnapshots: row.oddsDiagnostics.snapshotRows,
         pitUsableOdds: row.oddsDiagnostics.pitUsableRows,
         currentRecommendationStatus: row.currentRecommendationStatus,
+        freshnessStatus: freshness.status,
+        freshnessSource: freshness.source,
+        sourceCalculatedAt: freshness.calculatedAt,
+        sourceAgeMinutes: freshness.ageMinutes,
+        maximumAgeMinutes: freshness.maximumAgeMinutes,
       },
     },
     suggestions: [],
@@ -428,7 +604,8 @@ export function answerPredictionChatFromAnalysis(input: {
   analysis: Record<string, unknown>;
   now?: Date;
 }): PredictionChatResponse {
-  const generatedAt = (input.now ?? new Date()).toISOString();
+  const now = input.now ?? new Date();
+  const generatedAt = now.toISOString();
   const rows = Array.isArray(input.analysis.fixtures)
     ? (input.analysis.fixtures as AnalysisFixtureRow[])
     : [];
@@ -436,7 +613,7 @@ export function answerPredictionChatFromAnalysis(input: {
   const match = matchPredictionChatFixture({
     message: input.message,
     fixtures: rows.map(fixtureIndex),
-    now: input.now,
+    now,
   });
 
   if (match.status !== 'MATCHED') {
@@ -473,8 +650,9 @@ export function answerPredictionChatFromAnalysis(input: {
     };
   }
 
-  const hda = hdaAnswer(row);
-  const recommendation = recommendationAnswer(row);
+  const freshness = freshnessFor(row, now);
+  const hda = hdaAnswer(row, freshness);
+  const recommendation = recommendationAnswer(row, freshness);
   return {
     version: PREDICTION_CHATBOT_VERSION,
     coreVersion: PREDICTION_CHATBOT_CORE_VERSION,
@@ -487,14 +665,19 @@ export function answerPredictionChatFromAnalysis(input: {
         ...match.fixture,
         localFixtureId: row.fixture.id,
       },
-      fixtureState: row.state,
+      fixtureState: fixtureStateFor(row, recommendation),
       hda,
-      markets: marketAnswers(row),
+      markets: marketAnswers(row, freshness),
       recommendation,
       dataQuality: {
         oddsSnapshots: row.oddsDiagnostics.snapshotRows,
         pitUsableOdds: row.oddsDiagnostics.pitUsableRows,
         currentRecommendationStatus: row.currentRecommendationStatus,
+        freshnessStatus: freshness.status,
+        freshnessSource: freshness.source,
+        sourceCalculatedAt: freshness.calculatedAt,
+        sourceAgeMinutes: freshness.ageMinutes,
+        maximumAgeMinutes: freshness.maximumAgeMinutes,
       },
     },
     suggestions: [],
@@ -511,7 +694,7 @@ export async function answerPredictionChat(input: {
   const analysis = await getPersonalUpcomingAnalysis({
     now: input.now,
     days: input.days ?? 14,
-    limit: input.limit ?? 300,
+    limit: input.limit ?? 180,
   });
   return answerPredictionChatFromAnalysis({
     message: input.message,
