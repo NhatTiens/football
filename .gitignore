@@ -42,3 +42,16 @@ artifacts/hybrid/v8-stage4-hybrid-model/*/
 artifacts/hybrid/v8-stage5-calibration-uncertainty/*/
 artifacts/hybrid/v8-stage6-multi-horizon-decisions/*/
 artifacts/hybrid/v8-stage7-champion-challenger/*/
+
+# ===== Junk guard (added by cleanup-junk.ps1) =====
+artifacts/
+packages/sync/artifacts/
+*.patch
+predictionai-automatic-pipeline-*
+apply-predictionai-*
+rollback-predictionai-*
+check-*.ts
+check-*.cjs
+inspect-databases.ts
+find-working-database.ps1
+README-PREDICTIONAI-AUTOMATIC-PIPELINE-*
