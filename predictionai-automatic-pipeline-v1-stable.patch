@@ -1,0 +1,1374 @@
+diff --git a/apps/web/app/admin/automation/page.tsx b/apps/web/app/admin/automation/page.tsx
+new file mode 100644
+index 0000000..8038998
+--- /dev/null
++++ b/apps/web/app/admin/automation/page.tsx
+@@ -0,0 +1,94 @@
++'use client';
++
++import { useEffect, useState } from 'react';
++
++const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
++
++interface AutomationStatus {
++  status: string;
++  phase?: string;
++  automatic: boolean;
++  lastUpdated: string | null;
++  lastSuccessfulFixtureSync: string | null;
++  lastSuccessfulPredictionSync: string | null;
++  lastSuccessfulResultSync: string | null;
++  apiQuota: { limit: number; used: number; remaining: number; pressure: string };
++  apiErrorsToday: number;
++  predictionQueue: { pending: number };
++  resultQueue: { pending: number; processing: number; failed: number };
++  failedJobs24h: number;
++  worker: { status?: string; heartbeatAt?: string };
++  scheduler: { status?: string };
++  realtime: { status?: string; clients?: number; heartbeatAt?: string };
++  forceSyncPending: boolean;
++}
++
++function displayTime(value: string | null | undefined): string {
++  if (!value) return '—';
++  const date = new Date(value);
++  return Number.isFinite(date.getTime()) ? date.toLocaleString('vi-VN') : '—';
++}
++
++export default function AutomationAdminPage() {
++  const [status, setStatus] = useState<AutomationStatus | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  useEffect(() => {
++    let stopped = false;
++    const load = async () => {
++      try {
++        const response = await fetch(`${apiUrl}/automation/status`, { cache: 'no-store' });
++        if (!response.ok) throw new Error(`HTTP ${response.status}`);
++        const payload = (await response.json()) as AutomationStatus;
++        if (!stopped) {
++          setStatus(payload);
++          setError(null);
++        }
++      } catch (cause) {
++        if (!stopped) setError(cause instanceof Error ? cause.message : 'Không tải được trạng thái automation.');
++      }
++    };
++    void load();
++    const timer = setInterval(() => void load(), 15_000);
++    return () => {
++      stopped = true;
++      clearInterval(timer);
++    };
++  }, []);
++
++  return (
++    <main style={{ display: 'grid', gap: 16 }}>
++      <header>
++        <p style={{ margin: 0, opacity: 0.7 }}>PRODUCTION AUTOMATION</p>
++        <h1>Fixture · Prediction · Result · Realtime</h1>
++        <p>Trang này chỉ giám sát. Pipeline production được điều khiển bởi backend worker, không phụ thuộc user online.</p>
++      </header>
++
++      {error ? <p role="alert">Không tải được trạng thái: {error}</p> : null}
++      {!status ? <p>Đang tải trạng thái hệ thống…</p> : (
++        <>
++          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
++            <article><b>Scheduler</b><div>{status.scheduler.status ?? status.status}{status.phase ? ` · ${status.phase}` : ''}</div><small>{displayTime(status.lastUpdated)}</small></article>
++            <article><b>Worker</b><div>{status.worker.status ?? '—'}</div><small>{displayTime(status.worker.heartbeatAt)}</small></article>
++            <article><b>Realtime</b><div>{status.realtime.status ?? '—'} · {status.realtime.clients ?? 0} client</div><small>{displayTime(status.realtime.heartbeatAt)}</small></article>
++            <article><b>API quota</b><div>{status.apiQuota.remaining}/{status.apiQuota.limit} còn lại</div><small>{status.apiQuota.used} calls · {status.apiQuota.pressure}</small></article>
++          </section>
++
++          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
++            <article><b>Fixture sync gần nhất</b><div>{displayTime(status.lastSuccessfulFixtureSync)}</div></article>
++            <article><b>Prediction sync gần nhất</b><div>{displayTime(status.lastSuccessfulPredictionSync)}</div></article>
++            <article><b>Result sync gần nhất</b><div>{displayTime(status.lastSuccessfulResultSync)}</div></article>
++          </section>
++
++          <section>
++            <h2>Queues & errors</h2>
++            <p>Prediction pending: <b>{status.predictionQueue.pending}</b></p>
++            <p>Result pending / processing / failed: <b>{status.resultQueue.pending} / {status.resultQueue.processing} / {status.resultQueue.failed}</b></p>
++            <p>API errors hôm nay: <b>{status.apiErrorsToday}</b> · Failed jobs 24h: <b>{status.failedJobs24h}</b></p>
++            <p>Admin force-sync pending: <b>{status.forceSyncPending ? 'YES' : 'NO'}</b></p>
++          </section>
++        </>
++      )}
++    </main>
++  );
++}
+diff --git a/deploy/pm2-ecosystem.config.cjs b/deploy/pm2-ecosystem.config.cjs
+new file mode 100644
+index 0000000..ba31ef1
+--- /dev/null
++++ b/deploy/pm2-ecosystem.config.cjs
+@@ -0,0 +1,40 @@
++module.exports = {
++  apps: [
++    {
++      name: 'football-api-realtime',
++      cwd: __dirname + '/..',
++      script: 'node_modules/tsx/dist/cli.mjs',
++      args: 'apps/api/src/realtime-server.ts',
++      autorestart: true,
++      restart_delay: 3000,
++      env: { NODE_ENV: 'production' },
++    },
++    {
++      name: 'football-worker',
++      cwd: __dirname + '/..',
++      script: 'node_modules/tsx/dist/cli.mjs',
++      args: 'apps/worker/src/quota-runner.ts',
++      autorestart: true,
++      restart_delay: 3000,
++      env: { NODE_ENV: 'production', AUTOMATIC_PIPELINE_ENABLED: 'true' },
++    },
++    {
++      name: 'football-result-worker',
++      cwd: __dirname + '/..',
++      script: 'node_modules/tsx/dist/cli.mjs',
++      args: 'packages/sync/src/history-result-runner.ts',
++      autorestart: true,
++      restart_delay: 3000,
++      env: { NODE_ENV: 'production', HISTORY_RESULT_WORKER_OWNER: 'true' },
++    },
++    {
++      name: 'football-web',
++      cwd: __dirname + '/../apps/web',
++      script: '../../node_modules/next/dist/bin/next',
++      args: 'start',
++      autorestart: true,
++      restart_delay: 3000,
++      env: { NODE_ENV: 'production' },
++    },
++  ],
++};
+diff --git a/docs/AUTOMATIC_PIPELINE.md b/docs/AUTOMATIC_PIPELINE.md
+new file mode 100644
+index 0000000..4b4586d
+--- /dev/null
++++ b/docs/AUTOMATIC_PIPELINE.md
+@@ -0,0 +1,55 @@
++# Automatic fixture / prediction / result / realtime pipeline
++
++Production ownership is backend-only:
++
++`API-Football -> automatic worker -> DB -> prediction/background processing -> durable result worker -> realtime outbox -> WebSocket -> frontend snapshot refresh`.
++
++## Safety contracts
++
++- User UI never calls API-Football and has no fixture/prediction sync buttons.
++- `POST /api/personal/upcoming/refresh` is disabled with `AUTOMATION_MANAGED`.
++- Fixture identity remains `Fixture.apiFixtureId @unique`; provider prediction remains one-to-one by fixture.
++- Automatic prediction selects only `UPCOMING` fixtures whose kickoff is still in the future and whose external prediction is absent.
++- Result ownership remains the durable `ResultUpdateJob` worker. It only follows fixtures that already had a stored paper prediction; it never creates a post-kickoff prediction.
++- All API-Football network requests in worker processes are intercepted by the central `ApiQuotaDaily` preloader with hard maximum `7500/day`.
++- Provider cadence is state-aware. Fixture discovery is throttled according to nearest kickoff and remaining quota; fresh-odds/context collectors retain their database checkpoints.
++- A durable `AppSetting` lease prevents multiple automatic workers from running the same pipeline concurrently. The lease expires after crashes and is reclaimable after restart.
++- DB/outbox writes happen before realtime publication. WebSocket sends only lightweight invalidation events; clients fetch fresh snapshots from backend APIs.
++
++## Default schedule
++
++The worker wakes every 2 minutes (`AUTOMATIC_PIPELINE_CRON`, default `*/2 * * * *`) but provider-heavy fixture discovery is independently throttled:
++
++- <= 2 hours to nearest kickoff: 10 minutes
++- <= 24 hours: 30 minutes
++- <= 72 hours: 90 minutes
++- otherwise: 360 minutes
++- quota remaining <= 15%: at least 180 minutes
++- quota remaining <= 5%: at least 360 minutes
++
++Current competition/season discovery is cached for 12 hours by default, so the 10–90 minute fixture cadence does not repeatedly rediscover seasons. Provider prediction misses/errors are persisted in `automation.prediction-retry.state` and back off 5 → 10 → 20 → 30 → 60 → 120 → 180 minutes instead of retrying every scheduler wake-up. Fresh odds and repeated context use their existing due/checkpoint logic. Result checks retain the existing 105-minute first check and bounded backoff.
++
++## Admin force sync
++
++`POST /api/admin/automation/force-sync` is admin-only and rate-limited. It writes a durable force request; it does not call API-Football or model code inside the HTTP request. The next worker cycle claims it and still goes through the quota manager.
++
++Legacy `/api/admin/sync/{fixtures,odds,lineups,predictions}` endpoints are converted into background force requests for compatibility and return HTTP 202.
++
++## Monitoring
++
++- Public safe summary: `GET /api/automation/status`
++- Admin detail: `GET /api/admin/automation/status`
++- Admin page: `/admin/automation`
++
++Status includes the active pipeline phase (fixtures/predictions/context/paper), last fixture/prediction/result sync, API calls used/remaining, API errors, failed jobs, prediction/result queue counts, scheduler heartbeat, worker heartbeat and realtime connection count.
++
++## Production process manager
++
++After `npm run build`, run the API+WebSocket server, automatic worker, durable result worker and web process under a supervisor such as PM2:
++
++```powershell
++npx pm2 start deploy/pm2-ecosystem.config.cjs
++npx pm2 save
++```
++
++`npm run dev` is not a production dependency.
+diff --git a/packages/sync/src/automatic-pipeline-core.ts b/packages/sync/src/automatic-pipeline-core.ts
+new file mode 100644
+index 0000000..f484c5a
+--- /dev/null
++++ b/packages/sync/src/automatic-pipeline-core.ts
+@@ -0,0 +1,110 @@
++export const AUTOMATIC_PIPELINE_VERSION = 'v1.0-backend-owned-fixture-prediction-result-realtime';
++
++export type ApiFootballPriority = 'CRITICAL' | 'HIGH' | 'NORMAL' | 'LOW';
++export type AutomaticForceScope = 'FULL' | 'FIXTURES' | 'PREDICTIONS' | 'CONTEXT' | 'ODDS';
++
++export interface FixtureCadenceInput {
++  nearestKickoffMinutes: number | null;
++  quotaRemaining: number | null;
++  quotaLimit?: number;
++}
++
++export interface AutomaticPhaseDecisionInput {
++  nowMs: number;
++  lastSuccessMs: number | null;
++  minimumIntervalMinutes: number;
++  forced?: boolean;
++}
++
++export interface AutomaticQuotaState {
++  limit: number;
++  used: number;
++  remaining: number;
++  pressure: 'NORMAL' | 'CONSERVE' | 'CRITICAL';
++}
++
++export function clampInteger(
++  value: unknown,
++  fallback: number,
++  minimum: number,
++  maximum: number,
++): number {
++  const parsed = Number(value);
++  if (!Number.isInteger(parsed)) return fallback;
++  return Math.max(minimum, Math.min(maximum, parsed));
++}
++
++export function automaticQuotaState(input: {
++  limit?: number | null | undefined;
++  used?: number | null | undefined;
++  remaining?: number | null | undefined;
++}): AutomaticQuotaState {
++  const limit = clampInteger(input.limit ?? 7500, 7500, 1, 7500);
++  const used = clampInteger(input.used ?? 0, 0, 0, limit);
++  const remaining = clampInteger(input.remaining ?? Math.max(0, limit - used), Math.max(0, limit - used), 0, limit);
++  const ratio = remaining / limit;
++  return {
++    limit,
++    used,
++    remaining,
++    pressure: ratio <= 0.05 ? 'CRITICAL' : ratio <= 0.15 ? 'CONSERVE' : 'NORMAL',
++  };
++}
++
++export function fixtureDiscoveryIntervalMinutes(input: FixtureCadenceInput): number {
++  const quota = automaticQuotaState({
++    limit: input.quotaLimit ?? 7500,
++    remaining: input.quotaRemaining ?? undefined,
++  });
++  const nearest = input.nearestKickoffMinutes;
++
++  let minutes = 360;
++  if (nearest != null && Number.isFinite(nearest)) {
++    if (nearest <= 120) minutes = 10;
++    else if (nearest <= 24 * 60) minutes = 30;
++    else if (nearest <= 72 * 60) minutes = 90;
++  }
++
++  if (quota.pressure === 'CONSERVE') return Math.max(minutes, 180);
++  if (quota.pressure === 'CRITICAL') return Math.max(minutes, 360);
++  return minutes;
++}
++
++export function shouldRunAutomaticPhase(input: AutomaticPhaseDecisionInput): boolean {
++  if (input.forced) return true;
++  if (input.lastSuccessMs == null) return true;
++  const minimumAgeMs = Math.max(1, input.minimumIntervalMinutes) * 60_000;
++  return input.nowMs - input.lastSuccessMs >= minimumAgeMs;
++}
++
++export function priorityReserveFloor(priority: ApiFootballPriority): number {
++  if (priority === 'CRITICAL') return 0;
++  if (priority === 'HIGH') return 100;
++  if (priority === 'LOW') return 750;
++  return 250;
++}
++
++export function resultRetryDelayMinutes(attempt: number): number {
++  const schedule = [7, 10, 15, 20, 30, 45, 60] as const;
++  const index = Math.max(0, Math.min(schedule.length - 1, Math.trunc(attempt) - 1));
++  return schedule[index]!;
++}
++
++export function predictionRetryDelayMinutes(attempt: number): number {
++  const schedule = [5, 10, 20, 30, 60, 120, 180] as const;
++  const index = Math.max(0, Math.min(schedule.length - 1, Math.trunc(attempt) - 1));
++  return schedule[index]!;
++}
++
++export function normalizeForceScope(value: unknown): AutomaticForceScope {
++  const normalized = String(value ?? 'FULL').toUpperCase();
++  if (normalized === 'FIXTURES') return 'FIXTURES';
++  if (normalized === 'PREDICTIONS') return 'PREDICTIONS';
++  if (normalized === 'CONTEXT') return 'CONTEXT';
++  if (normalized === 'ODDS') return 'ODDS';
++  return 'FULL';
++}
++
++export function forceScopeIncludes(scope: AutomaticForceScope, phase: Exclude<AutomaticForceScope, 'FULL'>): boolean {
++  return scope === 'FULL' || scope === phase;
++}
+diff --git a/packages/sync/src/automatic-pipeline-engine.ts b/packages/sync/src/automatic-pipeline-engine.ts
+new file mode 100644
+index 0000000..a058f46
+--- /dev/null
++++ b/packages/sync/src/automatic-pipeline-engine.ts
+@@ -0,0 +1,851 @@
++import { randomUUID } from 'node:crypto';
++
++import { prisma } from '@football-ai/database';
++
++import {
++  AUTOMATIC_PIPELINE_VERSION,
++  automaticQuotaState,
++  fixtureDiscoveryIntervalMinutes,
++  forceScopeIncludes,
++  normalizeForceScope,
++  predictionRetryDelayMinutes,
++  priorityReserveFloor,
++  shouldRunAutomaticPhase,
++  type ApiFootballPriority,
++  type AutomaticForceScope,
++} from './automatic-pipeline-core.js';
++import {
++  discoverCurrentPriorityCompetitions,
++  isDemoCompetitionName,
++  type CurrentCompetition,
++} from './current-competition-discovery.js';
++import {
++  collectFreshOddsDue,
++  discoverFreshOddsFixtures,
++  planFreshOddsCheckpoints,
++} from './fresh-odds-collector-engine.js';
++import { syncFixtures } from './fixtures.js';
++import { runPaperBetOperationsCycle } from './paper-bet-operations-engine.js';
++import { syncPredictions } from './predictions.js';
++import { syncRepeatedFixtureContext } from './repeated-context.js';
++
++const db = prisma as any;
++const DAY_MS = 86_400_000;
++const LEASE_KEY = 'automation.pipeline.lease';
++const STATUS_KEY = 'automation.pipeline.status';
++const DISCOVERY_STATE_KEY = 'automation.fixture-discovery.state';
++const COMPETITION_STATE_KEY = 'automation.current-competitions';
++const FORCE_REQUEST_KEY = 'automation.force-sync.request';
++const WORKER_HEARTBEAT_KEY = 'automation.worker.heartbeat';
++const REALTIME_HEARTBEAT_KEY = 'automation.realtime.heartbeat';
++const FRESH_DISCOVERY_STATE_KEY = 'automation.fresh-provider-discovery.state';
++const PREDICTION_RETRY_STATE_KEY = 'automation.prediction-retry.state';
++
++interface JsonRecord {
++  [key: string]: unknown;
++}
++
++interface ForceRequest extends JsonRecord {
++  requestId: string;
++  status: 'PENDING' | 'COMPLETED';
++  scope: AutomaticForceScope;
++  requestedAt: string;
++  requestedBy: string;
++  sourceIp: string | null;
++  userAgent: string | null;
++}
++
++interface PipelineLease extends JsonRecord {
++  token: string;
++  lockedUntil: string;
++  owner: string;
++}
++
++interface AutomaticRunOptions {
++  now?: Date;
++  force?: boolean;
++  scope?: AutomaticForceScope;
++  reason?: string;
++}
++
++interface ForceSyncRequestInput {
++  scope?: AutomaticForceScope;
++  requestedBy: string;
++  sourceIp?: string | null;
++  userAgent?: string | null;
++}
++
++function asRecord(value: unknown): JsonRecord {
++  if (value != null && typeof value === 'object' && !Array.isArray(value)) {
++    return value as JsonRecord;
++  }
++  return {};
++}
++
++function dateFromRecord(value: unknown): Date | null {
++  if (typeof value !== 'string') return null;
++  const parsed = new Date(value);
++  return Number.isFinite(parsed.getTime()) ? parsed : null;
++}
++
++function integerEnv(name: string, fallback: number, minimum: number, maximum: number): number {
++  const parsed = Number(process.env[name] ?? fallback);
++  if (!Number.isInteger(parsed)) return fallback;
++  return Math.max(minimum, Math.min(maximum, parsed));
++}
++
++function booleanEnv(name: string, fallback: boolean): boolean {
++  const raw = process.env[name];
++  if (raw == null) return fallback;
++  return raw.trim().toLowerCase() !== 'false';
++}
++
++function quotaDateUtc(now = new Date()): string {
++  return now.toISOString().slice(0, 10);
++}
++
++async function getSetting(key: string): Promise<JsonRecord | null> {
++  const row = await db.appSetting.findUnique({ where: { key } });
++  return row ? asRecord(row.value) : null;
++}
++
++async function putSetting(key: string, value: JsonRecord): Promise<void> {
++  await db.appSetting.upsert({
++    where: { key },
++    create: { key, value },
++    update: { value },
++  });
++}
++
++async function acquireLease(now: Date): Promise<string | null> {
++  const token = randomUUID();
++  const ttlSeconds = integerEnv('AUTOMATIC_PIPELINE_LEASE_TTL_SECONDS', 900, 120, 3_600);
++  const lockedUntil = new Date(now.getTime() + ttlSeconds * 1_000);
++  const owner = `${process.pid}:${process.env.HOSTNAME ?? 'worker'}`;
++
++  for (let attempt = 0; attempt < 2; attempt += 1) {
++    const existing = await db.appSetting.findUnique({ where: { key: LEASE_KEY } });
++    if (!existing) {
++      try {
++        await db.appSetting.create({
++          data: {
++            key: LEASE_KEY,
++            value: { token, lockedUntil: lockedUntil.toISOString(), owner },
++          },
++        });
++        return token;
++      } catch {
++        continue;
++      }
++    }
++
++    const lease = asRecord(existing.value) as PipelineLease;
++    const currentExpiry = dateFromRecord(lease.lockedUntil);
++    if (currentExpiry && currentExpiry.getTime() > now.getTime()) return null;
++
++    const claim = await db.appSetting.updateMany({
++      where: { key: LEASE_KEY, updatedAt: existing.updatedAt },
++      data: { value: { token, lockedUntil: lockedUntil.toISOString(), owner } },
++    });
++    if (claim.count === 1) return token;
++  }
++  return null;
++}
++
++async function releaseLease(token: string): Promise<void> {
++  const existing = await db.appSetting.findUnique({ where: { key: LEASE_KEY } });
++  if (!existing) return;
++  const lease = asRecord(existing.value) as PipelineLease;
++  if (lease.token !== token) return;
++  await db.appSetting.update({
++    where: { key: LEASE_KEY },
++    data: {
++      value: {
++        ...lease,
++        token: '',
++        lockedUntil: new Date(0).toISOString(),
++        releasedAt: new Date().toISOString(),
++      },
++    },
++  });
++}
++
++async function renewLease(token: string, now = new Date()): Promise<void> {
++  const existing = await db.appSetting.findUnique({ where: { key: LEASE_KEY } });
++  if (!existing) throw new Error('AUTOMATIC_PIPELINE_LEASE_MISSING');
++  const lease = asRecord(existing.value) as PipelineLease;
++  if (lease.token !== token) throw new Error('AUTOMATIC_PIPELINE_LEASE_LOST');
++  const ttlSeconds = integerEnv('AUTOMATIC_PIPELINE_LEASE_TTL_SECONDS', 900, 120, 3_600);
++  const updated = await db.appSetting.updateMany({
++    where: { key: LEASE_KEY, updatedAt: existing.updatedAt },
++    data: {
++      value: {
++        ...lease,
++        lockedUntil: new Date(now.getTime() + ttlSeconds * 1_000).toISOString(),
++        renewedAt: now.toISOString(),
++      },
++    },
++  });
++  if (updated.count !== 1) throw new Error('AUTOMATIC_PIPELINE_LEASE_RENEW_CONFLICT');
++}
++
++async function withProviderPriority<T>(priority: ApiFootballPriority, callback: () => Promise<T>): Promise<T> {
++  const previous = process.env.API_FOOTBALL_PRIORITY_CONTEXT;
++  process.env.API_FOOTBALL_PRIORITY_CONTEXT = priority;
++  try {
++    return await callback();
++  } finally {
++    if (previous == null) delete process.env.API_FOOTBALL_PRIORITY_CONTEXT;
++    else process.env.API_FOOTBALL_PRIORITY_CONTEXT = previous;
++  }
++}
++
++async function emitRealtime(event: string, aggregateId: string, payload: JsonRecord = {}): Promise<void> {
++  await db.realtimeOutbox.create({
++    data: {
++      eventType: event,
++      aggregateId,
++      payload: {
++        event,
++        type: event,
++        version: 1,
++        occurredAt: new Date().toISOString(),
++        ...payload,
++      },
++    },
++  });
++}
++
++async function latestQuota(now: Date): Promise<{ dailyLimit: number; used: number; remaining: number } | null> {
++  try {
++    return await db.apiQuotaDaily.findUnique({ where: { quotaDate: quotaDateUtc(now) } });
++  } catch {
++    return null;
++  }
++}
++
++function quotaStateFromRow(
++  row: { dailyLimit: number; used: number; remaining: number } | null,
++) {
++  return automaticQuotaState({
++    limit: row?.dailyLimit ?? 7500,
++    used: row?.used ?? 0,
++    remaining: row?.remaining ?? 7500,
++  });
++}
++
++async function nearestUpcomingKickoff(now: Date): Promise<Date | null> {
++  const row = await db.fixture.findFirst({
++    where: { status: 'UPCOMING', kickoffAt: { gt: now } },
++    select: { kickoffAt: true },
++    orderBy: { kickoffAt: 'asc' },
++  });
++  return row?.kickoffAt ?? null;
++}
++
++async function readForceRequest(): Promise<ForceRequest | null> {
++  const value = await getSetting(FORCE_REQUEST_KEY);
++  if (!value || value.status !== 'PENDING' || typeof value.requestId !== 'string') return null;
++  return {
++    ...value,
++    requestId: value.requestId,
++    status: 'PENDING',
++    scope: normalizeForceScope(value.scope),
++    requestedAt: typeof value.requestedAt === 'string' ? value.requestedAt : new Date(0).toISOString(),
++    requestedBy: typeof value.requestedBy === 'string' ? value.requestedBy : 'unknown',
++    sourceIp: typeof value.sourceIp === 'string' ? value.sourceIp : null,
++    userAgent: typeof value.userAgent === 'string' ? value.userAgent : null,
++  };
++}
++
++async function markForceRequestCompleted(request: ForceRequest, finishedAt: Date): Promise<void> {
++  await putSetting(FORCE_REQUEST_KEY, {
++    ...request,
++    status: 'COMPLETED',
++    completedAt: finishedAt.toISOString(),
++  });
++}
++
++function normalizeStoredCompetitions(value: unknown): CurrentCompetition[] {
++  if (!Array.isArray(value)) return [];
++  return value
++    .map((entry): CurrentCompetition | null => {
++      const row = asRecord(entry);
++      const apiLeagueId = Number(row.apiLeagueId);
++      const season = Number(row.season);
++      const name = typeof row.name === 'string' ? row.name : '';
++      if (!Number.isInteger(apiLeagueId) || apiLeagueId <= 0 || !Number.isInteger(season) || season <= 0 || !name) {
++        return null;
++      }
++      return { apiLeagueId, season, name } as CurrentCompetition;
++    })
++    .filter((entry): entry is CurrentCompetition => entry != null);
++}
++
++async function resolveCurrentCompetitions(now: Date, forced: boolean): Promise<{
++  competitions: CurrentCompetition[];
++  source: 'CACHE' | 'PROVIDER' | 'STALE_CACHE_FALLBACK';
++}> {
++  const state = await getSetting(COMPETITION_STATE_KEY);
++  const cached = normalizeStoredCompetitions(state?.competitions);
++  const lastDiscovery = dateFromRecord(state?.providerDiscoveredAt ?? state?.updatedAt);
++  const refreshMinutes = integerEnv('AUTOMATIC_COMPETITION_DISCOVERY_INTERVAL_MINUTES', 720, 60, 1_440);
++  const cacheFresh =
++    !forced &&
++    cached.length > 0 &&
++    lastDiscovery != null &&
++    now.getTime() - lastDiscovery.getTime() < refreshMinutes * 60_000;
++
++  if (cacheFresh) return { competitions: cached, source: 'CACHE' };
++
++  try {
++    const discovery = await withProviderPriority('NORMAL', () =>
++      discoverCurrentPriorityCompetitions({ maximumSea: 8, maximumAsia: 8 }),
++    );
++    if (discovery.competitions.length === 0) throw new Error('NO_CURRENT_PRIORITY_COMPETITIONS_FOUND');
++    await putSetting(COMPETITION_STATE_KEY, {
++      updatedAt: now.toISOString(),
++      providerDiscoveredAt: now.toISOString(),
++      refreshMinutes,
++      competitions: discovery.competitions.map((competition: CurrentCompetition) => ({
++        apiLeagueId: competition.apiLeagueId,
++        season: competition.season,
++        name: competition.name,
++      })),
++    });
++    return { competitions: discovery.competitions, source: 'PROVIDER' };
++  } catch (error) {
++    if (cached.length > 0) {
++      return { competitions: cached, source: 'STALE_CACHE_FALLBACK' };
++    }
++    throw error;
++  }
++}
++
++async function runFreshProviderDiscoveryIfDue(input: {
++  now: Date;
++  forced: boolean;
++  providerLeagueIds: string;
++  localInserted: number;
++}): Promise<JsonRecord> {
++  const state = await getSetting(FRESH_DISCOVERY_STATE_KEY);
++  const lastSuccess = dateFromRecord(state?.lastSuccessAt);
++  const nextRetryAt = dateFromRecord(state?.nextRetryAt);
++  const intervalMinutes = integerEnv('AUTOMATIC_FRESH_DISCOVERY_INTERVAL_MINUTES', 360, 60, 1_440);
++  if (!input.forced && input.localInserted === 0 && nextRetryAt && nextRetryAt.getTime() > input.now.getTime()) {
++    return { status: 'SKIPPED_BACKOFF', nextRetryAt: nextRetryAt.toISOString() };
++  }
++  const due = shouldRunAutomaticPhase({
++    nowMs: input.now.getTime(),
++    lastSuccessMs: lastSuccess?.getTime() ?? null,
++    minimumIntervalMinutes: intervalMinutes,
++    forced: input.forced || input.localInserted > 0,
++  });
++  if (!due) {
++    return {
++      status: 'SKIPPED_NOT_DUE',
++      intervalMinutes,
++      lastSuccessAt: lastSuccess?.toISOString() ?? null,
++    };
++  }
++
++  const previousFreshLeagueIds = process.env.FRESH_ODDS_LEAGUE_IDS;
++  try {
++    process.env.FRESH_ODDS_LEAGUE_IDS = input.providerLeagueIds;
++    try {
++      const result = await withProviderPriority('NORMAL', () => discoverFreshOddsFixtures());
++      const finishedAt = new Date();
++      await putSetting(FRESH_DISCOVERY_STATE_KEY, {
++        lastSuccessAt: finishedAt.toISOString(),
++        intervalMinutes,
++        trigger: input.localInserted > 0 ? 'NEW_LOCAL_FIXTURES' : input.forced ? 'FORCED' : 'CADENCE',
++      });
++      return { status: 'SUCCESS', intervalMinutes, result };
++    } catch (error) {
++      const message = error instanceof Error ? error.message : String(error);
++      const retryMinutes = integerEnv('AUTOMATIC_FRESH_DISCOVERY_ERROR_RETRY_MINUTES', 30, 5, 180);
++      const retryAt = new Date(input.now.getTime() + retryMinutes * 60_000);
++      await putSetting(FRESH_DISCOVERY_STATE_KEY, {
++        ...(state ?? {}),
++        lastErrorAt: new Date().toISOString(),
++        nextRetryAt: retryAt.toISOString(),
++        error: message.slice(0, 1000),
++      });
++      return { status: 'ERROR_RETRY_SCHEDULED', retryMinutes, nextRetryAt: retryAt.toISOString() };
++    }
++  } finally {
++    if (previousFreshLeagueIds == null) delete process.env.FRESH_ODDS_LEAGUE_IDS;
++    else process.env.FRESH_ODDS_LEAGUE_IDS = previousFreshLeagueIds;
++  }
++}
++
++async function runFixtureDiscovery(now: Date, forced: boolean): Promise<JsonRecord> {
++  const quota = await latestQuota(now);
++  const quotaState = quotaStateFromRow(quota);
++  if (quotaState.remaining <= priorityReserveFloor('HIGH')) {
++    return { status: 'SKIPPED_QUOTA_RESERVE', quota: quotaState };
++  }
++  const nearestKickoff = await nearestUpcomingKickoff(now);
++  const nearestMinutes = nearestKickoff == null ? null : Math.max(0, (nearestKickoff.getTime() - now.getTime()) / 60_000);
++  const cadence = fixtureDiscoveryIntervalMinutes({
++    nearestKickoffMinutes: nearestMinutes,
++    quotaRemaining: quota?.remaining ?? null,
++    quotaLimit: quota?.dailyLimit ?? 7500,
++  });
++  const state = await getSetting(DISCOVERY_STATE_KEY);
++  const lastSuccess = dateFromRecord(state?.lastSuccessAt);
++  const nextRetryAt = dateFromRecord(state?.nextRetryAt);
++  if (!forced && nextRetryAt && nextRetryAt.getTime() > now.getTime()) {
++    return { status: 'SKIPPED_BACKOFF', nextRetryAt: nextRetryAt.toISOString(), cadenceMinutes: cadence };
++  }
++  const due = shouldRunAutomaticPhase({
++    nowMs: now.getTime(),
++    lastSuccessMs: lastSuccess?.getTime() ?? null,
++    minimumIntervalMinutes: cadence,
++    forced,
++  });
++  if (!due) {
++    return { status: 'SKIPPED_NOT_DUE', cadenceMinutes: cadence, lastSuccessAt: lastSuccess?.toISOString() ?? null };
++  }
++
++  const syncRun = await db.syncRun.create({ data: { jobName: 'automatic-fixture-sync', status: 'RUNNING' } });
++  try {
++    const days = integerEnv('AUTOMATIC_FIXTURE_WINDOW_DAYS', 14, 2, 30);
++    const to = new Date(now.getTime() + days * DAY_MS);
++    const competitionState = await resolveCurrentCompetitions(now, forced);
++    const configurations = competitionState.competitions.map((competition: CurrentCompetition) => ({
++      leagueId: competition.apiLeagueId,
++      season: competition.season,
++    }));
++    const fixtureSync = await withProviderPriority('HIGH', () =>
++      syncFixtures({
++        from: now.toISOString().slice(0, 10),
++        to: to.toISOString().slice(0, 10),
++        leagueConfigurations: configurations,
++      }),
++    );
++
++    const providerLeagueIds = competitionState.competitions
++      .map((competition: CurrentCompetition) => competition.apiLeagueId)
++      .join(',');
++    const localInserted = Number((fixtureSync as { inserted?: number }).inserted ?? 0);
++    const freshDiscovery = await runFreshProviderDiscoveryIfDue({
++      now,
++      forced,
++      providerLeagueIds,
++      localInserted,
++    });
++
++    const newFixtures = await db.fixture.findMany({
++      where: { createdAt: { gte: syncRun.startedAt }, kickoffAt: { gt: now } },
++      select: { apiFixtureId: true },
++      take: 200,
++    });
++    for (const fixture of newFixtures) {
++      await emitRealtime('FIXTURE_CREATED', String(fixture.apiFixtureId), {
++        fixtureId: String(fixture.apiFixtureId),
++      });
++    }
++    await emitRealtime('FIXTURE_UPDATED', 'batch', { source: 'automatic-fixture-sync' });
++
++    const finishedAt = new Date();
++    await putSetting(DISCOVERY_STATE_KEY, {
++      lastSuccessAt: finishedAt.toISOString(),
++      cadenceMinutes: cadence,
++      nearestKickoffAt: nearestKickoff?.toISOString() ?? null,
++      nextRetryAt: null,
++      error: null,
++    });
++    await db.syncRun.update({
++      where: { id: syncRun.id },
++      data: {
++        status: 'SUCCESS',
++        finishedAt,
++        processed: newFixtures.length,
++        metadata: { automatic: true, cadenceMinutes: cadence, competitionSource: competitionState.source, fixtureSync, freshDiscovery },
++      },
++    });
++    return { status: 'SUCCESS', cadenceMinutes: cadence, competitionSource: competitionState.source, createdFixtures: newFixtures.length, fixtureSync, freshDiscovery };
++  } catch (error) {
++    const message = error instanceof Error ? error.message : String(error);
++    const retryMinutes = integerEnv('AUTOMATIC_FIXTURE_ERROR_RETRY_MINUTES', 15, 5, 120);
++    const retryAt = new Date(now.getTime() + retryMinutes * 60_000);
++    await putSetting(DISCOVERY_STATE_KEY, {
++      ...(state ?? {}),
++      lastErrorAt: new Date().toISOString(),
++      nextRetryAt: retryAt.toISOString(),
++      error: message.slice(0, 1000),
++    });
++    await db.syncRun.update({
++      where: { id: syncRun.id },
++      data: { status: 'FAILED', finishedAt: new Date(), errorMessage: message.slice(0, 4000) },
++    });
++    throw error;
++  }
++}
++
++function predictionRetryEntry(value: unknown): { attempts: number; nextRetryAt: Date | null } {
++  const row = asRecord(value);
++  return {
++    attempts: Number.isInteger(Number(row.attempts)) ? Math.max(0, Number(row.attempts)) : 0,
++    nextRetryAt: dateFromRecord(row.nextRetryAt),
++  };
++}
++
++async function savePredictionRetryState(state: JsonRecord): Promise<void> {
++  const cutoff = Date.now() - 7 * DAY_MS;
++  for (const [key, value] of Object.entries(state)) {
++    const retry = predictionRetryEntry(value);
++    if (retry.nextRetryAt && retry.nextRetryAt.getTime() < cutoff) delete state[key];
++  }
++  await putSetting(PREDICTION_RETRY_STATE_KEY, state);
++}
++
++async function runPredictionQueue(now: Date): Promise<JsonRecord> {
++  const quotaState = quotaStateFromRow(await latestQuota(now));
++  if (quotaState.remaining <= priorityReserveFloor('HIGH')) {
++    return { status: 'SKIPPED_QUOTA_RESERVE', quota: quotaState };
++  }
++
++  const syncRun = await db.syncRun.create({ data: { jobName: 'automatic-prediction-sync', status: 'RUNNING' } });
++  const retryState = (await getSetting(PREDICTION_RETRY_STATE_KEY)) ?? {};
++  let attempted: any[] = [];
++  try {
++    const horizonDays = integerEnv('AUTOMATIC_PREDICTION_WINDOW_DAYS', 14, 1, 30);
++    const batchSize = integerEnv('AUTOMATIC_PREDICTION_BATCH_SIZE', 24, 1, 100);
++    const fixtures = await db.fixture.findMany({
++      where: {
++        status: 'UPCOMING',
++        kickoffAt: { gt: now, lte: new Date(now.getTime() + horizonDays * DAY_MS) },
++        externalPrediction: { is: null },
++        league: { enabled: true },
++      },
++      select: { id: true, apiFixtureId: true, kickoffAt: true, league: { select: { name: true } } },
++      orderBy: { kickoffAt: 'asc' },
++      take: Math.min(500, batchSize * 5),
++    });
++    const eligible = fixtures.filter((fixture: any) => !isDemoCompetitionName(String(fixture.league?.name ?? '')));
++    attempted = eligible
++      .filter((fixture: any) => {
++        const retry = predictionRetryEntry(retryState[String(fixture.id)]);
++        return retry.nextRetryAt == null || retry.nextRetryAt.getTime() <= now.getTime();
++      })
++      .slice(0, batchSize);
++
++    if (attempted.length === 0) {
++      await db.syncRun.update({
++        where: { id: syncRun.id },
++        data: {
++          status: 'SUCCESS',
++          finishedAt: new Date(),
++          processed: 0,
++          metadata: { automatic: true, queueEmpty: eligible.length === 0, waitingRetry: eligible.length > 0 },
++        },
++      });
++      return { status: eligible.length === 0 ? 'QUEUE_EMPTY' : 'WAITING_RETRY', processed: 0 };
++    }
++
++    const result = await withProviderPriority('HIGH', () =>
++      syncPredictions({ fixtureIds: attempted.map((fixture: any) => fixture.id) }),
++    );
++    const completed = await db.fixture.findMany({
++      where: { id: { in: attempted.map((fixture: any) => fixture.id) }, externalPrediction: { isNot: null } },
++      select: { id: true, apiFixtureId: true },
++    });
++    const completedIds = new Set<number>(completed.map((fixture: any) => Number(fixture.id)));
++    for (const fixture of attempted) {
++      const key = String(fixture.id);
++      if (completedIds.has(Number(fixture.id))) {
++        delete retryState[key];
++        continue;
++      }
++      const previous = predictionRetryEntry(retryState[key]);
++      const attempts = previous.attempts + 1;
++      const delayMinutes = predictionRetryDelayMinutes(attempts);
++      retryState[key] = {
++        attempts,
++        nextRetryAt: new Date(now.getTime() + delayMinutes * 60_000).toISOString(),
++        providerFixtureId: fixture.apiFixtureId,
++        lastAttemptAt: now.toISOString(),
++        reason: 'PROVIDER_PREDICTION_NOT_AVAILABLE',
++      };
++    }
++    await savePredictionRetryState(retryState);
++
++    for (const fixture of completed) {
++      await emitRealtime('PREDICTION_CREATED', String(fixture.apiFixtureId), {
++        fixtureId: String(fixture.apiFixtureId),
++      });
++    }
++
++    await db.syncRun.update({
++      where: { id: syncRun.id },
++      data: {
++        status: 'SUCCESS',
++        finishedAt: new Date(),
++        processed: attempted.length,
++        updated: completed.length,
++        metadata: { automatic: true, result },
++      },
++    });
++    return { status: 'SUCCESS', requested: attempted.length, completed: completed.length, result };
++  } catch (error) {
++    const message = error instanceof Error ? error.message : String(error);
++    for (const fixture of attempted) {
++      const key = String(fixture.id);
++      const previous = predictionRetryEntry(retryState[key]);
++      const attempts = previous.attempts + 1;
++      const delayMinutes = predictionRetryDelayMinutes(attempts);
++      retryState[key] = {
++        attempts,
++        nextRetryAt: new Date(now.getTime() + delayMinutes * 60_000).toISOString(),
++        providerFixtureId: fixture.apiFixtureId,
++        lastAttemptAt: now.toISOString(),
++        error: message.slice(0, 1000),
++      };
++    }
++    if (attempted.length > 0) await savePredictionRetryState(retryState);
++    await db.syncRun.update({
++      where: { id: syncRun.id },
++      data: { status: 'FAILED', finishedAt: new Date(), errorMessage: message.slice(0, 4000) },
++    });
++    throw error;
++  }
++}
++
++async function runContextAndOdds(
++  now: Date,
++  scope: AutomaticForceScope,
++  quota: ReturnType<typeof automaticQuotaState>,
++): Promise<JsonRecord> {
++  const result: JsonRecord = {};
++  const wantsContext = scope === 'FULL' || forceScopeIncludes(scope, 'CONTEXT');
++  const wantsOdds = scope === 'FULL' || forceScopeIncludes(scope, 'ODDS');
++
++  if (wantsContext) {
++    result.context =
++      quota.pressure === 'CRITICAL'
++        ? { status: 'SKIPPED_QUOTA_CRITICAL' }
++        : await withProviderPriority('NORMAL', () => syncRepeatedFixtureContext({ now }));
++  }
++  if (wantsOdds) {
++    result.freshPlan = await planFreshOddsCheckpoints(now);
++    result.freshCollect =
++      quota.pressure === 'CRITICAL'
++        ? { status: 'SKIPPED_QUOTA_CRITICAL' }
++        : await withProviderPriority('NORMAL', () => collectFreshOddsDue(now));
++  }
++  return result;
++}
++
++export async function queueAutomaticForceSync(input: ForceSyncRequestInput): Promise<JsonRecord> {
++  const now = new Date();
++  const existing = await readForceRequest();
++  if (existing) {
++    return { accepted: true, background: true, alreadyPending: true, ...existing };
++  }
++  const request: ForceRequest = {
++    requestId: randomUUID(),
++    status: 'PENDING',
++    scope: normalizeForceScope(input.scope),
++    requestedAt: now.toISOString(),
++    requestedBy: input.requestedBy,
++    sourceIp: input.sourceIp ?? null,
++    userAgent: input.userAgent ?? null,
++  };
++  await putSetting(FORCE_REQUEST_KEY, request);
++  await db.syncRun.create({
++    data: {
++      jobName: 'admin-force-sync-request',
++      status: 'SUCCESS',
++      finishedAt: now,
++      metadata: request,
++    },
++  });
++  return { accepted: true, background: true, ...request };
++}
++
++async function updateRunningPhase(input: {
++  runId: string;
++  startedAt: Date;
++  scope: AutomaticForceScope;
++  forced: boolean;
++  phase: 'STARTING' | 'FIXTURES' | 'PREDICTIONS' | 'CONTEXT_ODDS' | 'PAPER';
++  reason?: string;
++}): Promise<void> {
++  await putSetting(STATUS_KEY, {
++    version: AUTOMATIC_PIPELINE_VERSION,
++    status: 'RUNNING',
++    runId: input.runId,
++    startedAt: input.startedAt.toISOString(),
++    scope: input.scope,
++    forced: input.forced,
++    phase: input.phase,
++    ...(input.reason ? { reason: input.reason } : {}),
++  });
++  await putSetting(WORKER_HEARTBEAT_KEY, {
++    status: 'RUNNING',
++    runId: input.runId,
++    startedAt: input.startedAt.toISOString(),
++    heartbeatAt: new Date().toISOString(),
++    scope: input.scope,
++    phase: input.phase,
++  });
++}
++
++export async function runAutomaticPipelineCycle(options: AutomaticRunOptions = {}): Promise<JsonRecord> {
++  if (!booleanEnv('AUTOMATIC_PIPELINE_ENABLED', true)) return { status: 'DISABLED' };
++
++  const now = options.now ?? new Date();
++  const leaseToken = await acquireLease(now);
++  if (!leaseToken) return { status: 'SKIPPED_LOCKED' };
++
++  const startedAt = new Date();
++  const forceRequest = await readForceRequest();
++  const forced = options.force === true || forceRequest != null;
++  const scope = options.scope ?? forceRequest?.scope ?? 'FULL';
++  const runId = randomUUID();
++
++  await updateRunningPhase({
++    runId,
++    startedAt,
++    scope,
++    forced,
++    phase: 'STARTING',
++    reason: options.reason ?? (forceRequest ? 'ADMIN_FORCE_SYNC' : 'SCHEDULED'),
++  });
++
++  try {
++    const quotaSnapshot = quotaStateFromRow(await latestQuota(now));
++    const phases: JsonRecord = {};
++
++    if (scope === 'FULL' || forceScopeIncludes(scope, 'FIXTURES')) {
++      await updateRunningPhase({ runId, startedAt, scope, forced, phase: 'FIXTURES' });
++      phases.fixtures = await runFixtureDiscovery(now, forced);
++      await renewLease(leaseToken);
++    }
++    if (scope === 'FULL' || forceScopeIncludes(scope, 'PREDICTIONS')) {
++      await updateRunningPhase({ runId, startedAt, scope, forced, phase: 'PREDICTIONS' });
++      phases.predictions = await runPredictionQueue(now);
++      await renewLease(leaseToken);
++    }
++    await updateRunningPhase({ runId, startedAt, scope, forced, phase: 'CONTEXT_ODDS' });
++    Object.assign(phases, await runContextAndOdds(now, scope, quotaSnapshot));
++    await renewLease(leaseToken);
++
++    // This operation is DB/checkpoint driven and does not wait on a user HTTP request.
++    if (scope === 'FULL') {
++      await updateRunningPhase({ runId, startedAt, scope, forced, phase: 'PAPER' });
++      phases.paper = await runPaperBetOperationsCycle({ now });
++      await renewLease(leaseToken);
++    }
++
++    const finishedAt = new Date();
++    if (forceRequest) await markForceRequestCompleted(forceRequest, finishedAt);
++    await emitRealtime('DATA_SYNC_COMPLETED', runId, {
++      runId,
++      scope,
++      forced,
++      finishedAt: finishedAt.toISOString(),
++    });
++    await putSetting(STATUS_KEY, {
++      version: AUTOMATIC_PIPELINE_VERSION,
++      status: 'SUCCESS',
++      runId,
++      startedAt: startedAt.toISOString(),
++      finishedAt: finishedAt.toISOString(),
++      lastSuccessAt: finishedAt.toISOString(),
++      scope,
++      forced,
++      quota: quotaSnapshot,
++      phases,
++    });
++    await putSetting(WORKER_HEARTBEAT_KEY, {
++      status: 'IDLE',
++      runId,
++      heartbeatAt: finishedAt.toISOString(),
++      lastSuccessAt: finishedAt.toISOString(),
++    });
++    return { status: 'SUCCESS', runId, scope, forced, quota: quotaSnapshot, phases };
++  } catch (error) {
++    const message = error instanceof Error ? error.message : String(error);
++    const failedAt = new Date();
++    await putSetting(STATUS_KEY, {
++      version: AUTOMATIC_PIPELINE_VERSION,
++      status: 'ERROR',
++      runId,
++      startedAt: startedAt.toISOString(),
++      failedAt: failedAt.toISOString(),
++      scope,
++      forced,
++      error: message.slice(0, 2000),
++    });
++    await putSetting(WORKER_HEARTBEAT_KEY, {
++      status: 'ERROR',
++      runId,
++      heartbeatAt: failedAt.toISOString(),
++      error: message.slice(0, 1000),
++    });
++    throw error;
++  } finally {
++    await releaseLease(leaseToken);
++  }
++}
++
++export async function recordRealtimeHeartbeat(input: { clients: number; now?: Date }): Promise<void> {
++  const now = input.now ?? new Date();
++  await putSetting(REALTIME_HEARTBEAT_KEY, {
++    status: 'RUNNING',
++    clients: Math.max(0, Math.trunc(input.clients)),
++    heartbeatAt: now.toISOString(),
++  });
++}
++
++export async function getAutomaticPipelineStatus(options: { includeAdminDetails?: boolean } = {}): Promise<JsonRecord> {
++  const now = new Date();
++  const todayStart = new Date(`${quotaDateUtc(now)}T00:00:00.000Z`);
++  const yesterday = new Date(now.getTime() - DAY_MS);
++  const [status, worker, realtime, forceRequest, quota, fixtureSync, predictionSync, lastResult, predictionQueue, resultPending, resultProcessing, resultFailed, apiErrors, failedJobs] =
++    await Promise.all([
++      getSetting(STATUS_KEY),
++      getSetting(WORKER_HEARTBEAT_KEY),
++      getSetting(REALTIME_HEARTBEAT_KEY),
++      getSetting(FORCE_REQUEST_KEY),
++      latestQuota(now),
++      db.syncRun.findFirst({ where: { jobName: 'automatic-fixture-sync', status: 'SUCCESS' }, orderBy: { finishedAt: 'desc' } }),
++      db.syncRun.findFirst({ where: { jobName: 'automatic-prediction-sync', status: 'SUCCESS' }, orderBy: { finishedAt: 'desc' } }),
++      db.resultUpdateJob.findFirst({ where: { status: 'COMPLETED' }, orderBy: { completedAt: 'desc' }, select: { completedAt: true } }),
++      db.fixture.count({ where: { status: 'UPCOMING', kickoffAt: { gt: now }, externalPrediction: { is: null } } }),
++      db.resultUpdateJob.count({ where: { status: { in: ['PENDING', 'RETRY'] } } }),
++      db.resultUpdateJob.count({ where: { status: 'PROCESSING' } }),
++      db.resultUpdateJob.count({ where: { status: 'FAILED' } }),
++      db.apiUsage.count({ where: { requestDate: { gte: todayStart }, errorMessage: { not: null } } }),
++      db.syncRun.count({ where: { status: 'FAILED', startedAt: { gte: yesterday } } }),
++    ]);
++
++  const quotaState = quotaStateFromRow(quota);
++  const response: JsonRecord = {
++    version: AUTOMATIC_PIPELINE_VERSION,
++    status: status?.status ?? 'STARTING',
++    automatic: true,
++    lastUpdated: status?.finishedAt ?? status?.lastSuccessAt ?? status?.startedAt ?? null,
++    lastSuccessfulFixtureSync: fixtureSync?.finishedAt?.toISOString?.() ?? null,
++    lastSuccessfulPredictionSync: predictionSync?.finishedAt?.toISOString?.() ?? null,
++    lastSuccessfulResultSync: lastResult?.completedAt?.toISOString?.() ?? null,
++    apiQuota: quotaState,
++    apiErrorsToday: apiErrors,
++    predictionQueue: { pending: predictionQueue },
++    resultQueue: { pending: resultPending, processing: resultProcessing, failed: resultFailed },
++    failedJobs24h: failedJobs,
++    worker: worker ?? { status: 'STARTING' },
++    scheduler: status ?? { status: 'STARTING' },
++    realtime: realtime ?? { status: 'STARTING', clients: 0 },
++    forceSyncPending: forceRequest?.status === 'PENDING',
++  };
++
++  if (options.includeAdminDetails) {
++    response.forceRequest = forceRequest;
++    response.pipelineDetails = status;
++  }
++  return response;
++}
+diff --git a/packages/sync/tests/automatic-pipeline-core.test.ts b/packages/sync/tests/automatic-pipeline-core.test.ts
+new file mode 100644
+index 0000000..a29b11b
+--- /dev/null
++++ b/packages/sync/tests/automatic-pipeline-core.test.ts
+@@ -0,0 +1,60 @@
++import { describe, expect, it } from 'vitest';
++
++import {
++  automaticQuotaState,
++  fixtureDiscoveryIntervalMinutes,
++  forceScopeIncludes,
++  normalizeForceScope,
++  predictionRetryDelayMinutes,
++  priorityReserveFloor,
++  resultRetryDelayMinutes,
++  shouldRunAutomaticPhase,
++} from '../src/automatic-pipeline-core.js';
++
++describe('automatic pipeline core', () => {
++  it('increases fixture cadence as kickoff approaches', () => {
++    expect(fixtureDiscoveryIntervalMinutes({ nearestKickoffMinutes: 60, quotaRemaining: 7000 })).toBe(10);
++    expect(fixtureDiscoveryIntervalMinutes({ nearestKickoffMinutes: 600, quotaRemaining: 7000 })).toBe(30);
++    expect(fixtureDiscoveryIntervalMinutes({ nearestKickoffMinutes: 2_000, quotaRemaining: 7000 })).toBe(90);
++    expect(fixtureDiscoveryIntervalMinutes({ nearestKickoffMinutes: 10_000, quotaRemaining: 7000 })).toBe(360);
++  });
++
++  it('conserves provider calls when daily quota is under pressure', () => {
++    expect(fixtureDiscoveryIntervalMinutes({ nearestKickoffMinutes: 60, quotaRemaining: 900 })).toBe(180);
++    expect(fixtureDiscoveryIntervalMinutes({ nearestKickoffMinutes: 60, quotaRemaining: 300 })).toBe(360);
++    expect(automaticQuotaState({ limit: 7500, remaining: 300 }).pressure).toBe('CRITICAL');
++  });
++
++  it('runs durable phases only when due unless explicitly forced', () => {
++    expect(shouldRunAutomaticPhase({ nowMs: 1_000_000, lastSuccessMs: null, minimumIntervalMinutes: 60 })).toBe(true);
++    expect(shouldRunAutomaticPhase({ nowMs: 10_000_000, lastSuccessMs: 9_000_000, minimumIntervalMinutes: 60 })).toBe(false);
++    expect(shouldRunAutomaticPhase({ nowMs: 10_000_000, lastSuccessMs: 9_000_000, minimumIntervalMinutes: 60, forced: true })).toBe(true);
++  });
++
++  it('reserves quota for critical result calls before lower priorities', () => {
++    expect(priorityReserveFloor('CRITICAL')).toBe(0);
++    expect(priorityReserveFloor('HIGH')).toBeLessThan(priorityReserveFloor('NORMAL'));
++    expect(priorityReserveFloor('NORMAL')).toBeLessThan(priorityReserveFloor('LOW'));
++  });
++
++  it('uses bounded result retry backoff', () => {
++    expect(resultRetryDelayMinutes(1)).toBe(7);
++    expect(resultRetryDelayMinutes(2)).toBe(10);
++    expect(resultRetryDelayMinutes(7)).toBe(60);
++    expect(resultRetryDelayMinutes(99)).toBe(60);
++  });
++
++  it('backs off prediction-provider retries instead of retrying every scheduler tick', () => {
++    expect(predictionRetryDelayMinutes(1)).toBe(5);
++    expect(predictionRetryDelayMinutes(2)).toBe(10);
++    expect(predictionRetryDelayMinutes(5)).toBe(60);
++    expect(predictionRetryDelayMinutes(99)).toBe(180);
++  });
++
++  it('normalizes force-sync scopes safely', () => {
++    expect(normalizeForceScope('predictions')).toBe('PREDICTIONS');
++    expect(normalizeForceScope('unexpected')).toBe('FULL');
++    expect(forceScopeIncludes('FULL', 'ODDS')).toBe(true);
++    expect(forceScopeIncludes('FIXTURES', 'PREDICTIONS')).toBe(false);
++  });
++});
+diff --git a/scripts/verify-automatic-pipeline-v1.mjs b/scripts/verify-automatic-pipeline-v1.mjs
+new file mode 100644
+index 0000000..e756139
+--- /dev/null
++++ b/scripts/verify-automatic-pipeline-v1.mjs
+@@ -0,0 +1,122 @@
++import { access, readFile, readdir } from 'node:fs/promises';
++import { join, relative } from 'node:path';
++
++const root = process.cwd();
++const read = async (path) => readFile(join(root, path), 'utf8');
++const requireFile = async (path) => access(join(root, path));
++const assert = (condition, message) => {
++  if (!condition) throw new Error(`[automatic-pipeline-v1] ${message}`);
++};
++
++const requiredFiles = [
++  'packages/sync/src/automatic-pipeline-core.ts',
++  'packages/sync/src/automatic-pipeline-engine.ts',
++  'packages/sync/tests/automatic-pipeline-core.test.ts',
++  'apps/web/app/admin/automation/page.tsx',
++  'deploy/pm2-ecosystem.config.cjs',
++  'docs/AUTOMATIC_PIPELINE.md',
++];
++await Promise.all(requiredFiles.map(requireFile));
++
++const [syncIndex, automaticEngine, quotaPreload, workerJobs, workerIndex, apiServer, apiApp, upcoming, realtimeClient, resultWorker, resultRunner, realtimeServer, pm2] =
++  await Promise.all([
++    read('packages/sync/src/index.ts'),
++    read('packages/sync/src/automatic-pipeline-engine.ts'),
++    read('scripts/api-football-quota-preload.mjs'),
++    read('apps/worker/src/jobs.ts'),
++    read('apps/worker/src/index.ts'),
++    read('apps/api/src/server.ts'),
++    read('apps/api/src/app.ts'),
++    read('apps/web/components/UpcomingPredictionBoard.tsx'),
++    read('apps/web/components/RealtimeHistoryRefresh.tsx'),
++    read('packages/sync/src/history-result-worker.ts'),
++    read('packages/sync/src/history-result-runner.ts'),
++    read('apps/api/src/realtime-server.ts'),
++    read('deploy/pm2-ecosystem.config.cjs'),
++  ]);
++
++assert(syncIndex.includes("export * from './automatic-pipeline-core.js';"), 'sync core export missing');
++assert(syncIndex.includes("export * from './automatic-pipeline-engine.js';"), 'sync engine export missing');
++assert(automaticEngine.includes('automation.pipeline.lease'), 'durable pipeline lease missing');
++assert(automaticEngine.includes('AUTOMATIC_COMPETITION_DISCOVERY_INTERVAL_MINUTES'), 'competition discovery cache cadence missing');
++assert(automaticEngine.includes('automation.prediction-retry.state'), 'durable prediction retry state missing');
++assert(automaticEngine.includes('predictionRetryDelayMinutes'), 'prediction retry backoff missing');
++assert(automaticEngine.includes("SKIPPED_QUOTA_RESERVE"), 'quota reserve gate missing from provider-heavy phases');
++assert(automaticEngine.includes("externalPrediction: { is: null }"), 'prediction queue does not filter already-predicted fixtures');
++assert(automaticEngine.includes("status: 'UPCOMING'"), 'prediction queue is not restricted to upcoming fixtures');
++assert(automaticEngine.includes('kickoffAt: { gt: now'), 'prediction queue can include started fixtures');
++assert(automaticEngine.includes("emitRealtime('PREDICTION_CREATED'"), 'prediction-created realtime event missing');
++assert(automaticEngine.includes("emitRealtime('DATA_SYNC_COMPLETED'"), 'sync-completed realtime event missing');
++assert(automaticEngine.includes("jobName: 'admin-force-sync-request'"), 'admin force-sync audit log missing');
++assert(quotaPreload.includes('API_FOOTBALL_PRIORITY_CONTEXT'), 'quota manager priority context missing');
++assert(quotaPreload.includes("API_FOOTBALL_DAILY_LIMIT', 7500"), 'hard 7,500/day quota default missing');
++assert(workerJobs.includes("'automatic-pipeline-cycle'"), 'automatic worker command missing');
++assert(workerJobs.includes('runAutomaticPipelineCycle'), 'automatic worker handler missing');
++assert(workerIndex.includes('AUTOMATIC_PIPELINE_ENABLED'), 'automatic scheduler switch missing');
++assert(workerIndex.includes("'*/2 * * * *'"), 'automatic scheduler default cadence missing');
++assert(workerIndex.includes("../../../scripts/api-football-quota-preload.mjs"), 'worker quota preload missing');
++assert(apiServer.includes("../../../scripts/api-football-quota-preload.mjs"), 'standard API quota preload missing');
++assert(resultRunner.includes("../../../scripts/api-football-quota-preload.mjs"), 'result worker quota preload missing');
++assert(realtimeServer.includes("../../../scripts/api-football-quota-preload.mjs"), 'realtime API quota preload missing');
++
++assert(apiApp.includes("'/api/automation/status'"), 'public automation status endpoint missing');
++assert(apiApp.includes("'/api/admin/automation/status'"), 'admin automation status endpoint missing');
++assert(apiApp.includes("'/api/admin/automation/force-sync'"), 'admin force-sync endpoint missing');
++assert(apiApp.includes('adminForceSyncLimiter'), 'admin force-sync rate limiter missing');
++assert(apiApp.includes('queueAutomaticForceSync'), 'admin force-sync is not queue-backed');
++assert(apiApp.includes('AUTOMATION_MANAGED'), 'manual public refresh route is not disabled');
++assert(!apiApp.includes('refreshPersonalUpcomingAnalysis,'), 'HTTP app still imports manual provider refresh');
++
++for (const label of ['Lấy lịch thật & phân tích', 'Làm mới từ DB', '/personal/upcoming/refresh']) {
++  assert(!upcoming.includes(label), `user UI still contains manual trigger: ${label}`);
++}
++assert(upcoming.includes('Hệ thống tự động cập nhật'), 'automatic UI status missing');
++assert(upcoming.includes('Đang cập nhật dữ liệu'), 'sync-in-progress UI missing');
++assert(upcoming.includes('Đang phân tích'), 'prediction-in-progress UI missing');
++assert(upcoming.includes('football-ai:realtime'), 'upcoming page realtime listener missing');
++assert(upcoming.includes('/automation/status'), 'upcoming page backend automation status fetch missing');
++
++assert(realtimeClient.includes('new WebSocket'), 'WebSocket client missing');
++assert(realtimeClient.includes('REALTIME_RECONNECTED'), 'reconnect snapshot refresh missing');
++assert(realtimeClient.includes('REALTIME_FALLBACK_POLL'), 'backend-only fallback polling missing');
++assert(realtimeClient.includes('football-ai:realtime'), 'shared realtime browser event missing');
++assert(realtimeClient.includes('/automation/status'), 'realtime fallback does not use backend status API');
++assert(!realtimeClient.includes('v3.football.api-sports.io'), 'realtime client contains direct API-Football host');
++
++assert(resultWorker.includes("eventType: 'PREDICTION_RESULT_UPDATED'"), 'standard result event missing');
++assert(resultWorker.includes("eventType: 'MATCH_FINISHED'"), 'match-finished realtime event missing');
++assert(resultWorker.includes("eventType: 'history_updated'"), 'legacy history event must remain compatible');
++assert(resultWorker.includes("PAPER_BET_RESULT_MINUTES_AFTER_KICKOFF', 105, 100, 110"), '105-minute result schedule contract changed');
++assert(resultWorker.includes('[7, 10, 15, 20, 30, 45, 60]'), 'result retry backoff contract missing');
++assert(resultWorker.includes("decisionType: 'BEST_BET'"), 'result worker no longer restricted to stored predictions');
++
++assert(realtimeServer.includes('recordRealtimeHeartbeat'), 'realtime heartbeat monitoring missing');
++assert(realtimeServer.includes('clients.size'), 'realtime client count monitoring missing');
++assert(pm2.includes('football-api-realtime'), 'PM2 API/realtime process missing');
++assert(pm2.includes('football-worker'), 'PM2 automatic worker missing');
++assert(pm2.includes('football-result-worker'), 'PM2 result worker missing');
++assert(pm2.includes('football-web'), 'PM2 web process missing');
++assert(!pm2.includes('npm run dev'), 'production process config depends on dev mode');
++
++async function webSourceFiles(dir) {
++  const entries = await readdir(dir, { withFileTypes: true });
++  const files = [];
++  for (const entry of entries) {
++    const path = join(dir, entry.name);
++    if (entry.isDirectory()) files.push(...(await webSourceFiles(path)));
++    else if (/\.(?:ts|tsx|js|jsx|mjs)$/.test(entry.name)) files.push(path);
++  }
++  return files;
++}
++
++for (const path of await webSourceFiles(join(root, 'apps/web'))) {
++  const source = await readFile(path, 'utf8');
++  assert(
++    !/(?:fetch|axios\.(?:get|post)|new\s+WebSocket)\s*\([^\n]{0,200}(?:v3\.football\.api-sports\.io|api-football\.com)/i.test(source),
++    `frontend directly references API-Football network host in ${relative(root, path)}`,
++  );
++  assert(!source.includes('window.location.reload('), `browser hard reload found in ${relative(root, path)}`);
++  assert(!source.includes('/personal/upcoming/refresh'), `manual user refresh endpoint referenced in ${relative(root, path)}`);
++}
++
++console.log('AUTOMATIC_PIPELINE_V1_STATIC_VERIFY_PASS');

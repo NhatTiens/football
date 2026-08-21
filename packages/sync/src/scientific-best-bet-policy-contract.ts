@@ -1,9 +1,17 @@
-export const SCIENTIFIC_BEST_BET_POLICY_VERSION = 'v7.0-beta.1A.4-best-bet-policy-reliability-v1';
+import {
+  OU_ODDS_PROBABILITY_PROFILE_VERSION,
+  OU_STRATEGY_MAX_ODDS,
+  probabilityThresholdForOdds,
+} from '@football-ai/engine';
+
+export const SCIENTIFIC_BEST_BET_POLICY_VERSION = 'v7.0-beta.1A.5-best-bet-policy-ou-range-v1';
 
 export const SCIENTIFIC_BEST_BET_EVIDENCE_CLASS = 'HISTORICAL_DIAGNOSTIC_NON_PROMOTIONAL' as const;
 
 export const SCIENTIFIC_BEST_BET_POLICY = Object.freeze({
   minimumOdds: 1.4,
+  maximumOuOdds: OU_STRATEGY_MAX_ODDS,
+  ouProbabilityProfileVersion: OU_ODDS_PROBABILITY_PROFILE_VERSION,
   minimumEdge: 0.04,
   minimumExpectedValue: 0.03,
   maximumBetsPerFixture: 1,
@@ -355,6 +363,24 @@ export function assessBestBetCandidate(
   }
 
   const rejectionReasons: string[] = [];
+
+  // OU_V10_POLICY_GATES
+  const isOuMarket = candidate.market.startsWith('TOTAL_GOALS_');
+  if (
+    isOuMarket &&
+    candidate.decimalOdds - POLICY_THRESHOLD_TOLERANCE > SCIENTIFIC_BEST_BET_POLICY.maximumOuOdds
+  ) {
+    rejectionReasons.push('OU_ODDS_ABOVE_MAXIMUM');
+  }
+  if (
+    isOuMarket &&
+    candidate.decimalOdds >= SCIENTIFIC_BEST_BET_POLICY.minimumOdds &&
+    candidate.decimalOdds <= SCIENTIFIC_BEST_BET_POLICY.maximumOuOdds &&
+    candidate.modelProbability + POLICY_THRESHOLD_TOLERANCE <
+      probabilityThresholdForOdds(candidate.decimalOdds)
+  ) {
+    rejectionReasons.push('OU_PROBABILITY_BELOW_ODDS_BAND_THRESHOLD');
+  }
 
   if (!candidate.reliability.diagnosticEligible) {
     rejectionReasons.push('MARKET_RELIABILITY_NOT_ELIGIBLE');

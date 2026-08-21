@@ -159,6 +159,7 @@ export type PersonalCurrentRecommendationStatus =
   | 'UNMAPPED_FIXTURE'
   | 'MAPPING_MISMATCH'
   | 'NO_MODEL'
+  | 'INVALID_MODEL_CONSISTENCY'
   | 'NO_COMPLETE_MARKET'
   | 'NO_VALUE_SIGNAL'
   | 'NOT_EVALUATED';

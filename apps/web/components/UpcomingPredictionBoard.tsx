@@ -1,21 +1,30 @@
 // R4.10.2.9_UI_EXPLAINABILITY_STATUS_CONSISTENCY: board renders conservative value and auditable rejection reasons.
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect,useMemo, useState  } from 'react';
 
 import { classifyPersonalLeague, type PersonalLeagueGroup } from '../lib/league-profile';
 import type {
-  CurrentCompetitionGroup,
   PersonalFixtureState,
   PersonalMarketCode,
   PersonalMarketPredictionDto,
   PersonalMarketSelectionDto,
-  PersonalRefreshResponse,
   PersonalUpcomingAnalysisDto,
   PersonalUpcomingFixtureDto,
 } from '../lib/personal-types';
 
 const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
+
+interface AutomaticPipelineStatusDto {
+  status: string;
+  phase?: string;
+  lastUpdated: string | null;
+  apiQuota: { limit: number; used: number; remaining: number; pressure: string };
+  predictionQueue: { pending: number };
+  scheduler: { status?: string };
+}
+
+// AUTOMATIC_PIPELINE_V1_UPCOMING_UI
 
 function signedPoints(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—';
@@ -330,6 +339,9 @@ function currentRecommendationStatusLabel(
   if (status === 'NO_MODEL') {
     return 'Thiếu mô hình hiện tại';
   }
+  if (status === 'INVALID_MODEL_CONSISTENCY') {
+    return 'INVALID · lỗi nhất quán O/U';
+  }
 
   if (status === 'NO_COMPLETE_MARKET') {
     return 'Thiếu market hoàn chỉnh';
@@ -363,6 +375,9 @@ function currentRecommendationStatusDescription(row: PersonalUpcomingFixtureDto)
       : 'Thiếu snapshot fixture provider hợp lệ tại thời điểm phân tích.';
   }
 
+  if (status === 'INVALID_MODEL_CONSISTENCY') {
+    return 'Xác suất O/U vi phạm monotonicity/complement constraint. Prediction bị đánh dấu INVALID và không được đưa vào Official/Qualified/Simulation.';
+  }
   if (status === 'NO_MODEL') {
     if (row.currentRecommendationError === 'NO_DIXON_COLES_MODEL_AT_CURRENT_AS_OF') {
       return 'Chưa có mô hình Dixon–Coles hợp lệ tại thời điểm phân tích hiện tại.';
@@ -405,37 +420,6 @@ function currentRecommendationStatusClass(
 
 // CURRENT_RECOMMENDATION_STATUS_DASHBOARD_R41023
 
-const GROUPS: Array<{ value: CurrentCompetitionGroup; label: string; description: string }> = [
-  {
-    value: 'WAFCON',
-    label: 'WAFCON 2026',
-    description: "Women's Africa Cup of Nations · Morocco 2026",
-  },
-  {
-    value: 'UCL',
-    label: 'UEFA Champions League',
-    description: '2026/27 · vòng loại và league phase',
-  },
-  {
-    value: 'UEFA_EUROPA',
-    label: 'Europa + Conference League',
-    description: 'UEFA Europa League & UEFA Conference League 2026/27',
-  },
-  {
-    value: 'ASEAN',
-    label: 'ASEAN Championship 2026',
-    description: 'AFF Cup / ASEAN Championship đội tuyển quốc gia',
-  },
-  {
-    value: 'SEA',
-    label: 'Đông Nam Á quốc nội',
-    description: 'Việt Nam, Thái Lan, Indonesia, Malaysia…',
-  },
-  { value: 'ASIA', label: 'Châu Á', description: 'AFC, Nhật Bản, Hàn Quốc, Saudi…' },
-  { value: 'EPL', label: 'Premier League', description: 'Ngoại hạng Anh · mùa hiện tại' },
-  { value: 'LALIGA', label: 'La Liga', description: 'Tây Ban Nha · mùa hiện tại' },
-];
-
 function isAseanSeniorCompetition(name: string): boolean {
   const normalized = name.trim().toLowerCase();
   if (
@@ -474,27 +458,14 @@ export function UpcomingPredictionBoard({
 }) {
   const [data, setData] = useState<PersonalUpcomingAnalysisDto>(initialData);
   const [days, setDays] = useState<string>(String(initialData.window.days));
-  const [selectedGroups, setSelectedGroups] = useState<CurrentCompetitionGroup[]>([
-    'WAFCON',
-    'UCL',
-    'UEFA_EUROPA',
-    'ASEAN',
-    'SEA',
-    'ASIA',
-    'EPL',
-    'LALIGA',
-  ]);
-  const [leagueFilter, setLeagueFilter] = useState<number | 'ALL'>('ALL');
+const [leagueFilter, setLeagueFilter] = useState<number | 'ALL'>('ALL');
   const [stateFilter, setStateFilter] = useState<PersonalFixtureState | 'ALL'>('ALL');
   const [groupFilter, setGroupFilter] = useState<PersonalLeagueGroup | 'ALL'>('ALL');
   const [marketFilter, setMarketFilter] = useState<PersonalMarketCode | 'ALL'>('ALL');
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [lastDiscovery, setLastDiscovery] = useState<PersonalRefreshResponse['discovery'] | null>(
-    null,
-  );
-
-  const visibleFixtures = useMemo(
+  const [automationStatus, setAutomationStatus] = useState<AutomaticPipelineStatusDto | null>(null);
+const visibleFixtures = useMemo(
     () =>
       data.fixtures.filter((row: PersonalUpcomingFixtureDto): boolean => {
         if (leagueFilter !== 'ALL' && row.fixture.league.id !== leagueFilter) return false;
@@ -522,76 +493,71 @@ export function UpcomingPredictionBoard({
     [data.fixtures, groupFilter, leagueFilter, marketFilter, stateFilter],
   );
 
-  function toggleGroup(group: CurrentCompetitionGroup): void {
-    setSelectedGroups((current: CurrentCompetitionGroup[]) =>
-      current.includes(group)
-        ? current.filter((value: CurrentCompetitionGroup): boolean => value !== group)
-        : [...current, group],
-    );
-  }
+  useEffect(() => {
+    let stopped = false;
+    let refreshing = false;
 
-  async function reloadFromDb(): Promise<void> {
-    setLoading(true);
-    setMessage(null);
-    try {
-      const response = await fetch(
-        `${apiUrl}/personal/upcoming-analysis?days=${encodeURIComponent(days)}&limit=300`,
-        { cache: 'no-store' },
-      );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      setData((await response.json()) as PersonalUpcomingAnalysisDto);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Không tải được dữ liệu hiện tại.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function syncCurrentFixtures(): Promise<void> {
-    if (selectedGroups.length === 0) {
-      setMessage('Hãy chọn ít nhất một nhóm giải.');
-      return;
-    }
-
-    const confirmed = window.confirm(
-      'Hệ thống sẽ hỏi API-Football mùa đang hoạt động, chỉ lấy các trận từ hôm nay trở đi, sau đó chạy phân tích mô hình. Tiếp tục?',
-    );
-    if (!confirmed) return;
-
-    setLoading(true);
-    setMessage('Đang tìm mùa hiện tại trên API-Football → lấy lịch sắp tới → dự đoán…');
-
-    try {
-      const response = await fetch(`${apiUrl}/personal/upcoming/refresh`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          days: Number(days),
-          groups: selectedGroups,
-        }),
-      });
-
-      const payload = (await response.json()) as PersonalRefreshResponse & {
-        error?: string;
-        message?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(payload.message ?? payload.error ?? `HTTP ${response.status}`);
+    const loadSnapshot = async (showLoading: boolean) => {
+      if (stopped || refreshing) return;
+      refreshing = true;
+      if (showLoading) setLoading(true);
+      try {
+        const [statusResponse, analysisResponse] = await Promise.all([
+          fetch(`${apiUrl}/automation/status`, { cache: 'no-store' }),
+          fetch(`${apiUrl}/personal/upcoming-analysis?days=${encodeURIComponent(days)}&limit=300`, {
+            cache: 'no-store',
+          }),
+        ]);
+        if (!analysisResponse.ok) throw new Error(`HTTP ${analysisResponse.status}`);
+        const analysis = (await analysisResponse.json()) as PersonalUpcomingAnalysisDto;
+        if (!stopped) setData(analysis);
+        if (statusResponse.ok) {
+          const status = (await statusResponse.json()) as AutomaticPipelineStatusDto;
+          if (!stopped) setAutomationStatus(status);
+        }
+        if (!stopped) setMessage(null);
+      } catch (error) {
+        if (!stopped) {
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : 'Dữ liệu đang được đồng bộ lại. Hệ thống sẽ tự thử lại.',
+          );
+        }
+      } finally {
+        refreshing = false;
+        if (!stopped && showLoading) setLoading(false);
       }
+    };
 
-      setData(payload.analysis);
-      setLastDiscovery(payload.discovery);
-      setMessage(
-        `Đã đồng bộ ${payload.discovery.competitions.length} giải/mùa hiện tại · ${payload.analysis.counts.fixtures} trận sắp tới · ${payload.analysis.counts.bestBets} đề xuất đạt tiêu chí.`,
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Đồng bộ thất bại.');
-    } finally {
-      setLoading(false);
-    }
-  }
+    const realtimeHandler = (event: Event) => {
+      const detail = (event as CustomEvent<{ event?: string }>).detail;
+      const eventName = detail?.event ?? '';
+      if (
+        [
+          'FIXTURE_CREATED',
+          'FIXTURE_UPDATED',
+          'PREDICTION_CREATED',
+          'PREDICTION_UPDATED',
+          'MATCH_FINISHED',
+          'PREDICTION_RESULT_UPDATED',
+          'DATA_SYNC_COMPLETED',
+          'SNAPSHOT_REQUIRED',
+        ].includes(eventName)
+      ) {
+        void loadSnapshot(true);
+      }
+    };
+
+    window.addEventListener('football-ai:realtime', realtimeHandler);
+    void loadSnapshot(false);
+    const fallbackTimer = setInterval(() => void loadSnapshot(false), 75_000);
+    return () => {
+      stopped = true;
+      clearInterval(fallbackTimer);
+      window.removeEventListener('football-ai:realtime', realtimeHandler);
+    };
+  }, [days]);
 
   return (
     <div className="pcr-page">
@@ -605,80 +571,26 @@ export function UpcomingPredictionBoard({
           </p>
         </div>
 
-        <div className="pcr-actions">
-          <button
-            type="button"
-            className="button primary"
-            disabled={loading || selectedGroups.length === 0}
-            onClick={() => void syncCurrentFixtures()}
-          >
-            {loading ? 'Đang lấy lịch thật…' : 'Lấy lịch thật & phân tích'}
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            disabled={loading}
-            onClick={() => void reloadFromDb()}
-          >
-            Làm mới từ DB
-          </button>
+        <div className="pcr-actions" aria-live="polite">
+          <div>
+            <strong>● Hệ thống tự động cập nhật</strong>
+            <small>
+              {automationStatus?.phase === 'PREDICTIONS' || automationStatus?.phase === 'PAPER' || (automationStatus?.predictionQueue.pending ?? 0) > 0
+                ? 'Đang phân tích...'
+                : loading || automationStatus?.status === 'RUNNING'
+                  ? 'Đang cập nhật dữ liệu...'
+                  : 'Dữ liệu mới nhất từ backend'}
+            </small>
+            <small>
+              Đồng bộ lần cuối:{' '}
+              {automationStatus?.lastUpdated ? localTime(automationStatus.lastUpdated) : 'đang khởi động'}
+              {' · '}API còn {automationStatus?.apiQuota.remaining ?? '—'}/{automationStatus?.apiQuota.limit ?? 7500}
+            </small>
+          </div>
         </div>
       </section>
 
       {message ? <div className="pcr-message">{message}</div> : null}
-
-      <section className="pcr-current-groups">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">GIẢI MUỐN THEO DÕI</span>
-            <h2>Mùa hiện tại, không chọn season thủ công</h2>
-          </div>
-          <small>
-            {selectedGroups.length}/{GROUPS.length} nhóm
-          </small>
-        </div>
-        <div className="pcr-current-group-grid">
-          {GROUPS.map((group) => (
-            <label
-              key={group.value}
-              className={selectedGroups.includes(group.value) ? 'selected' : ''}
-            >
-              <input
-                type="checkbox"
-                checked={selectedGroups.includes(group.value)}
-                onChange={() => toggleGroup(group.value)}
-              />
-              <span>
-                <b>{group.label}</b>
-                <small>{group.description}</small>
-              </span>
-            </label>
-          ))}
-        </div>
-        <p className="pcr-current-note">
-          API-Football tự xác định season có <code>current=true</code>. Khoảng fixture: hôm nay →{' '}
-          {days} ngày tới.
-        </p>
-      </section>
-
-      {lastDiscovery ? (
-        <section className="pcr-discovery-strip">
-          <b>Đã xác định mùa hiện tại:</b>
-          {lastDiscovery.competitions.map((competition) => (
-            <span
-              key={`${competition.apiLeagueId}:${competition.season}`}
-              className={
-                isRequestedPriorityCompetition(competition.name)
-                  ? 'pcr-asean-competition-badge'
-                  : undefined
-              }
-            >
-              {isRequestedPriorityCompetition(competition.name) ? '★ ' : ''}
-              {competition.name} {competition.season}
-            </span>
-          ))}
-        </section>
-      ) : null}
 
       <section className="pcr-kpis">
         <div>
@@ -776,6 +688,11 @@ export function UpcomingPredictionBoard({
             <span>Thiếu fixture snapshot</span>
             <strong>{data.currentRecommendationStatusCounts.NO_PROVIDER_FIXTURE_SNAPSHOT}</strong>
             <small>thiếu immutable provider lineage</small>
+          </div>
+          <div className="status-invalid">
+            <span>Invalid O/U</span>
+            <strong>{data.currentRecommendationStatusCounts.INVALID_MODEL_CONSISTENCY}</strong>
+            <small>model consistency error</small>
           </div>
 
           <div className="status-model">
@@ -899,8 +816,7 @@ export function UpcomingPredictionBoard({
 
         {visibleFixtures.length === 0 ? (
           <div className="pcr-empty">
-            Chưa có fixture thật trong DB cho khoảng này. Bấm “Lấy lịch thật & phân tích” để đồng bộ
-            trực tiếp từ API-Football.
+            Chưa có fixture sắp tới trong DB. Backend worker đang tự đồng bộ và sẽ cập nhật màn hình khi có dữ liệu mới.
           </div>
         ) : (
           visibleFixtures.map((row) => (

@@ -6,6 +6,7 @@ import { createServer, type IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 
 import { prisma } from '@football-ai/database';
+import { recordRealtimeHeartbeat } from '@football-ai/sync';
 
 import { app } from './app.js';
 
@@ -159,6 +160,17 @@ async function dispatchRealtimeOutbox(): Promise<void> {
 void dispatchRealtimeOutbox();
 const outboxTimer = setInterval(() => void dispatchRealtimeOutbox(), 1_000);
 
+async function writeRealtimeHeartbeat(): Promise<void> {
+  try {
+    await recordRealtimeHeartbeat({ clients: clients.size });
+  } catch (error) {
+    console.error('[realtime] heartbeat failed', error);
+  }
+}
+
+void writeRealtimeHeartbeat();
+const realtimeHeartbeatTimer = setInterval(() => void writeRealtimeHeartbeat(), 30_000);
+
 const apiPort = Number(process.env.API_PORT ?? process.env.PORT ?? '4000');
 const apiHost = process.env.API_HOST ?? process.env.HOST ?? '0.0.0.0';
 
@@ -170,6 +182,7 @@ httpServer.listen(apiPort, apiHost, () => {
 async function shutdown(signal: string): Promise<void> {
   console.log(`[api] received ${signal}; shutting down.`);
   clearInterval(outboxTimer);
+  clearInterval(realtimeHeartbeatTimer);
   for (const socket of clients) socket.destroy();
   await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   await prisma.$disconnect();

@@ -71,9 +71,9 @@ function candidate(overrides: Partial<ScientificBetCandidate> = {}): ScientificB
   };
 }
 
-describe('v7.0-beta.1A.4 best-bet policy + reliability contract', () => {
-  it('uses a stable beta.1A.4 version', () => {
-    expect(SCIENTIFIC_BEST_BET_POLICY_VERSION).toContain('beta.1A.4');
+describe('v7.0-beta.1A.5 O/U best-bet policy + reliability contract', () => {
+  it('uses a stable beta.1A.5 O/U policy version', () => {
+    expect(SCIENTIFIC_BEST_BET_POLICY_VERSION).toContain('beta.1A.5');
   });
 
   it('uses diagnostic non-promotional evidence', () => {

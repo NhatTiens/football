@@ -153,7 +153,8 @@
     "test:v8-live-data": "vitest run tests/v8-live-data-readiness.test.ts",
     "v8-live-data:readiness": "tsx src/v8-live-data-readiness-cli.ts",
     "test:v8-shadow-release-gate": "vitest run tests/v8-shadow-release-gate.test.ts",
-    "v8-release:gate": "node ../../scripts/run-with-env.mjs node --import ./scripts/tsx-windows-userinfo-bootstrap.mjs --import tsx packages/sync/src/v8-shadow-release-gate-cli.ts"
+    "v8-release:gate": "node ../../scripts/run-with-env.mjs node --import ./scripts/tsx-windows-userinfo-bootstrap.mjs --import tsx packages/sync/src/v8-shadow-release-gate-cli.ts",
+    "ou:backtest-report": "node ../../scripts/run-with-env.mjs npx tsx packages/sync/src/ou-backtest-report.ts"
   },
   "dependencies": {
     "@football-ai/api-football": "1.2.0",

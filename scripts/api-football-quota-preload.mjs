@@ -43,6 +43,8 @@ if (!globalThis[INSTALL_KEY]) {
   }
 
   function priorityFor(url) {
+    const explicitPriority = String(process.env.API_FOOTBALL_PRIORITY_CONTEXT ?? '').trim().toUpperCase();
+    if (['CRITICAL', 'HIGH', 'NORMAL', 'LOW'].includes(explicitPriority)) return explicitPriority;
     if ((process.env.HISTORY_RESULT_WORKER_OWNER ?? '').toLowerCase() === 'true') {
       return 'CRITICAL';
     }

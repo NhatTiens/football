@@ -11,7 +11,7 @@ import {
   type PaperOuSourceLine,
 } from './paper-ou-model-selection-core.js';
 export const LIVE_PAPER_BET_ENGINE_VERSION =
-  'v7.0-ou-direct-model-selection-v1';
+  'v7.0-ou-direct-model-selection-v1-ou-goal-distribution-paper-bet-v1';
 
 export const LIVE_PAPER_BET_HORIZONS = [90, 30, 5] as const;
 

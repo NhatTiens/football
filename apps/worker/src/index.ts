@@ -1,3 +1,4 @@
+import '../../../scripts/api-football-quota-preload.mjs';
 import 'dotenv/config';
 import cron from 'node-cron';
 import { prisma } from '@football-ai/database';
@@ -9,6 +10,8 @@ const enabled = (process.env.WORKER_SCHEDULER_ENABLED ?? 'true').toLowerCase() =
 const { schedules, scienceOwnsProviderSync, scientificCurrentRefreshEnabled } =
   buildWorkerScheduleConfiguration();
 
+const automaticPipelineEnabled =
+  (process.env.AUTOMATIC_PIPELINE_ENABLED ?? 'true').toLowerCase() === 'true';
 if (!enabled) {
   console.log('[worker] scheduler disabled; process will stay alive for manual inspection.');
 } else {
@@ -19,7 +22,34 @@ if (!enabled) {
     );
   }
 
+  if (automaticPipelineEnabled) {
+    const automaticExpression = process.env.AUTOMATIC_PIPELINE_CRON ?? '*/2 * * * *';
+    if (!cron.validate(automaticExpression)) {
+      throw new Error(`Invalid cron expression for automatic-pipeline-cycle: ${automaticExpression}`);
+    }
+    cron.schedule(
+      automaticExpression,
+      () => void executeJob('automatic-pipeline-cycle'),
+      { timezone: 'Asia/Ho_Chi_Minh' },
+    );
+    console.log(`[worker] scheduled automatic-pipeline-cycle: ${automaticExpression}`);
+    console.log('[worker] automatic backend pipeline owns fixture/prediction/context/odds orchestration.');
+  }
+
+  const automaticOwnedCommands = new Set<string>([
+    'sync-fixtures',
+    'sync-odds',
+    'sync-odds-repeated',
+    'paper-bet-operations-cycle',
+    'sync-lineups',
+    'sync-predictions',
+  ]);
+
   for (const [expression, command] of schedules) {
+    if (automaticPipelineEnabled && automaticOwnedCommands.has(command)) {
+      console.log(`[worker] automatic pipeline owns ${command}; skipping legacy cron.`);
+      continue;
+    }
     if (!cron.validate(expression))
       throw new Error(`Invalid cron expression for ${command}: ${expression}`);
     cron.schedule(expression, () => void executeJob(command), { timezone: 'Asia/Ho_Chi_Minh' });

@@ -1,5 +1,5 @@
 export const CURRENT_RECOMMENDATION_RISK_RANKING_VERSION =
-  'v7.0-r4.10.2.6-risk-adjusted-ranking-v1';
+  'v7.0-r4.10.2.6.1-ou-strategy-gates-v1';
 
 export type CurrentRiskModelSource =
   | 'DYNAMIC_DIXON_COLES'
@@ -43,6 +43,9 @@ export interface CurrentRiskAssessmentInput
   minimumOdds: number;
   minimumEdge: number;
   minimumExpectedValue: number;
+  maximumOdds?: number | null;
+  minimumModelProbability?: number | null;
+  minimumDataQualityScore?: number | null;
   quoteConsensus: CurrentQuoteConsensus;
 }
 
@@ -255,6 +258,17 @@ export function assessRiskAdjustedCurrentCandidate(
   const rejectionReasons: string[] = [];
 
   if (input.decimalOdds < input.minimumOdds) rejectionReasons.push('CURRENT_ODDS_BELOW_MINIMUM');
+  if (input.maximumOdds != null && input.decimalOdds > input.maximumOdds) {
+    rejectionReasons.push('CURRENT_ODDS_ABOVE_MAXIMUM');
+  }
+  if (
+    input.minimumModelProbability != null &&
+    modelProbability < input.minimumModelProbability
+  ) rejectionReasons.push('CURRENT_MODEL_PROBABILITY_BELOW_MINIMUM');
+  if (
+    input.minimumDataQualityScore != null &&
+    dataQuality < input.minimumDataQualityScore
+  ) rejectionReasons.push('CURRENT_DATA_QUALITY_BELOW_MINIMUM');
   if (input.rawEdge < input.minimumEdge) rejectionReasons.push('CURRENT_RAW_EDGE_BELOW_MINIMUM');
   if (input.rawExpectedValue < input.minimumExpectedValue) rejectionReasons.push('CURRENT_RAW_EV_BELOW_MINIMUM');
   if (conservativeEdge < input.minimumEdge) rejectionReasons.push('CURRENT_CONSERVATIVE_EDGE_BELOW_MINIMUM');

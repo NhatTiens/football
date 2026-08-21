@@ -1,4 +1,5 @@
 import { prisma } from '@football-ai/database';
+import { buildOuGoalDistribution, OU_ENGINE_VERSION } from '@football-ai/engine';
 
 import { getFundamentalsFixturePrediction } from './fundamentals-engine.js';
 import { getScientificFixtureAnalysis } from './scientific-features.js';
@@ -268,6 +269,7 @@ function reliabilityGates(input: {
   horizon: LivePaperBetHorizon;
   frozenRegistryAvailable: boolean;
   report: Awaited<ReturnType<typeof getScientificBestBetReliabilityReport>>;
+  dataQualityScore: number;
 }): Record<LiveMarketType, LiveReliabilityGate> {
   const markets: LiveMarketType[] = [
     'MATCH_WINNER',
@@ -290,19 +292,24 @@ function reliabilityGates(input: {
       continue;
     }
 
+    const isOuMarket = market.startsWith('TOTAL_GOALS_');
     const horizonValidated =
-      market === 'MATCH_WINNER' && input.horizon === 90 && input.frozenRegistryAvailable;
-
+      (market === 'MATCH_WINNER' && input.horizon === 90 && input.frozenRegistryAvailable) ||
+      isOuMarket;
+    const dataQualityValidated =
+      !isOuMarket || input.dataQualityScore >= envNumber('PAPER_OU_MIN_DATA_QUALITY_SCORE', 0.4);
     result[market] = {
       market,
-      status: horizonValidated
-        ? historical.status
-        : market === 'MATCH_WINNER' && input.horizon !== 90
-          ? `HORIZON_NOT_VALIDATED:${historical.status}`
-          : market === 'MATCH_WINNER' && !input.frozenRegistryAvailable
-            ? `FROZEN_T90_REGISTRY_UNAVAILABLE:${historical.status}`
-            : historical.status,
-      eligible: historical.diagnosticEligible && horizonValidated,
+      status: !dataQualityValidated
+        ? `DATA_QUALITY_BELOW_MINIMUM:${historical.status}`
+        : horizonValidated
+          ? historical.status
+          : market === 'MATCH_WINNER' && input.horizon !== 90
+            ? `HORIZON_NOT_VALIDATED:${historical.status}`
+            : market === 'MATCH_WINNER' && !input.frozenRegistryAvailable
+              ? `FROZEN_T90_REGISTRY_UNAVAILABLE:${historical.status}`
+              : `MARKET_NOT_PROMOTION_ENABLED:${historical.status}`,
+      eligible: historical.diagnosticEligible && horizonValidated && dataQualityValidated,
     };
   }
 
@@ -325,6 +332,7 @@ async function buildModelProbabilities(input: {
     dixonSampleSize: number;
     dixonTrainedThrough: string;
     dataQualityScore: number;
+    goalDistributionId: string;
   };
 }> {
   const [baseline, fundamentals] = await Promise.all([
@@ -366,6 +374,13 @@ async function buildModelProbabilities(input: {
     rho: fundamentals.dixonColes.rho,
     maximumGoals: 10,
   });
+  const ouDistribution = buildOuGoalDistribution({
+    expectedHomeGoals: fundamentals.homeExpectedGoals,
+    expectedAwayGoals: fundamentals.awayExpectedGoals,
+    rho: fundamentals.dixonColes.rho,
+    maximumGoalsPerTeam: 10,
+    calibrationUnder25: baseline.over25.UNDER,
+  });
   const baselineHda = normalizeShadowProbabilities({
     HOME: baseline.matchWinner.HOME,
     DRAW: baseline.matchWinner.DRAW,
@@ -388,7 +403,7 @@ async function buildModelProbabilities(input: {
     frozenRegistryId = input.frozenRegistry.id;
   }
 
-  const decisionModelVersion = `${LIVE_PAPER_BET_ENGINE_VERSION}::HDA=${frozenCandidateVersion ?? SCIENTIFIC_MODEL_VERSION}::MM=DYNAMIC_DIXON_COLES`;
+  const decisionModelVersion = `${LIVE_PAPER_BET_ENGINE_VERSION}::HDA=${frozenCandidateVersion ?? SCIENTIFIC_MODEL_VERSION}::MM=DYNAMIC_DIXON_COLES::OU=${OU_ENGINE_VERSION}::GD=${ouDistribution.goalDistributionId}`;
 
   if (decisionModelVersion.length > 192) {
     throw new Error('LIVE_PAPER_BET_MODEL_VERSION_EXCEEDS_LEDGER_FIELD');
@@ -397,9 +412,10 @@ async function buildModelProbabilities(input: {
   return {
     probabilities: {
       MATCH_WINNER: hda,
-      TOTAL_GOALS_1_5: scoreGrid.totalGoals[1.5],
-      TOTAL_GOALS_2_5: scoreGrid.totalGoals[2.5],
-      TOTAL_GOALS_3_5: scoreGrid.totalGoals[3.5],
+      // OU_V9_PAPER_MARKETS
+      TOTAL_GOALS_1_5: ouDistribution.markets.TOTAL_GOALS_1_5,
+      TOTAL_GOALS_2_5: ouDistribution.markets.TOTAL_GOALS_2_5,
+      TOTAL_GOALS_3_5: ouDistribution.markets.TOTAL_GOALS_3_5,
       BTTS: scoreGrid.btts,
     },
     source: {
@@ -411,6 +427,7 @@ async function buildModelProbabilities(input: {
       dixonSampleSize: fundamentals.dixonColes.sampleSize,
       dixonTrainedThrough: fundamentals.dixonColes.trainedThrough.toISOString(),
       dataQualityScore: fundamentals.dataQualityScore,
+      goalDistributionId: ouDistribution.goalDistributionId,
     },
   };
 }
@@ -636,6 +653,7 @@ export async function runLiveScientificPaperBetDecisions(
         horizon,
         frozenRegistryAvailable: horizon !== 90 || frozenRegistry != null,
         report: reliabilityReport,
+        dataQualityScore: model.source.dataQualityScore,
       });
       const candidateSet = buildLivePaperBetCandidates({
         providerFixtureId: provider.providerFixtureId,

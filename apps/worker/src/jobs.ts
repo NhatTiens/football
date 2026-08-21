@@ -34,6 +34,7 @@ import {
   getScientificPaperBetLedgerCoverage,
   settleOpenScientificPaperBets,
   runPaperBetOperationsCycle,
+  runAutomaticPipelineCycle,
   runProductionScientificLiveCycle,
   refreshPersonalUpcomingAnalysis,
   runScientificBestBetReliability,
@@ -96,6 +97,7 @@ export type WorkerCommand =
   | 'scientific-multi-market-replay-report'
   | 'scientific-best-bet-reliability-report'
   | 'paper-bet-operations-cycle'
+  | 'automatic-pipeline-cycle'
   | 'scientific-current-refresh'
   | 'scientific-live-cycle'
   | 'paper-bet-ledger-settle'
@@ -144,7 +146,8 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
     console.log(`[worker] starting ${command}`);
     let result: unknown;
 
-    if (command === 'sync-fixtures') result = await syncFixtures();
+    if (command === 'automatic-pipeline-cycle') result = await runAutomaticPipelineCycle();
+    else if (command === 'sync-fixtures') result = await syncFixtures();
     else if (command === 'sync-odds') result = await syncOdds();
     else if (command === 'sync-odds-repeated') result = await collectRepeatedOdds();
     else if (command === 'odds-coverage') result = await getRepeatedOddsCoverage();

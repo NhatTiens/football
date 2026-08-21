@@ -378,6 +378,41 @@ export async function runHistoryResultWorker(): Promise<{
           },
         });
 
+        await transaction.realtimeOutbox.create({
+          data: {
+            eventType: 'MATCH_FINISHED',
+            aggregateId: String(job.providerFixtureId),
+            payload: jsonValue({
+              event: 'MATCH_FINISHED',
+              type: 'MATCH_FINISHED',
+              version: 1,
+              fixtureId: String(job.providerFixtureId),
+              providerFixtureId: job.providerFixtureId,
+              statusShort: fixture.statusShort,
+              score: { home: fixture.fulltimeHomeGoals, away: fixture.fulltimeAwayGoals },
+              occurredAt: new Date().toISOString(),
+            }),
+          },
+        });
+
+        await transaction.realtimeOutbox.create({
+          data: {
+            eventType: 'PREDICTION_RESULT_UPDATED',
+            aggregateId: String(job.providerFixtureId),
+            payload: jsonValue({
+              event: 'PREDICTION_RESULT_UPDATED',
+              type: 'PREDICTION_RESULT_UPDATED',
+              version: 1,
+              fixtureId: String(job.providerFixtureId),
+              providerFixtureId: job.providerFixtureId,
+              changed: ['result', 'settlement'],
+              score: { home: fixture.fulltimeHomeGoals, away: fixture.fulltimeAwayGoals },
+              statusShort: fixture.statusShort,
+              occurredAt: new Date().toISOString(),
+            }),
+          },
+        });
+
         return inserted.count;
       });
 

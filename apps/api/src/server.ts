@@ -1,3 +1,4 @@
+import '../../../scripts/api-football-quota-preload.mjs';
 import 'dotenv/config';
 import { prisma } from '@football-ai/database';
 import { app } from './app.js';

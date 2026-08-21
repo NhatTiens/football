@@ -18,17 +18,14 @@ import {
   getLineupHistoryLookback,
   runBacktest,
   settleRecommendations,
-  syncFixtures,
-  syncOdds,
-  syncLineups,
-  syncPredictions,
 } from '@football-ai/sync';
 import {
   answerAdvancedPredictionChat,
   detectAdvancedPredictionChatIntent,
   predictionChatCapabilities,
+  getAutomaticPipelineStatus,
+  queueAutomaticForceSync,
   getPersonalUpcomingAnalysis,
-  refreshPersonalUpcomingAnalysis,
 } from '@football-ai/sync';
 import { env } from './env.js';
 import { predictionChatRequestSchema } from './chat-security.js';
@@ -661,44 +658,85 @@ app.get(
   }),
 );
 
-app.post(
-  '/api/admin/sync/fixtures',
-  requireAdmin,
-  asyncRoute(async (request, response) => {
-    const result = await syncFixtures({ from: request.body?.from, to: request.body?.to });
-    response.json(result);
+// AUTOMATIC_PIPELINE_V1_API_ROUTES
+const adminForceSyncLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'ADMIN_FORCE_SYNC_RATE_LIMITED' },
+});
+
+async function queueAdminForceSync(
+  request: Request,
+  response: Response,
+  scope: 'FULL' | 'FIXTURES' | 'PREDICTIONS' | 'CONTEXT' | 'ODDS',
+): Promise<void> {
+  const result = await queueAutomaticForceSync({
+    scope,
+    requestedBy: 'ADMIN',
+    sourceIp: request.ip ?? null,
+    userAgent: request.header('user-agent') ?? null,
+  });
+  response.status(202).json(result);
+}
+
+app.get(
+  '/api/automation/status',
+  asyncRoute(async (_request, response) => {
+    response.json(await getAutomaticPipelineStatus());
   }),
 );
-
-app.post(
-  '/api/admin/sync/odds',
+app.get(
+  '/api/admin/automation/status',
   requireAdmin,
   asyncRoute(async (_request, response) => {
-    response.json(await syncOdds());
+    response.json(await getAutomaticPipelineStatus({ includeAdminDetails: true }));
   }),
 );
-
 app.post(
-  '/api/admin/sync/lineups',
+  '/api/admin/automation/force-sync',
   requireAdmin,
+  adminForceSyncLimiter,
   asyncRoute(async (request, response) => {
-    response.json(
-      await syncLineups({
-        fixtureIds: Array.isArray(request.body?.fixtureIds)
-          ? request.body.fixtureIds.map(Number).filter(Number.isInteger)
-          : undefined,
-        includeHistory: Boolean(request.body?.includeHistory),
-      }),
+    await queueAdminForceSync(
+      request,
+      response,
+      String(request.body?.scope ?? 'FULL').toUpperCase() as
+        | 'FULL'
+        | 'FIXTURES'
+        | 'PREDICTIONS'
+        | 'CONTEXT'
+        | 'ODDS',
     );
   }),
 );
 
 app.post(
+  '/api/admin/sync/fixtures',
+  requireAdmin,
+  adminForceSyncLimiter,
+  asyncRoute(async (request, response) => queueAdminForceSync(request, response, 'FIXTURES')),
+);
+app.post(
+  '/api/admin/sync/odds',
+  requireAdmin,
+  adminForceSyncLimiter,
+  asyncRoute(async (request, response) => queueAdminForceSync(request, response, 'ODDS')),
+);
+app.post(
+  '/api/admin/sync/lineups',
+  requireAdmin,
+  adminForceSyncLimiter,
+  asyncRoute(async (request, response) => queueAdminForceSync(request, response, 'CONTEXT')),
+);
+app.post(
   '/api/admin/sync/predictions',
   requireAdmin,
-  asyncRoute(async (_request, response) => {
-    response.json(await syncPredictions());
-  }),
+  adminForceSyncLimiter,
+  asyncRoute(async (request, response) =>
+    queueAdminForceSync(request, response, 'PREDICTIONS'),
+  ),
 );
 
 app.post(
@@ -891,40 +929,12 @@ app.get(
   }),
 );
 
-app.post(
-  '/api/personal/upcoming/refresh',
-  sensitiveNoStore,
-  requireAllowedWriteOrigin,
-  asyncRoute(requireBacktestResearchAccess),
-  asyncRoute(async (request, response) => {
-    const body = request.body ?? {};
-    const allowedGroups = new Set([
-      'ASEAN',
-      'WAFCON',
-      'UCL',
-      'UEFA_EUROPA',
-      'SEA',
-      'ASIA',
-      'EPL',
-      'LALIGA',
-    ]);
-
-    const groups = Array.isArray(body.groups)
-      ? body.groups
-          .map((value: unknown) => String(value).toUpperCase())
-          .filter((value: string) => allowedGroups.has(value))
-      : ['WAFCON', 'UCL', 'UEFA_EUROPA', 'ASEAN', 'SEA', 'ASIA', 'EPL', 'LALIGA'];
-
-    response.json(
-      await refreshPersonalUpcomingAnalysis({
-        days: body.days ? Number(body.days) : undefined,
-        groups: groups as Array<
-          'ASEAN' | 'WAFCON' | 'UCL' | 'UEFA_EUROPA' | 'SEA' | 'ASIA' | 'EPL' | 'LALIGA'
-        >,
-      }),
-    );
-  }),
-);
+app.post('/api/personal/upcoming/refresh', (_request, response) => {
+  response.status(409).json({
+    error: 'AUTOMATION_MANAGED',
+    message: 'Fixture sync and prediction are managed automatically by the backend worker.',
+  });
+});
 
 app.get('/api/personal/prediction-chat/capabilities', sensitiveNoStore, (_request, response) => {
   response.json(predictionChatCapabilities);

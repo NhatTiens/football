@@ -153,3 +153,5 @@ export * from './v8-monitoring-engine.js';
 export * from './v8-live-data-readiness.js';
 export * from './v8-shadow-release-gate-contract.js';
 export * from './v8-shadow-release-gate.js';
+export * from './automatic-pipeline-core.js';
+export * from './automatic-pipeline-engine.js';

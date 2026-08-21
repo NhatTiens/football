@@ -1,3 +1,8 @@
+import {
+  buildOuGoalDistribution,
+  OU_STRATEGY_MAX_ODDS,
+  probabilityThresholdForOdds,
+} from '@football-ai/engine';
 import { prisma } from '@football-ai/database';
 
 import { getFundamentalsFixturePrediction } from './fundamentals-engine.js';
@@ -46,7 +51,7 @@ import {
 import type { PaperOuModelSelectionStrategyAudit } from './paper-ou-model-selection-core.js';
 
 export const CURRENT_SCIENTIFIC_RECOMMENDATION_VERSION =
-  'v7.0-ou-direct-model-selection-v1';
+  'v7.0-ou-direct-model-selection-v1-ou-goal-distribution-v1';
 
 export type CurrentRecommendationModelSource =
   'DYNAMIC_DIXON_COLES' | 'SCIENTIFIC_BASELINE_FALLBACK';
@@ -210,6 +215,7 @@ export interface CurrentScientificRecommendationAnalysis {
     | 'UNMAPPED_FIXTURE'
     | 'MAPPING_MISMATCH'
     | 'NO_MODEL'
+    | 'INVALID_MODEL_CONSISTENCY'
     | 'NO_COMPLETE_MARKET'
     | 'NO_VALUE_SIGNAL';
   recommendation: CurrentScientificRecommendation | null;
@@ -441,6 +447,13 @@ async function buildCurrentModel(input: {
       rho: fundamentals.dixonColes.rho,
       maximumGoals: 10,
     });
+    const ouDistribution = buildOuGoalDistribution({
+      expectedHomeGoals: fundamentals.homeExpectedGoals,
+      expectedAwayGoals: fundamentals.awayExpectedGoals,
+      rho: fundamentals.dixonColes.rho,
+      maximumGoalsPerTeam: 10,
+      calibrationUnder25: baselineOver25.UNDER,
+    });
 
     let hda = baselineHda;
 
@@ -462,9 +475,10 @@ async function buildCurrentModel(input: {
     return {
       probabilities: {
         MATCH_WINNER: hda,
-        TOTAL_GOALS_1_5: scoreGrid.totalGoals[1.5],
-        TOTAL_GOALS_2_5: scoreGrid.totalGoals[2.5],
-        TOTAL_GOALS_3_5: scoreGrid.totalGoals[3.5],
+        // OU_V9_DYNAMIC_MARKETS
+        TOTAL_GOALS_1_5: ouDistribution.markets.TOTAL_GOALS_1_5,
+        TOTAL_GOALS_2_5: ouDistribution.markets.TOTAL_GOALS_2_5,
+        TOTAL_GOALS_3_5: ouDistribution.markets.TOTAL_GOALS_3_5,
         BTTS: scoreGrid.btts,
       },
       modelVersion: [
@@ -472,6 +486,10 @@ async function buildCurrentModel(input: {
         'SOURCE=DYNAMIC_DIXON_COLES',
         `HDA=${hdaVersion}`,
         'MM=DYNAMIC_DIXON_COLES',
+        // OU_V9_DYNAMIC_LINEAGE
+        `OU=${ouDistribution.version}`,
+        `GDIST=${ouDistribution.goalDistributionId}`,
+        'OU_CAL=COMMON_LOGIT_CDF_SHIFT_ANCHORED_U25',
       ].join('::'),
       paperHdaContext: null,
       modelSource: 'DYNAMIC_DIXON_COLES',
@@ -498,19 +516,21 @@ async function buildCurrentModel(input: {
     homeLineup: baseline.lineupAnalysis.home,
     awayLineup: baseline.lineupAnalysis.away,
   });
-  const baselineScoreGrid = deriveScientificScoreGridMarkets({
-    homeExpectedGoals: baseline.homeExpectedGoals,
-    awayExpectedGoals: baseline.awayExpectedGoals,
+  const ouDistribution = buildOuGoalDistribution({
+    expectedHomeGoals: baseline.homeExpectedGoals,
+    expectedAwayGoals: baseline.awayExpectedGoals,
     rho: 0,
-    maximumGoals: 10,
+    maximumGoalsPerTeam: 10,
+    calibrationUnder25: baselineOver25.UNDER,
   });
 
   return {
     probabilities: {
       MATCH_WINNER: paperHdaContext.probabilities,
-      TOTAL_GOALS_1_5: baselineScoreGrid.totalGoals[1.5],
-      TOTAL_GOALS_2_5: baselineOver25,
-      TOTAL_GOALS_3_5: baselineScoreGrid.totalGoals[3.5],
+      // OU_V9_FALLBACK_MARKETS
+      TOTAL_GOALS_1_5: ouDistribution.markets.TOTAL_GOALS_1_5,
+      TOTAL_GOALS_2_5: ouDistribution.markets.TOTAL_GOALS_2_5,
+      TOTAL_GOALS_3_5: ouDistribution.markets.TOTAL_GOALS_3_5,
       BTTS: baselineBtts,
     },
     modelVersion: [
@@ -518,9 +538,11 @@ async function buildCurrentModel(input: {
       'SOURCE=SCIENTIFIC_BASELINE_FALLBACK',
       `BASE=${SCIENTIFIC_MODEL_VERSION}`,
       `HDA=SCIENTIFIC_BASELINE_BLEND+${paperHdaContext.version}`,
-      'OU25=CALIBRATED_BASELINE',
       'BTTS=SCIENTIFIC_BASELINE',
-      'OU15_OU35=INDEPENDENT_POISSON_PIT_XG',
+      // OU_V9_FALLBACK_LINEAGE
+      `OU=${ouDistribution.version}`,
+      `GDIST=${ouDistribution.goalDistributionId}`,
+      'OU_CAL=COMMON_LOGIT_CDF_SHIFT_ANCHORED_U25',
     ].join('::'),
     paperHdaContext,
     modelSource: 'SCIENTIFIC_BASELINE_FALLBACK',
@@ -531,7 +553,23 @@ async function buildCurrentModel(input: {
     officialPromotionAllowed: false,
   };
 }
+function isOuMarketType(marketType: LiveMarketType): boolean {
+  return marketType.startsWith('TOTAL_GOALS_');
+}
+function currentOuMinimumProbability(decimalOdds: number): number {
+  const fallback = probabilityThresholdForOdds(decimalOdds);
+  const envName =
+    decimalOdds < 1.5 ? 'CURRENT_OU_MIN_PROB_140_150' :
+    decimalOdds < 1.6 ? 'CURRENT_OU_MIN_PROB_150_160' :
+    decimalOdds < 1.8 ? 'CURRENT_OU_MIN_PROB_160_180' :
+    decimalOdds < 2.0 ? 'CURRENT_OU_MIN_PROB_180_200' :
+    decimalOdds < 2.2 ? 'CURRENT_OU_MIN_PROB_200_220' :
+    'CURRENT_OU_MIN_PROB_220_250';
+  return Math.max(0, Math.min(1, envNumber(envName, fallback)));
+}
 function currentSignalAssessment(input: {
+  marketType: LiveMarketType;
+  modelProbability: number;
   decimalOdds: number;
   edge: number;
   expectedValue: number;
@@ -543,6 +581,17 @@ function currentSignalAssessment(input: {
 
   if (input.decimalOdds < SCIENTIFIC_BEST_BET_POLICY.minimumOdds) {
     reasons.push('CURRENT_ODDS_BELOW_MINIMUM');
+  }
+  if (isOuMarketType(input.marketType) && input.decimalOdds > OU_STRATEGY_MAX_ODDS) {
+    reasons.push('CURRENT_ODDS_ABOVE_MAXIMUM');
+  }
+  if (
+    isOuMarketType(input.marketType) &&
+    input.decimalOdds >= SCIENTIFIC_BEST_BET_POLICY.minimumOdds &&
+    input.decimalOdds <= OU_STRATEGY_MAX_ODDS &&
+    input.modelProbability < currentOuMinimumProbability(input.decimalOdds)
+  ) {
+    reasons.push('CURRENT_MODEL_PROBABILITY_BELOW_MINIMUM');
   }
 
   if (input.edge < SCIENTIFIC_BEST_BET_POLICY.minimumEdge) {
@@ -932,6 +981,9 @@ export async function getCurrentScientificRecommendationMap(input: {
             : [...official.rejectionReasons, 'CURRENT_BASELINE_FALLBACK_NOT_OFFICIAL'];
 
           const rawCurrentSignal = currentSignalAssessment({
+            // OU_V10_CURRENT_SIGNAL_CALL
+            marketType: candidate.marketType,
+            modelProbability: candidate.modelProbability,
             decimalOdds: scientific.decimalOdds,
             edge: scientific.edge,
             expectedValue: scientific.expectedValue,
@@ -958,6 +1010,13 @@ export async function getCurrentScientificRecommendationMap(input: {
             minimumOdds: SCIENTIFIC_BEST_BET_POLICY.minimumOdds,
             minimumEdge: SCIENTIFIC_BEST_BET_POLICY.minimumEdge,
             minimumExpectedValue: SCIENTIFIC_BEST_BET_POLICY.minimumExpectedValue,
+            maximumOdds: isOuMarketType(candidate.marketType) ? OU_STRATEGY_MAX_ODDS : null,
+            minimumModelProbability: isOuMarketType(candidate.marketType)
+              ? currentOuMinimumProbability(candidate.decimalOdds)
+              : null,
+            minimumDataQualityScore: isOuMarketType(candidate.marketType)
+              ? envNumber('CURRENT_OU_MIN_DATA_QUALITY_SCORE', 0.4)
+              : null,
             quoteConsensus: resolveCurrentQuoteConsensus({
               groupedOdds: quoteConsensusBySelection,
               quote,
@@ -1115,6 +1174,10 @@ export async function getCurrentScientificRecommendationMap(input: {
         realMoneyExecution: false,
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status: CurrentScientificRecommendationAnalysis['status'] = message.startsWith('MODEL_CONSISTENCY_ERROR')
+        ? 'INVALID_MODEL_CONSISTENCY'
+        : 'NO_MODEL';
       result.set(
         provider.providerFixtureId,
         emptyAnalysis({
@@ -1124,8 +1187,8 @@ export async function getCurrentScientificRecommendationMap(input: {
           horizonMinutes,
           now,
           oddsFreshness,
-          status: 'NO_MODEL',
-          error: error instanceof Error ? error.message : String(error),
+          status,
+          error: message,
         }),
       );
     }

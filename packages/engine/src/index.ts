@@ -5,3 +5,4 @@ export * from './odds-over-under.js';
 export * from './settlement.js';
 
 export * from './lineup.js';
+export * from './ou-engine.js';

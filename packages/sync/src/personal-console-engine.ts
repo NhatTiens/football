@@ -1218,6 +1218,10 @@ export async function getPersonalUpcomingAnalysis(
       NO_MODEL: rows.filter(
         (row: FixtureAnalysisRow): boolean => row.currentRecommendationStatus === 'NO_MODEL',
       ).length,
+      INVALID_MODEL_CONSISTENCY: rows.filter(
+        (row: FixtureAnalysisRow): boolean =>
+          row.currentRecommendationStatus === 'INVALID_MODEL_CONSISTENCY',
+      ).length,
       NO_COMPLETE_MARKET: rows.filter(
         (row: FixtureAnalysisRow): boolean =>
           row.currentRecommendationStatus === 'NO_COMPLETE_MARKET',

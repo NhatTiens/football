@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
+const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
+
 function realtimeUrl(): string {
   const configured = process.env.NEXT_PUBLIC_WS_URL?.trim();
   if (configured) return configured;
@@ -13,6 +15,12 @@ function realtimeUrl(): string {
     window.location.port === '3000';
   const host = localDevelopment ? `${window.location.hostname}:4000` : window.location.host;
   return `${protocol}//${host}/ws`;
+}
+
+type RealtimePayload = Record<string, unknown> & { event?: string; type?: string };
+
+function dispatchRealtime(payload: RealtimePayload): void {
+  window.dispatchEvent(new CustomEvent('football-ai:realtime', { detail: payload }));
 }
 
 export function RealtimeHistoryRefresh() {
@@ -31,8 +39,33 @@ export function RealtimeHistoryRefresh() {
     let fallbackTimer: ReturnType<typeof setInterval> | null = null;
     let reconnectAttempt = 0;
 
-    const refreshHistory = () => {
-      if (pathnameRef.current?.startsWith('/history')) router.refresh();
+    const refreshHistory = (eventName: string) => {
+      if (
+        pathnameRef.current?.startsWith('/history') &&
+        ['history_updated', 'PREDICTION_RESULT_UPDATED', 'MATCH_FINISHED', 'SNAPSHOT_REQUIRED'].includes(
+          eventName,
+        )
+      ) {
+        router.refresh();
+      }
+    };
+
+    const fetchLatestSnapshot = async (reason: string) => {
+      try {
+        const response = await fetch(`${apiUrl}/automation/status`, { cache: 'no-store' });
+        const status = response.ok ? ((await response.json()) as Record<string, unknown>) : null;
+        const payload: RealtimePayload = {
+          event: 'SNAPSHOT_REQUIRED',
+          type: 'SNAPSHOT_REQUIRED',
+          reason,
+          status,
+          occurredAt: new Date().toISOString(),
+        };
+        dispatchRealtime(payload);
+        refreshHistory('SNAPSHOT_REQUIRED');
+      } catch {
+        // Backend-only fallback is best effort. The next reconnect/tick retries.
+      }
     };
 
     const stopFallback = () => {
@@ -42,7 +75,11 @@ export function RealtimeHistoryRefresh() {
 
     const startFallback = () => {
       if (fallbackTimer) return;
-      fallbackTimer = setInterval(refreshHistory, 75_000);
+      void fetchLatestSnapshot('REALTIME_DISCONNECTED');
+      fallbackTimer = setInterval(
+        () => void fetchLatestSnapshot('REALTIME_FALLBACK_POLL'),
+        75_000,
+      );
     };
 
     const connect = () => {
@@ -50,16 +87,18 @@ export function RealtimeHistoryRefresh() {
       socket = new WebSocket(realtimeUrl());
 
       socket.addEventListener('open', () => {
+        const reconnected = reconnectAttempt > 0;
         reconnectAttempt = 0;
         stopFallback();
+        void fetchLatestSnapshot(reconnected ? 'REALTIME_RECONNECTED' : 'REALTIME_CONNECTED');
       });
 
-      socket.addEventListener('message', (event) => {
+      socket.addEventListener('message', (message) => {
         try {
-          const payload = JSON.parse(String(event.data)) as { event?: string };
-          if (payload.event === 'history_updated' || payload.event === 'connected') {
-            refreshHistory();
-          }
+          const payload = JSON.parse(String(message.data)) as RealtimePayload;
+          const eventName = String(payload.event ?? payload.type ?? 'UNKNOWN');
+          dispatchRealtime({ ...payload, event: eventName, type: eventName });
+          refreshHistory(eventName);
         } catch {
           // Ignore non-JSON websocket messages.
         }

@@ -1,0 +1,40 @@
+module.exports = {
+  apps: [
+    {
+      name: 'football-api-realtime',
+      cwd: __dirname + '/..',
+      script: 'node_modules/tsx/dist/cli.mjs',
+      args: 'apps/api/src/realtime-server.ts',
+      autorestart: true,
+      restart_delay: 3000,
+      env: { NODE_ENV: 'production' },
+    },
+    {
+      name: 'football-worker',
+      cwd: __dirname + '/..',
+      script: 'node_modules/tsx/dist/cli.mjs',
+      args: 'apps/worker/src/quota-runner.ts',
+      autorestart: true,
+      restart_delay: 3000,
+      env: { NODE_ENV: 'production', AUTOMATIC_PIPELINE_ENABLED: 'true' },
+    },
+    {
+      name: 'football-result-worker',
+      cwd: __dirname + '/..',
+      script: 'node_modules/tsx/dist/cli.mjs',
+      args: 'packages/sync/src/history-result-runner.ts',
+      autorestart: true,
+      restart_delay: 3000,
+      env: { NODE_ENV: 'production', HISTORY_RESULT_WORKER_OWNER: 'true' },
+    },
+    {
+      name: 'football-web',
+      cwd: __dirname + '/../apps/web',
+      script: '../../node_modules/next/dist/bin/next',
+      args: 'start',
+      autorestart: true,
+      restart_delay: 3000,
+      env: { NODE_ENV: 'production' },
+    },
+  ],
+};
