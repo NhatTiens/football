@@ -26,11 +26,19 @@ function booleanEnvironment(
 export function buildWorkerScheduleConfiguration(
   environment: NodeJS.ProcessEnv = process.env,
 ): WorkerScheduleConfiguration {
-  const repeatedOddsEnabled = booleanEnvironment(environment, 'ODDS_REPEATED_ENABLED', true);
+  // PREDICTION_AI_V7_QUOTA: sync-odds is now bulk-by-date (one call per date
+  // covers every fixture), so the per-fixture repeated-odds job is OFF by
+  // default — the bulk run already accumulates the snapshots needed for odds
+  // movement analysis. Re-enable with ODDS_REPEATED_ENABLED=true only if you
+  // need per-fixture intra-hour precision.
+  const repeatedOddsEnabled = booleanEnvironment(environment, 'ODDS_REPEATED_ENABLED', false);
   const oddsCommand: WorkerCommand = repeatedOddsEnabled ? 'sync-odds-repeated' : 'sync-odds';
+  // PREDICTION_AI_V7_QUOTA: default cadences were aggressively fast (odds every
+  // 5 min, predictions hourly, lineups every 10 min) and could exhaust a Pro
+  // 7.5k/day plan within hours. Defaults are now conservative; override via env.
   const oddsCron = repeatedOddsEnabled
-    ? (environment.ODDS_REPEATED_CRON ?? '*/5 * * * *')
-    : (environment.ODDS_SYNC_CRON ?? '*/15 * * * *');
+    ? (environment.ODDS_REPEATED_CRON ?? '*/30 * * * *')
+    : (environment.ODDS_SYNC_CRON ?? '*/30 * * * *');
   const scienceOwnsProviderSync = booleanEnvironment(
     environment,
     'DEV_SCIENCE_OWNS_PROVIDER_SYNC',
@@ -57,7 +65,7 @@ export function buildWorkerScheduleConfiguration(
         [
           environment.SCIENTIFIC_LIVE_CYCLE_CRON ??
             environment.PAPER_BET_OPERATIONS_CRON ??
-            '15 * * * * *',
+            '*/5 * * * *',
           'scientific-live-cycle',
         ],
         ...(scientificCurrentRefreshEnabled
@@ -68,8 +76,10 @@ export function buildWorkerScheduleConfiguration(
               ],
             ] as WorkerSchedule[])
           : []),
-        [environment.LINEUP_SYNC_CRON ?? '*/10 * * * *', 'sync-lineups'],
-        [environment.PREDICTION_SYNC_CRON ?? '5 */1 * * *', 'sync-predictions'],
+        [environment.LINEUP_SYNC_CRON ?? '*/30 * * * *', 'sync-lineups'],
+        // PREDICTION_AI_V7_QUOTA: API-Football predictions only feed an 8%
+        // blend weight, so refreshing them once a day is enough.
+        [environment.PREDICTION_SYNC_CRON ?? '30 4 * * *', 'sync-predictions'],
         ...sharedSchedules,
       ];
 

@@ -14,6 +14,8 @@ export class ApiFootballError extends Error {
     message: string,
     public readonly status: number,
     public readonly endpoint: string,
+    /** PREDICTION_AI_V7_QUOTA: rate-limit headers captured even on error responses. */
+    public readonly rateLimit?: RateLimitInfo,
   ) {
     super(message);
     this.name = 'ApiFootballError';
@@ -59,7 +61,10 @@ export class ApiFootballClient {
     this.maximumRetries = options.maximumRetries ?? 3;
   }
 
-  async request<T>(endpoint: string, parameters: Record<string, string | number | undefined>): Promise<ApiFootballResult<T>> {
+  async request<T>(
+    endpoint: string,
+    parameters: Record<string, string | number | undefined>,
+  ): Promise<ApiFootballResult<T>> {
     const url = new URL(`${this.baseUrl}/${endpoint.replace(/^\//, '')}`);
     for (const [key, value] of Object.entries(parameters)) {
       if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
@@ -84,18 +89,21 @@ export class ApiFootballClient {
 
         if (!response.ok) {
           const message = `API-Football returned HTTP ${response.status}.`;
-          if ((response.status === 429 || response.status >= 500) && attempt < this.maximumRetries) {
+          if (
+            (response.status === 429 || response.status >= 500) &&
+            attempt < this.maximumRetries
+          ) {
             await wait(Math.min(8_000, 500 * 2 ** attempt));
             continue;
           }
-          throw new ApiFootballError(message, response.status, endpoint);
+          throw new ApiFootballError(message, response.status, endpoint, rateLimit);
         }
 
         const errors = Array.isArray(payload.errors)
           ? payload.errors
           : Object.values(payload.errors ?? {});
         if (errors.length > 0) {
-          throw new ApiFootballError(errors.join('; '), response.status, endpoint);
+          throw new ApiFootballError(errors.join('; '), response.status, endpoint, rateLimit);
         }
 
         return {
@@ -107,7 +115,8 @@ export class ApiFootballClient {
         };
       } catch (error) {
         lastError = error;
-        if (error instanceof ApiFootballError && error.status < 500 && error.status !== 429) throw error;
+        if (error instanceof ApiFootballError && error.status < 500 && error.status !== 429)
+          throw error;
         if (attempt >= this.maximumRetries) break;
         await wait(Math.min(8_000, 500 * 2 ** attempt));
       } finally {
@@ -147,7 +156,16 @@ export class ApiFootballClient {
     });
   }
 
-  getOdds(params: { fixture?: number; league?: number; season?: number; page?: number }) {
+  getOdds(params: {
+    fixture?: number;
+    league?: number;
+    season?: number;
+    /** PREDICTION_AI_V7_QUOTA: bulk-by-date support (YYYY-MM-DD) — one call
+     * returns odds for every fixture that day, replacing N per-fixture calls. */
+    date?: string;
+    timezone?: string;
+    page?: number;
+  }) {
     return this.request<OddsResponse>('odds', params);
   }
 

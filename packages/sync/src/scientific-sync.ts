@@ -5,10 +5,24 @@ import { getApiFootballClient } from './client.js';
 import { getFixtureHoursAhead } from './config.js';
 import {
   SCIENTIFIC_FEATURE_NAMES,
+  SCIENTIFIC_FEATURE_NAMES_V7,
   SCIENTIFIC_MODEL_KEY,
+  SCIENTIFIC_MODEL_VERSION_V7,
+  buildScientificArtifactV7,
+  fitIsotonicRegression,
+  opponentAdjustedPpg,
+  poissonGoalMarkets,
+  predictScientificModel,
   trainScientificArtifact,
+  trainStackingWeights,
+  type ScientificModelArtifact,
   type ScientificTrainingSample,
+  type StackTrainingRow,
 } from './scientific-model.js';
+import {
+  getFixturesMarketFeatureSets,
+  type MarketFeatureSet,
+} from './scientific-market-features.js';
 import { saveScientificModelArtifact } from './scientific-model-registry.js';
 import { fixtureTeamMetricSnapshotHash } from './scientific-snapshots.js';
 import {
@@ -56,12 +70,15 @@ interface TrainingTeamState {
   rating: number;
   matches: Array<{
     kickoffAt: Date;
+    isHome: boolean;
     points: number;
     goalsFor: number;
     goalsAgainst: number;
     expectedGoalsFor: number;
     expectedGoalsAgainst: number;
     shotsOnGoal: number;
+    /** PREDICTION_AI_V7: opponent Elo at that fixture (for opponent-adjusted form). */
+    opponentRating: number | null;
   }>;
 }
 
@@ -122,6 +139,35 @@ function metricKey(fixtureId: number, teamId: number): string {
 
 function createTrainingState(): TrainingTeamState {
   return { rating: 1500, matches: [] };
+}
+
+/** PREDICTION_AI_V7: Elo 1X2 probabilities matching the inference-time helper. */
+function trainingEloProbabilities(
+  homeRating: number,
+  awayRating: number,
+): Record<'HOME' | 'DRAW' | 'AWAY', number> {
+  const homeAdvantage = numberEnvironment('ELO_HOME_ADVANTAGE', 60);
+  const expectedHome = 1 / (1 + 10 ** ((awayRating - (homeRating + homeAdvantage)) / 400));
+  const difference = Math.abs(homeRating + homeAdvantage - awayRating);
+  const drawProbability = clamp(0.29 - difference / 2600, 0.16, 0.3);
+  const decisiveMass = 1 - drawProbability;
+  return {
+    HOME: expectedHome * decisiveMass,
+    DRAW: drawProbability,
+    AWAY: (1 - expectedHome) * decisiveMass,
+  };
+}
+
+/** PREDICTION_AI_V7: convex blend of 1-dimensional component probabilities. */
+function blendComponentsForStack(components: number[][], weights: number[]): number {
+  let total = 0;
+  let weightSum = 0;
+  for (let index = 0; index < components.length; index += 1) {
+    const weight = weights[index] ?? 0;
+    total += (components[index]?.[0] ?? 0.5) * weight;
+    weightSum += weight;
+  }
+  return weightSum > 0 ? total / weightSum : 0.5;
 }
 
 function teamAverages(
@@ -668,6 +714,74 @@ export async function trainScientificModel(
     const samples: ScientificTrainingSample[] = [];
     const homeAdvantage = numberEnvironment('ELO_HOME_ADVANTAGE', 60);
     const kFactor = numberEnvironment('ELO_K_FACTOR', 24);
+    // PREDICTION_AI_V7: per-fixture rich samples carry the component-model
+    // outputs (poisson / elo / market) needed to fit the stacking meta-learner
+    // on a chronological validation split.
+    interface RichTrainingSample extends ScientificTrainingSample {
+      fixtureId: number;
+      homeXg: number;
+      awayXg: number;
+      homeRating: number;
+      awayRating: number;
+      market: MarketFeatureSet;
+    }
+    const richSamples: RichTrainingSample[] = [];
+    const v7Enabled = booleanEnvironment('SCIENTIFIC_V7_ENABLED', true);
+
+    const leagueHomePpg = average(
+      fixtures
+        .filter((fixture) => fixture.homeGoals != null && fixture.awayGoals != null)
+        .map((fixture) =>
+          fixture.homeGoals! > fixture.awayGoals!
+            ? 3
+            : fixture.homeGoals === fixture.awayGoals
+              ? 1
+              : 0,
+        ),
+      1.6,
+    );
+    const leagueAwayPpg = average(
+      fixtures
+        .filter((fixture) => fixture.homeGoals != null && fixture.awayGoals != null)
+        .map((fixture) =>
+          fixture.awayGoals! > fixture.homeGoals!
+            ? 3
+            : fixture.homeGoals === fixture.awayGoals
+              ? 1
+              : 0,
+        ),
+      1.2,
+    );
+
+    // PREDICTION_AI_V7: bulk point-in-time market features (odds captured at or
+    // before each fixture's own kickoff — no look-ahead).
+    const marketByFixture = v7Enabled
+      ? await getFixturesMarketFeatureSets({
+          fixtureIds: fixtures.map((fixture) => fixture.id),
+          asOf: new Date(),
+          asOfByFixture: new Map(fixtures.map((fixture) => [fixture.id, fixture.kickoffAt])),
+          minimumBookmakers: Math.max(
+            1,
+            Math.floor(numberEnvironment('SCIENTIFIC_MARKET_MIN_BOOKMAKERS', 2)),
+          ),
+          maximumAgeHours: Math.max(1, numberEnvironment('SCIENTIFIC_MARKET_MAX_AGE_HOURS', 168)),
+        })
+      : new Map<number, MarketFeatureSet>();
+    const emptyMarket: MarketFeatureSet = {
+      available: false,
+      homeConsensus: null,
+      drawConsensus: null,
+      awayConsensus: null,
+      over25Consensus: null,
+      bttsYesConsensus: null,
+      homeMovement: null,
+      drawMovement: null,
+      awayMovement: null,
+      over25Movement: null,
+      oddsAgeHours: null,
+      bookmakerCount: null,
+      qualityScore: 0,
+    };
 
     for (const fixture of fixtures) {
       if (fixture.homeGoals == null || fixture.awayGoals == null) continue;
@@ -685,6 +799,46 @@ export async function trainScientificModel(
         0.15,
         4.2,
       );
+      const market = marketByFixture.get(fixture.id) ?? emptyMarket;
+
+      // PREDICTION_AI_V7: venue home advantage from each team's own home/away split.
+      const teamHomePpg = (state: TrainingTeamState): number => {
+        const homeMatches = state.matches.filter((match) => match.isHome);
+        if (homeMatches.length < 2) return leagueHomePpg;
+        return homeMatches.reduce((sum, match) => sum + match.points, 0) / homeMatches.length;
+      };
+      const teamAwayPpg = (state: TrainingTeamState): number => {
+        const awayMatches = state.matches.filter((match) => !match.isHome);
+        if (awayMatches.length < 2) return leagueAwayPpg;
+        return awayMatches.reduce((sum, match) => sum + match.points, 0) / awayMatches.length;
+      };
+      const homeVenueAdvantage = clamp(
+        teamHomePpg(homeState) - teamAwayPpg(homeState) - (leagueHomePpg - leagueAwayPpg),
+        -0.8,
+        0.8,
+      );
+      const awayVenueAdvantage = clamp(
+        teamHomePpg(awayState) - teamAwayPpg(awayState) - (leagueHomePpg - leagueAwayPpg),
+        -0.8,
+        0.8,
+      );
+      const homeAdjPpg = opponentAdjustedPpg(homeState.matches);
+      const awayAdjPpg = opponentAdjustedPpg(awayState.matches);
+      const sevenDaysAgo = fixture.kickoffAt.getTime() - 7 * 86_400_000;
+      const homeDensity7 = homeState.matches.filter(
+        (match) => match.kickoffAt.getTime() >= sevenDaysAgo,
+      ).length;
+      const awayDensity7 = awayState.matches.filter(
+        (match) => match.kickoffAt.getTime() >= sevenDaysAgo,
+      ).length;
+      const fourteenDaysAgo = fixture.kickoffAt.getTime() - 14 * 86_400_000;
+      const homeDensity14 = homeState.matches.filter(
+        (match) => match.kickoffAt.getTime() >= fourteenDaysAgo,
+      ).length;
+      const awayDensity14 = awayState.matches.filter(
+        (match) => match.kickoffAt.getTime() >= fourteenDaysAgo,
+      ).length;
+
       const features = [
         (homeState.rating - awayState.rating) / 400,
         (home.pointsPerGame - away.pointsPerGame) / 3,
@@ -701,14 +855,27 @@ export async function trainScientificModel(
         (home.restDays - away.restDays) / 14,
         0,
         0,
-        1,
+        clamp(homeVenueAdvantage - awayVenueAdvantage, -0.8, 0.8),
+        market.homeConsensus ?? 1 / 3,
+        market.drawConsensus ?? 1 / 3,
+        market.awayConsensus ?? 1 / 3,
+        market.over25Consensus ?? 0.5,
+        market.bttsYesConsensus ?? 0.5,
+        clamp((market.homeMovement ?? 0) / 0.1, -1, 1),
+        clamp((market.over25Movement ?? 0) / 0.1, -1, 1),
+        market.available ? 1 : 0,
+        clamp((market.oddsAgeHours ?? 30) / 72, 0, 1),
+        clamp((market.bookmakerCount ?? 0) / 10, 0, 1),
+        clamp((homeAdjPpg - awayAdjPpg) / 1.5, -1, 1),
+        0,
+        clamp((homeDensity7 - awayDensity7) / 3 + (homeDensity14 - awayDensity14) / 6, -1, 1),
       ];
-      if (features.length !== SCIENTIFIC_FEATURE_NAMES.length) {
+      if (features.length !== SCIENTIFIC_FEATURE_NAMES_V7.length) {
         throw new Error('Scientific training feature width mismatch.');
       }
 
       if (homeState.matches.length >= 3 && awayState.matches.length >= 3) {
-        samples.push({
+        const sample: RichTrainingSample = {
           features,
           matchWinnerClass:
             fixture.homeGoals > fixture.awayGoals
@@ -721,7 +888,15 @@ export async function trainScientificModel(
           over35: fixture.homeGoals + fixture.awayGoals > 3.5 ? 1 : 0,
           btts: fixture.homeGoals > 0 && fixture.awayGoals > 0 ? 1 : 0,
           kickoffAt: fixture.kickoffAt,
-        });
+          fixtureId: fixture.id,
+          homeXg: homeExpectedGoals,
+          awayXg: awayExpectedGoals,
+          homeRating: homeState.rating,
+          awayRating: awayState.rating,
+          market,
+        };
+        samples.push(sample);
+        richSamples.push(sample);
       }
 
       const homeMetric = metricMap.get(metricKey(fixture.id, fixture.homeTeamId));
@@ -739,6 +914,7 @@ export async function trainScientificModel(
       awayState.rating -= movement;
       homeState.matches.push({
         kickoffAt: fixture.kickoffAt,
+        isHome: true,
         points:
           fixture.homeGoals > fixture.awayGoals
             ? 3
@@ -750,9 +926,11 @@ export async function trainScientificModel(
         expectedGoalsFor: homeMetric?.expectedGoals ?? fixture.homeGoals,
         expectedGoalsAgainst: awayMetric?.expectedGoals ?? fixture.awayGoals,
         shotsOnGoal: homeMetric?.shotsOnGoal ?? Math.max(1, fixture.homeGoals * 2),
+        opponentRating: awayState.rating,
       });
       awayState.matches.push({
         kickoffAt: fixture.kickoffAt,
+        isHome: false,
         points:
           fixture.awayGoals > fixture.homeGoals
             ? 3
@@ -764,6 +942,7 @@ export async function trainScientificModel(
         expectedGoalsFor: awayMetric?.expectedGoals ?? fixture.awayGoals,
         expectedGoalsAgainst: homeMetric?.expectedGoals ?? fixture.homeGoals,
         shotsOnGoal: awayMetric?.shotsOnGoal ?? Math.max(1, fixture.awayGoals * 2),
+        opponentRating: homeState.rating,
       });
       states.set(fixture.homeTeamId, homeState);
       states.set(fixture.awayTeamId, awayState);
@@ -784,7 +963,7 @@ export async function trainScientificModel(
     }
 
     // PREDICTION_AI_V6_TRAINING_DEFAULTS: Adam + nonlinear ensemble cần learning rate thấp hơn và regularization cao hơn.
-    const artifact = trainScientificArtifact({
+    const baseArtifact = trainScientificArtifact({
       samples,
       epochs: numberEnvironment('SCIENTIFIC_TRAINING_EPOCHS', 360),
       learningRate: numberEnvironment('SCIENTIFIC_TRAINING_RATE', 0.018),
@@ -793,6 +972,108 @@ export async function trainScientificModel(
       ensembleMembers: Math.max(1, Math.floor(numberEnvironment('SCIENTIFIC_ENSEMBLE_MEMBERS', 3))),
       trainedAt: options.trainedAt,
     });
+
+    // PREDICTION_AI_V7_STACKING: fit the meta-learner on a chronological
+    // validation split (the ML component comes from a model that never saw
+    // those rows), then rebuild the base on the full sample set.
+    let artifact: ScientificModelArtifact = baseArtifact;
+    const stackingEnabled = v7Enabled && booleanEnvironment('SCIENTIFIC_STACKING_ENABLED', true);
+    if (stackingEnabled && richSamples.length >= 60) {
+      const validationSize = Math.max(
+        15,
+        Math.min(richSamples.length - 35, Math.floor(richSamples.length * 0.2)),
+      );
+      const validationSamples = richSamples.slice(-validationSize);
+      const trainingOnly = richSamples.slice(0, richSamples.length - validationSize);
+
+      const baseNoValidation = trainScientificArtifact({
+        samples: trainingOnly,
+        epochs: numberEnvironment('SCIENTIFIC_TRAINING_EPOCHS', 360),
+        learningRate: numberEnvironment('SCIENTIFIC_TRAINING_RATE', 0.018),
+        l2: numberEnvironment('SCIENTIFIC_TRAINING_L2', 0.01),
+        randomSeed: Math.floor(numberEnvironment('SCIENTIFIC_TRAINING_SEED', 20260722)),
+        ensembleMembers: Math.max(
+          1,
+          Math.floor(numberEnvironment('SCIENTIFIC_ENSEMBLE_MEMBERS', 3)),
+        ),
+        trainedAt: options.trainedAt,
+      });
+
+      const stackRows: StackTrainingRow[] = [];
+      for (const row of validationSamples) {
+        const mlPrediction = predictScientificModel(baseNoValidation, row.features);
+        const poisson = poissonGoalMarkets(row.homeXg, row.awayXg, 2.5);
+        const eloProbs = trainingEloProbabilities(row.homeRating, row.awayRating);
+        const marketHome = row.market.homeConsensus ?? 1 / 3;
+        const marketDraw = row.market.drawConsensus ?? 1 / 3;
+        const marketAway = row.market.awayConsensus ?? 1 / 3;
+        const marketOver25 = row.market.over25Consensus ?? poisson.total.overConditional;
+        const marketBtts = row.market.bttsYesConsensus ?? poisson.btts.YES;
+        stackRows.push({
+          matchWinnerComponents: [
+            [poisson.matchWinner.HOME, poisson.matchWinner.DRAW, poisson.matchWinner.AWAY],
+            [eloProbs.HOME, eloProbs.DRAW, eloProbs.AWAY],
+            [
+              mlPrediction.matchWinner.HOME,
+              mlPrediction.matchWinner.DRAW,
+              mlPrediction.matchWinner.AWAY,
+            ],
+            [marketHome, marketDraw, marketAway],
+          ],
+          over25Components: [
+            [poisson.total.overConditional],
+            [mlPrediction.over25.OVER],
+            [marketOver25],
+          ],
+          bttsComponents: [[poisson.btts.YES], [mlPrediction.btts.YES], [marketBtts]],
+          matchWinnerClass: row.matchWinnerClass,
+          over25: row.over25,
+          btts: row.btts,
+        });
+      }
+
+      const stacking = trainStackingWeights(stackRows, {
+        epochs: Math.max(20, Math.floor(numberEnvironment('SCIENTIFIC_STACK_EPOCHS', 300))),
+        learningRate: numberEnvironment('SCIENTIFIC_STACK_LR', 0.05),
+        randomSeed: Math.floor(numberEnvironment('SCIENTIFIC_STACK_SEED', 20260821)),
+      });
+
+      // PREDICTION_AI_V7_ISOTONIC: calibrate the STACKED binary probabilities.
+      const isotonicBins = Math.max(
+        4,
+        Math.min(100, Math.floor(numberEnvironment('SCIENTIFIC_ISOTONIC_BINS', 20))),
+      );
+      const over25Stacked = stackRows.map((row) =>
+        blendComponentsForStack(
+          row.over25Components.map((component) => [component[0] ?? 0.5]),
+          stacking.over25,
+        ),
+      );
+      const bttsStacked = stackRows.map((row) =>
+        blendComponentsForStack(
+          row.bttsComponents.map((component) => [component[0] ?? 0.5]),
+          stacking.btts,
+        ),
+      );
+      const isotonic = {
+        over25: fitIsotonicRegression(
+          over25Stacked,
+          stackRows.map((row) => row.over25),
+          isotonicBins,
+        ),
+        btts: fitIsotonicRegression(
+          bttsStacked,
+          stackRows.map((row) => row.btts),
+          isotonicBins,
+        ),
+      };
+
+      artifact = buildScientificArtifactV7({
+        base: baseArtifact,
+        stacking,
+        isotonic,
+      });
+    }
     const existing = await prisma.appSetting.findUnique({
       where: { key: SCIENTIFIC_MODEL_KEY },
     });

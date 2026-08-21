@@ -29,18 +29,22 @@ import {
 } from './fundamentals-engine.js';
 import {
   SCIENTIFIC_FEATURE_NAMES,
+  SCIENTIFIC_FEATURE_NAMES_V7,
   SCIENTIFIC_MODEL_KEY,
+  adaptFeatureWidth,
+  applyStackingBinary,
+  applyStackingMatchWinner,
   calibrateTotalProbability,
   isScientificModelArtifact,
+  opponentAdjustedPpg,
   poissonGoalMarkets,
   predictScientificModel,
+  predictScientificModelV7,
   type ScientificModelArtifact,
   type ScientificModelPrediction,
 } from './scientific-model.js';
-import {
-  buildThreeMarketProjection,
-  type ThreeMarketProjection,
-} from './three-market-core.js';
+import { getFixtureMarketFeatureSet, type MarketFeatureSet } from './scientific-market-features.js';
+import { buildThreeMarketProjection, type ThreeMarketProjection } from './three-market-core.js';
 
 interface HistoryFixtureRow {
   id: number;
@@ -63,12 +67,15 @@ interface MetricRow {
 interface TeamMatchRecord {
   fixtureId: number;
   kickoffAt: Date;
+  isHome: boolean;
   goalsFor: number;
   goalsAgainst: number;
   expectedGoalsFor: number;
   expectedGoalsAgainst: number;
   shotsOnGoal: number;
   points: number;
+  /** Opponent Elo at that fixture (PREDICTION_AI_V7 opponent-adjusted form). */
+  opponentRating: number | null;
 }
 
 interface TeamSummary {
@@ -90,6 +97,8 @@ export interface ScientificFixtureAnalysis {
   predictionAsOf: Date;
   pointInTimeAudit: PointInTimeAuditSummary;
   marketMovement: MatchWinnerOddsMovementAnalysis;
+  /** PREDICTION_AI_V7: three-market (1X2 / O2.5 / BTTS) PIT consensus features. */
+  marketFeatures: MarketFeatureSet;
   fundamentals: FundamentalsFixturePrediction;
   homeExpectedGoals: number;
   awayExpectedGoals: number;
@@ -147,6 +156,7 @@ function buildTeamRecords(
   fixtures: HistoryFixtureRow[],
   metrics: Map<string, MetricRow>,
   teamId: number,
+  ratingsByFixture?: Map<number, { home: number; away: number }>,
 ): TeamMatchRecord[] {
   const records: TeamMatchRecord[] = [];
 
@@ -160,20 +170,75 @@ function buildTeamRecords(
     const goalsAgainst = isHome ? fixture.awayGoals : fixture.homeGoals;
     const ownMetric = metrics.get(metricKey(fixture.id, teamId));
     const opponentMetric = metrics.get(metricKey(fixture.id, opponentId));
+    const fixtureRatings = ratingsByFixture?.get(fixture.id);
 
     records.push({
       fixtureId: fixture.id,
       kickoffAt: fixture.kickoffAt,
+      isHome,
       goalsFor,
       goalsAgainst,
       expectedGoalsFor: ownMetric?.expectedGoals ?? goalsFor,
       expectedGoalsAgainst: opponentMetric?.expectedGoals ?? goalsAgainst,
       shotsOnGoal: ownMetric?.shotsOnGoal ?? Math.max(1, Math.round(goalsFor * 2.4)),
       points: goalsFor > goalsAgainst ? 3 : goalsFor === goalsAgainst ? 1 : 0,
+      opponentRating: fixtureRatings ? (isHome ? fixtureRatings.away : fixtureRatings.home) : null,
     });
   }
 
   return records.sort((left, right) => right.kickoffAt.getTime() - left.kickoffAt.getTime());
+}
+
+/**
+ * PREDICTION_AI_V7: online Elo series — final ratings plus the rating of every
+ * team at the time of each historical fixture (used for opponent-adjusted form
+ * and injury/lineup context weighting without look-ahead bias).
+ */
+function calculateEloSeries(
+  fixtures: HistoryFixtureRow[],
+): Map<number, { home: number; away: number }> {
+  const kFactor = numberEnvironment('ELO_K_FACTOR', 24);
+  const homeAdvantage = numberEnvironment('ELO_HOME_ADVANTAGE', 60);
+  const ratings = new Map<number, number>();
+  const series = new Map<number, { home: number; away: number }>();
+  const chronological = [...fixtures].sort(
+    (left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime(),
+  );
+
+  for (const fixture of chronological) {
+    const homeRating = ratings.get(fixture.homeTeamId) ?? 1500;
+    const awayRating = ratings.get(fixture.awayTeamId) ?? 1500;
+    series.set(fixture.id, { home: homeRating, away: awayRating });
+    if (fixture.homeGoals == null || fixture.awayGoals == null) continue;
+    const expectedHome = 1 / (1 + 10 ** ((awayRating - (homeRating + homeAdvantage)) / 400));
+    const actualHome =
+      fixture.homeGoals > fixture.awayGoals ? 1 : fixture.homeGoals === fixture.awayGoals ? 0.5 : 0;
+    const movement = kFactor * (actualHome - expectedHome);
+    ratings.set(fixture.homeTeamId, homeRating + movement);
+    ratings.set(fixture.awayTeamId, awayRating - movement);
+  }
+
+  return series;
+}
+
+/** PREDICTION_AI_V7: matches played in the last `days` before kickoff (fatigue density). */
+function recentMatchDensity(records: TeamMatchRecord[], kickoffAt: Date, days: number): number {
+  const cutoff = kickoffAt.getTime() - days * 86_400_000;
+  return records.filter((record) => record.kickoffAt.getTime() >= cutoff).length;
+}
+
+/** PREDICTION_AI_V7: team-specific home advantage vs league venue split. */
+function teamHomeAdvantage(
+  records: TeamMatchRecord[],
+  leagueHomePpg: number,
+  leagueAwayPpg: number,
+): number {
+  const homeMatches = records.filter((record) => record.isHome);
+  const awayMatches = records.filter((record) => !record.isHome);
+  if (homeMatches.length < 2 || awayMatches.length < 2) return 0;
+  const homePpg = homeMatches.reduce((sum, record) => sum + record.points, 0) / homeMatches.length;
+  const awayPpg = awayMatches.reduce((sum, record) => sum + record.points, 0) / awayMatches.length;
+  return clamp(homePpg - awayPpg - (leagueHomePpg - leagueAwayPpg), -0.8, 0.8);
 }
 
 function summarizeTeam(
@@ -462,8 +527,9 @@ export async function getScientificFixtureAnalysis(input: {
     1.2,
   );
 
-  const homeRecords = buildTeamRecords(history, metricMap, input.homeTeamId);
-  const awayRecords = buildTeamRecords(history, metricMap, input.awayTeamId);
+  const eloSeries = calculateEloSeries(history);
+  const homeRecords = buildTeamRecords(history, metricMap, input.homeTeamId, eloSeries);
+  const awayRecords = buildTeamRecords(history, metricMap, input.awayTeamId, eloSeries);
   const homeSummary = summarizeTeam(homeRecords, historyLimit, input.kickoffAt, leagueHomeXg);
   const awaySummary = summarizeTeam(awayRecords, historyLimit, input.kickoffAt, leagueAwayXg);
 
@@ -477,54 +543,64 @@ export async function getScientificFixtureAnalysis(input: {
     injurySnapshot,
     injuryCoverageSnapshot,
     lineupCoverageSnapshot,
+    marketFeatures,
   ] = await Promise.all([
-      getFixtureLineupAnalysis({
+    getFixtureLineupAnalysis({
+      fixtureId: input.fixtureId,
+      homeTeamId: input.homeTeamId,
+      homeTeamName: input.homeTeamName,
+      awayTeamId: input.awayTeamId,
+      awayTeamName: input.awayTeamName,
+      kickoffAt: input.kickoffAt,
+      asOf: predictionAsOf,
+      historyLookback: Math.max(3, Math.floor(numberEnvironment('LINEUP_HISTORY_LOOKBACK', 10))),
+      rules: getLineupAnalysisRules(),
+    }),
+    prisma.fixtureInjury.findMany({
+      where: { fixtureId: input.fixtureId, capturedAt: { lte: predictionAsOf } },
+      select: { teamId: true, apiPlayerId: true, capturedAt: true },
+    }),
+    prisma.fixtureScientificCoverage.findUnique({
+      where: { fixtureId: input.fixtureId },
+    }),
+    prisma.fixtureLineupSnapshot.findMany({
+      where: {
         fixtureId: input.fixtureId,
-        homeTeamId: input.homeTeamId,
-        homeTeamName: input.homeTeamName,
-        awayTeamId: input.awayTeamId,
-        awayTeamName: input.awayTeamName,
-        kickoffAt: input.kickoffAt,
-        asOf: predictionAsOf,
-        historyLookback: Math.max(3, Math.floor(numberEnvironment('LINEUP_HISTORY_LOOKBACK', 10))),
-        rules: getLineupAnalysisRules(),
-      }),
-      prisma.fixtureInjury.findMany({
-        where: { fixtureId: input.fixtureId, capturedAt: { lte: predictionAsOf } },
-        select: { teamId: true, apiPlayerId: true, capturedAt: true },
-      }),
-      prisma.fixtureScientificCoverage.findUnique({
-        where: { fixtureId: input.fixtureId },
-      }),
-      prisma.fixtureLineupSnapshot.findMany({
-        where: {
-          fixtureId: input.fixtureId,
-          teamId: { in: [input.homeTeamId, input.awayTeamId] },
-          capturedAt: { lte: predictionAsOf },
-        },
-        select: { teamId: true, formation: true, capturedAt: true },
-        orderBy: { capturedAt: 'desc' },
-      }),
-      getExternalPredictionSnapshotAsOf({
-        fixtureId: input.fixtureId,
-        predictionAsOf,
-      }),
-      prisma.appSetting.findUnique({ where: { key: SCIENTIFIC_MODEL_KEY } }),
-      getFixtureInjurySnapshotAsOf({
-        fixtureId: input.fixtureId,
-        predictionAsOf,
-      }),
-      getFixtureContextCoverageAsOf({
-        fixtureId: input.fixtureId,
-        dataType: 'INJURY',
-        predictionAsOf,
-      }),
-      getFixtureContextCoverageAsOf({
-        fixtureId: input.fixtureId,
-        dataType: 'LINEUP',
-        predictionAsOf,
-      }),
-    ]);
+        teamId: { in: [input.homeTeamId, input.awayTeamId] },
+        capturedAt: { lte: predictionAsOf },
+      },
+      select: { teamId: true, formation: true, capturedAt: true },
+      orderBy: { capturedAt: 'desc' },
+    }),
+    getExternalPredictionSnapshotAsOf({
+      fixtureId: input.fixtureId,
+      predictionAsOf,
+    }),
+    prisma.appSetting.findUnique({ where: { key: SCIENTIFIC_MODEL_KEY } }),
+    getFixtureInjurySnapshotAsOf({
+      fixtureId: input.fixtureId,
+      predictionAsOf,
+    }),
+    getFixtureContextCoverageAsOf({
+      fixtureId: input.fixtureId,
+      dataType: 'INJURY',
+      predictionAsOf,
+    }),
+    getFixtureContextCoverageAsOf({
+      fixtureId: input.fixtureId,
+      dataType: 'LINEUP',
+      predictionAsOf,
+    }),
+    getFixtureMarketFeatureSet({
+      fixtureId: input.fixtureId,
+      predictionAsOf,
+      minimumBookmakers: Math.max(
+        1,
+        Math.floor(numberEnvironment('SCIENTIFIC_MARKET_MIN_BOOKMAKERS', 2)),
+      ),
+      maximumAgeHours: Math.max(1, numberEnvironment('SCIENTIFIC_MARKET_MAX_AGE_HOURS', 168)),
+    }),
+  ]);
 
   const injuryRows = injurySnapshot?.players ?? legacyInjuryRows;
   const marketMovement = await getMatchWinnerOddsMovement({
@@ -597,6 +673,13 @@ export async function getScientificFixtureAnalysis(input: {
       lineupCoverageSnapshot.capturedAt,
       { responseCount: lineupCoverageSnapshot.responseCount },
     );
+  }
+  if (marketFeatures.available) {
+    audit.register('MARKET_FEATURES', `fixture:${input.fixtureId}`, predictionAsOf, {
+      bookmakerCount: marketFeatures.bookmakerCount,
+      qualityScore: marketFeatures.qualityScore,
+      oddsAgeHours: marketFeatures.oddsAgeHours,
+    });
   }
   if (statisticsCoverageAvailable && coverage?.statisticsFetchedAt) {
     audit.register(
@@ -699,6 +782,54 @@ export async function getScientificFixtureAnalysis(input: {
     );
   }
   const elo = calculateEloAsOf(history, input.homeTeamId, input.awayTeamId);
+
+  // PREDICTION_AI_V7_FEATURES: opponent-adjusted form, venue home advantage,
+  // fatigue density and market consensus/movement features.
+  const leagueHomePpg = average(
+    history
+      .filter((fixture) => fixture.homeGoals != null && fixture.awayGoals != null)
+      .map((fixture) =>
+        fixture.homeGoals! > fixture.awayGoals!
+          ? 3
+          : fixture.homeGoals === fixture.awayGoals
+            ? 1
+            : 0,
+      ),
+    1.6,
+  );
+  const leagueAwayPpg = average(
+    history
+      .filter((fixture) => fixture.homeGoals != null && fixture.awayGoals != null)
+      .map((fixture) =>
+        fixture.awayGoals! > fixture.homeGoals!
+          ? 3
+          : fixture.homeGoals === fixture.awayGoals
+            ? 1
+            : 0,
+      ),
+    1.2,
+  );
+  const homeAdjPpg = opponentAdjustedPpg(homeRecords);
+  const awayAdjPpg = opponentAdjustedPpg(awayRecords);
+  const homeVenueAdvantage = teamHomeAdvantage(homeRecords, leagueHomePpg, leagueAwayPpg);
+  const awayVenueAdvantage = teamHomeAdvantage(awayRecords, leagueHomePpg, leagueAwayPpg);
+  const homeDensity7 = recentMatchDensity(homeRecords, input.kickoffAt, 7);
+  const awayDensity7 = recentMatchDensity(awayRecords, input.kickoffAt, 7);
+  const homeDensity14 = recentMatchDensity(homeRecords, input.kickoffAt, 14);
+  const awayDensity14 = recentMatchDensity(awayRecords, input.kickoffAt, 14);
+  const injuryWeightedHome = homeInjuries.length + homeRegulars * 2;
+  const injuryWeightedAway = awayInjuries.length + awayRegulars * 2;
+
+  const marketHomeConsensus = marketFeatures.homeConsensus ?? 1 / 3;
+  const marketDrawConsensus = marketFeatures.drawConsensus ?? 1 / 3;
+  const marketAwayConsensus = marketFeatures.awayConsensus ?? 1 / 3;
+  const marketOver25Consensus = marketFeatures.over25Consensus ?? 0.5;
+  const marketBttsYesConsensus = marketFeatures.bttsYesConsensus ?? 0.5;
+  const marketMoveHome = marketFeatures.homeMovement ?? 0;
+  const marketMoveOver25 = marketFeatures.over25Movement ?? 0;
+  const marketOddsAgeHours = marketFeatures.oddsAgeHours ?? 30;
+  const marketBookmakerCount = marketFeatures.bookmakerCount ?? 0;
+
   const featureVector = [
     (elo.home - elo.away) / 400,
     (homeSummary.pointsPerGame - awaySummary.pointsPerGame) / 3,
@@ -715,7 +846,20 @@ export async function getScientificFixtureAnalysis(input: {
     (homeSummary.restDays - awaySummary.restDays) / 14,
     homeTacticalScore + awayTacticalScore,
     lineupAnalysis.overProbabilityAdjustment / 0.025,
-    1,
+    clamp(homeVenueAdvantage - awayVenueAdvantage, -0.8, 0.8),
+    marketHomeConsensus,
+    marketDrawConsensus,
+    marketAwayConsensus,
+    marketOver25Consensus,
+    marketBttsYesConsensus,
+    clamp(marketMoveHome / 0.1, -1, 1),
+    clamp(marketMoveOver25 / 0.1, -1, 1),
+    marketFeatures.available ? 1 : 0,
+    clamp(marketOddsAgeHours / 72, 0, 1),
+    clamp(marketBookmakerCount / 10, 0, 1),
+    clamp((homeAdjPpg - awayAdjPpg) / 1.5, -1, 1),
+    clamp((injuryWeightedAway - injuryWeightedHome) / 6, -1, 1),
+    clamp((homeDensity7 - awayDensity7) / 3 + (homeDensity14 - awayDensity14) / 6, -1, 1),
   ];
 
   const storedArtifact = parseStoredArtifact(setting?.value);
@@ -739,12 +883,41 @@ export async function getScientificFixtureAnalysis(input: {
   }
 
   const useMachineLearning = input.useMachineLearning ?? true;
-  const modelPrediction =
-    artifact && useMachineLearning ? predictScientificModel(artifact, featureVector) : null;
+  const isV7Artifact = artifact?.version === 'scientific-ensemble-dixon-coles-v7';
+
+  // PREDICTION_AI_V7: market consensus as a prediction component (for stacking).
+  const marketMatchWinner = marketFeatures.available
+    ? {
+        HOME: marketFeatures.homeConsensus ?? 1 / 3,
+        DRAW: marketFeatures.drawConsensus ?? 1 / 3,
+        AWAY: marketFeatures.awayConsensus ?? 1 / 3,
+      }
+    : null;
 
   const poisson25 = poissonGoalMarkets(homeExpectedGoals, awayExpectedGoals, 2.5);
   const eloProbabilities = eloMatchWinnerProbabilities(elo.home, elo.away);
   const externalProbabilities = externalPredictionRecord(external);
+
+  const modelPrediction =
+    !artifact || !useMachineLearning
+      ? null
+      : isV7Artifact
+        ? predictScientificModelV7({
+            artifact,
+            features: featureVector,
+            poissonMatchWinner: poisson25.matchWinner,
+            poissonOver25: poisson25.total.overConditional,
+            poissonBttsYes: poisson25.btts.YES,
+            eloMatchWinner: eloProbabilities,
+            marketMatchWinner,
+            marketOver25: marketFeatures.over25Consensus,
+            marketBttsYes: marketFeatures.bttsYesConsensus,
+            horizonMinutes: Math.max(
+              0,
+              Math.round((input.kickoffAt.getTime() - predictionAsOf.getTime()) / 60_000),
+            ),
+          })
+        : predictScientificModel(artifact, featureVector);
   // PREDICTION_AI_V6_FEATURE_BLEND: hạ trọng số ML khi mẫu ít hoặc ensemble bất đồng.
   const modelUncertainty = modelPrediction?.uncertainty;
   const modelSampleReliability = clamp(
@@ -752,55 +925,70 @@ export async function getScientificFixtureAnalysis(input: {
     0.35,
     1,
   );
-  const mlWinnerWeight = modelPrediction
-    ? clamp(
-        0.38 * modelSampleReliability * (1 - (modelUncertainty?.matchWinner ?? 0) * 4),
-        0.14,
-        0.42,
-      )
-    : 0;
-  const poissonWinnerWeight = modelPrediction
-    ? clamp(0.46 - mlWinnerWeight * 0.3, 0.31, 0.46)
-    : 0.48;
-  const matchWinnerComponents: Array<{
-    probabilities: Record<'HOME' | 'DRAW' | 'AWAY', number>;
-    weight: number;
-  }> = [
-    { probabilities: poisson25.matchWinner, weight: poissonWinnerWeight },
-    { probabilities: eloProbabilities, weight: 0.24 },
-  ];
-  if (modelPrediction) {
-    matchWinnerComponents.push({
-      probabilities: modelPrediction.matchWinner,
-      weight: mlWinnerWeight,
-    });
-  }
-  if (externalProbabilities) {
-    matchWinnerComponents.push({ probabilities: externalProbabilities, weight: 0.08 });
-  }
+  // PREDICTION_AI_V7_STACKED_BLEND: when the v7 artifact carries learned
+  // stacking weights, the model prediction is already the final blend
+  // (poisson + elo + ml + market) with isotonic calibration, so the legacy
+  // hand-tuned blend below is skipped for the stacked markets.
+  const v7Stacked = Boolean(isV7Artifact && artifact?.stacking && modelPrediction);
+  let matchWinner: Record<'HOME' | 'DRAW' | 'AWAY', number>;
+  let over25: Record<'OVER' | 'UNDER', number>;
+  let btts: Record<'YES' | 'NO', number>;
 
-  const matchWinner = weightedRecordBlend(matchWinnerComponents);
-  const over25Over = calibrateTotalProbability({
-    lineProbability: poisson25.total.overConditional,
-    poissonOver25: poisson25.total.overConditional,
-    modelOver25: modelPrediction?.over25.OVER,
-    calibrationWeight: 0.58,
-    modelUncertainty: modelUncertainty?.over25,
-    dataQuality: modelSampleReliability,
-  });
-  const over25 = normalizeProbabilities({
-    OVER: over25Over,
-    UNDER: 1 - over25Over,
-  });
-  const bttsMlWeight = modelPrediction
-    ? clamp(0.48 * modelSampleReliability * (1 - (modelUncertainty?.btts ?? 0) * 4), 0.15, 0.48)
-    : 0;
-  const btts = modelPrediction
-    ? weightedRecordBlend([
-        { probabilities: poisson25.btts, weight: 1 - bttsMlWeight },
-        { probabilities: modelPrediction.btts, weight: bttsMlWeight },
-      ])
-    : poisson25.btts;
+  if (v7Stacked) {
+    matchWinner = modelPrediction!.matchWinner;
+    over25 = modelPrediction!.over25;
+    btts = modelPrediction!.btts;
+  } else {
+    const mlWinnerWeight = modelPrediction
+      ? clamp(
+          0.38 * modelSampleReliability * (1 - (modelUncertainty?.matchWinner ?? 0) * 4),
+          0.14,
+          0.42,
+        )
+      : 0;
+    const poissonWinnerWeight = modelPrediction
+      ? clamp(0.46 - mlWinnerWeight * 0.3, 0.31, 0.46)
+      : 0.48;
+    const matchWinnerComponents: Array<{
+      probabilities: Record<'HOME' | 'DRAW' | 'AWAY', number>;
+      weight: number;
+    }> = [
+      { probabilities: poisson25.matchWinner, weight: poissonWinnerWeight },
+      { probabilities: eloProbabilities, weight: 0.24 },
+    ];
+    if (modelPrediction) {
+      matchWinnerComponents.push({
+        probabilities: modelPrediction.matchWinner,
+        weight: mlWinnerWeight,
+      });
+    }
+    if (externalProbabilities) {
+      matchWinnerComponents.push({ probabilities: externalProbabilities, weight: 0.08 });
+    }
+
+    matchWinner = weightedRecordBlend(matchWinnerComponents);
+    const over25Over = calibrateTotalProbability({
+      lineProbability: poisson25.total.overConditional,
+      poissonOver25: poisson25.total.overConditional,
+      modelOver25: modelPrediction?.over25.OVER,
+      calibrationWeight: 0.58,
+      modelUncertainty: modelUncertainty?.over25,
+      dataQuality: modelSampleReliability,
+    });
+    over25 = normalizeProbabilities({
+      OVER: over25Over,
+      UNDER: 1 - over25Over,
+    });
+    const bttsMlWeight = modelPrediction
+      ? clamp(0.48 * modelSampleReliability * (1 - (modelUncertainty?.btts ?? 0) * 4), 0.15, 0.48)
+      : 0;
+    btts = modelPrediction
+      ? weightedRecordBlend([
+          { probabilities: poisson25.btts, weight: 1 - bttsMlWeight },
+          { probabilities: modelPrediction.btts, weight: bttsMlWeight },
+        ])
+      : poisson25.btts;
+  }
 
   const historySampleSize = Math.min(homeSummary.matches, awaySummary.matches);
   const historyQuality = clamp(historySampleSize / historyLimit, 0.1, 1);
@@ -873,10 +1061,13 @@ export async function getScientificFixtureAnalysis(input: {
   });
   const reasons = [
     `xG kỳ vọng: ${input.homeTeamName} ${homeExpectedGoals.toFixed(2)} - ${awayExpectedGoals.toFixed(2)} ${input.awayTeamName}.`,
-    `Phong độ ${historyLimit} trận: ${homeSummary.pointsPerGame.toFixed(2)} - ${awaySummary.pointsPerGame.toFixed(2)} điểm/trận.`,
+    `Phong độ ${historyLimit} trận: ${homeSummary.pointsPerGame.toFixed(2)} - ${awaySummary.pointsPerGame.toFixed(2)} điểm/trận; adjusted: ${homeAdjPpg.toFixed(2)} - ${awayAdjPpg.toFixed(2)}.`,
     `Elo trước trận: ${Math.round(elo.home)} - ${Math.round(elo.away)}.`,
     `Chấn thương ghi nhận: ${homeInjuries.length} - ${awayInjuries.length}; cầu thủ thường đá chính: ${homeRegulars} - ${awayRegulars}.`,
     `Chiến thuật/đội hình: ${homeFormation ?? 'chưa rõ'} - ${awayFormation ?? 'chưa rõ'}.`,
+    marketFeatures.available
+      ? `Market consensus 1X2: ${(marketHomeConsensus * 100).toFixed(1)}% - ${(marketDrawConsensus * 100).toFixed(1)}% - ${(marketAwayConsensus * 100).toFixed(1)}% (${marketBookmakerCount} nhà cái, odds age ${marketOddsAgeHours.toFixed(1)}h, quality ${(marketFeatures.qualityScore * 100).toFixed(0)}%).`
+      : 'Chưa đủ odds snapshot cho market features v7.',
     modelPrediction
       ? `Machine learning ${artifact?.version ?? ''}, mẫu huấn luyện ${artifact?.sampleSize ?? 0}.`
       : storedArtifact && !modelAllowedByTime
@@ -893,11 +1084,12 @@ export async function getScientificFixtureAnalysis(input: {
     predictionAsOf,
     pointInTimeAudit: audit.summary(),
     marketMovement,
+    marketFeatures,
     fundamentals: fundamentalsPrediction,
     homeExpectedGoals,
     awayExpectedGoals,
     featureVector,
-    featureNames: SCIENTIFIC_FEATURE_NAMES,
+    featureNames: SCIENTIFIC_FEATURE_NAMES_V7,
     matchWinner,
     over25,
     btts,

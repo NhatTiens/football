@@ -218,10 +218,37 @@ async function emitRealtime(event: string, aggregateId: string, payload: JsonRec
 
 async function latestQuota(now: Date): Promise<{ dailyLimit: number; used: number; remaining: number } | null> {
   try {
-    return await db.apiQuotaDaily.findUnique({ where: { quotaDate: quotaDateUtc(now) } });
+    const row = await db.apiQuotaDaily.findUnique({ where: { quotaDate: quotaDateUtc(now) } });
+    if (row) return row;
   } catch {
-    return null;
+    // fall through to usage aggregation
   }
+  // PREDICTION_AI_V7_QUOTA: if no ApiQuotaDaily row exists yet (older data),
+  // derive the quota from today's ApiUsage rows so the dashboard shows real
+  // numbers instead of the 7500 default.
+  try {
+    const todayStart = new Date(`${quotaDateUtc(now)}T00:00:00.000Z`);
+    const usages = await db.apiUsage.findMany({
+      where: { requestDate: { gte: todayStart } },
+      select: { dailyLimit: true, dailyRemaining: true },
+      orderBy: { id: 'desc' },
+      take: 100,
+    });
+    const latest = usages.find(
+      (usage: { dailyLimit: number | null; dailyRemaining: number | null }) =>
+        usage.dailyLimit != null && usage.dailyRemaining != null,
+    );
+    if (latest?.dailyLimit != null && latest.dailyRemaining != null) {
+      return {
+        dailyLimit: latest.dailyLimit,
+        used: Math.max(0, latest.dailyLimit - latest.dailyRemaining),
+        remaining: latest.dailyRemaining,
+      };
+    }
+  } catch {
+    // ignore aggregation errors
+  }
+  return null;
 }
 
 function quotaStateFromRow(

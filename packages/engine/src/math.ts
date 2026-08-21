@@ -62,8 +62,7 @@ export function median(values: number[]): number {
 export function standardDeviation(values: number[]): number {
   if (values.length <= 1) return 0;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const variance =
-    values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
   return Math.sqrt(variance);
 }
 
@@ -73,8 +72,72 @@ export function normalizeProbabilities<T extends string>(
   const entries = Object.entries(probabilities) as [T, number][];
   const total = entries.reduce((sum, [, value]) => sum + Math.max(0, value), 0);
   if (total <= 0) throw new Error('Probabilities must have a positive total.');
-  return Object.fromEntries(entries.map(([key, value]) => [key, Math.max(0, value) / total])) as Record<
-    T,
-    number
-  >;
+  return Object.fromEntries(
+    entries.map(([key, value]) => [key, Math.max(0, value) / total]),
+  ) as Record<T, number>;
+}
+
+// ============================================================================
+// PREDICTION_AI_V7 helpers — shared numeric/statistical utilities
+// ============================================================================
+
+export function mean(values: number[]): number {
+  if (values.length === 0) throw new Error('Mean requires at least one value.');
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+export function softmax(values: number[]): number[] {
+  const maximum = Math.max(...values);
+  const exponentials = values.map((value) => Math.exp(value - maximum));
+  const total = exponentials.reduce((sum, value) => sum + value, 0);
+  return exponentials.map((value) => value / total);
+}
+
+export function sigmoid(value: number): number {
+  if (value >= 0) {
+    const exponential = Math.exp(-value);
+    return 1 / (1 + exponential);
+  }
+  const exponential = Math.exp(value);
+  return exponential / (1 + exponential);
+}
+
+export function logit(probability: number): number {
+  const bounded = clamp(probability, 1e-9, 1 - 1e-9);
+  return Math.log(bounded / (1 - bounded));
+}
+
+export function inverseLogit(value: number): number {
+  return sigmoid(value);
+}
+
+export function weightedMean(values: number[], weights: number[]): number {
+  if (values.length === 0) throw new Error('Weighted mean requires at least one value.');
+  const totalWeight = weights.reduce((sum, weight) => sum + Math.max(0, weight), 0);
+  if (totalWeight <= 0) return mean(values);
+  return (
+    values.reduce((sum, value, index) => sum + value * Math.max(0, weights[index] ?? 0), 0) /
+    totalWeight
+  );
+}
+
+/**
+ * Exponential recency decay weight for a sample that is `ageDays` old.
+ * After one half-life the sample contributes half of its original weight.
+ */
+export function expDecayWeight(ageDays: number, halfLifeDays = 60): number {
+  if (!Number.isFinite(ageDays) || ageDays < 0) return 0;
+  if (halfLifeDays <= 0) return 1;
+  return Math.exp((-ageDays * Math.LN2) / halfLifeDays);
+}
+
+/**
+ * Effective sample size of a weight vector (Kish's formula).
+ * Used to know how much information a recency-weighted average really holds.
+ */
+export function effectiveSampleSize(weights: number[]): number {
+  const total = weights.reduce((sum, weight) => sum + Math.max(0, weight), 0);
+  if (total <= 0) return 0;
+  const squared = weights.reduce((sum, weight) => sum + Math.max(0, weight) ** 2, 0);
+  return squared > 0 ? total ** 2 / squared : 0;
 }

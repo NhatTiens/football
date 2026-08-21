@@ -1,21 +1,22 @@
 import { createHash } from 'node:crypto';
 import type { LineupPlayerResponse, LineupResponse } from '@football-ai/api-football';
-import {
-  FixtureStatus,
-  prisma,
-  type InputJsonValue,
-} from '@football-ai/database';
+import { FixtureStatus, prisma, type InputJsonValue } from '@football-ai/database';
 import { getApiFootballClient } from './client.js';
 import { saveFixtureContextCoverageSnapshot } from './context-snapshots.js';
+import { getLineupHistoryImportDays, getLineupSyncHoursAhead } from './config.js';
 import {
-  getLineupHistoryImportDays,
-  getLineupSyncHoursAhead,
-} from './config.js';
-import {
+  apiQuotaAllowsRequest,
+  apiQuotaReserveFromEnvironment,
   runTrackedSync,
   trackApiResult,
   type SyncSummary,
 } from './tracking.js';
+
+/** PREDICTION_AI_V7_QUOTA: max fixtures per lineup run (default 10). */
+function lineupsSyncMaxFixtures(): number {
+  const parsed = Number(process.env.LINEUP_SYNC_MAX_FIXTURES);
+  return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 10;
+}
 
 interface SaveLineupSummary {
   processed: number;
@@ -52,9 +53,7 @@ function normalizePlayerRows(
     }))
     .filter(
       (player) =>
-        Number.isInteger(player.apiPlayerId) &&
-        player.apiPlayerId > 0 &&
-        player.name.length > 0,
+        Number.isInteger(player.apiPlayerId) && player.apiPlayerId > 0 && player.name.length > 0,
     );
 }
 
@@ -151,9 +150,7 @@ async function saveLineupResponse(
       teamId: team.id,
       formation: item.formation?.trim() || null,
       coachApiId:
-        item.coach?.id === null || item.coach?.id === undefined
-          ? null
-          : Number(item.coach.id),
+        item.coach?.id === null || item.coach?.id === undefined ? null : Number(item.coach.id),
       coachName: item.coach?.name?.trim() || null,
       isConfirmed: starters.length >= 11,
       starterCount: starters.length,
@@ -182,19 +179,25 @@ export interface SyncLineupsOptions {
   includeHistory?: boolean;
 }
 
-export async function syncLineups(
-  options: SyncLineupsOptions = {},
-): Promise<SyncSummary> {
+export async function syncLineups(options: SyncLineupsOptions = {}): Promise<SyncSummary> {
   return runTrackedSync(
     options.includeHistory ? 'sync-lineups-history' : 'sync-lineups',
     async () => {
       const now = new Date();
-      const maximum = new Date(
-        now.getTime() + getLineupSyncHoursAhead() * 3_600_000,
-      );
-      const historyMinimum = new Date(
-        now.getTime() - getLineupHistoryImportDays() * 86_400_000,
-      );
+      const maximum = new Date(now.getTime() + getLineupSyncHoursAhead() * 3_600_000);
+      const historyMinimum = new Date(now.getTime() - getLineupHistoryImportDays() * 86_400_000);
+
+      // PREDICTION_AI_V7_QUOTA: lineups refresh can wait — skip when the daily
+      // budget is at or below the reserve (manual fixture lists still run).
+      const reserve = apiQuotaReserveFromEnvironment();
+      if (options.fixtureIds == null && !(await apiQuotaAllowsRequest(reserve))) {
+        return {
+          processed: 0,
+          inserted: 0,
+          updated: 0,
+          metadata: { skipped: 'QUOTA_RESERVE', minimumRemaining: reserve },
+        };
+      }
 
       const fixtures = await prisma.fixture.findMany({
         where: options.fixtureIds
@@ -206,11 +209,7 @@ export async function syncLineups(
               }
             : {
                 status: {
-                  in: [
-                    FixtureStatus.UPCOMING,
-                    FixtureStatus.LIVE,
-                    FixtureStatus.FINISHED,
-                  ],
+                  in: [FixtureStatus.UPCOMING, FixtureStatus.LIVE, FixtureStatus.FINISHED],
                 },
                 kickoffAt: {
                   gte: new Date(now.getTime() - 6 * 3_600_000),
@@ -222,6 +221,8 @@ export async function syncLineups(
           awayTeam: true,
         },
         orderBy: { kickoffAt: 'asc' },
+        // PREDICTION_AI_V7_QUOTA: cap per run — nearest kickoffs first.
+        ...(options.fixtureIds == null ? { take: lineupsSyncMaxFixtures() } : {}),
       });
 
       const client = getApiFootballClient();

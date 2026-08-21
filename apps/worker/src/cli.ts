@@ -62,6 +62,7 @@ const supported: WorkerCommand[] = [
   'sync-repeated-context',
   'rebuild-elo',
   'train-scientific',
+  'train-scientific-v7',
   'generate',
   'settle',
   'backtest',

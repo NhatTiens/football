@@ -123,6 +123,7 @@ export type WorkerCommand =
   | 'sync-repeated-context'
   | 'rebuild-elo'
   | 'train-scientific'
+  | 'train-scientific-v7'
   | 'generate'
   | 'settle'
   | 'backtest'
@@ -273,7 +274,14 @@ export async function executeJob(command: WorkerCommand): Promise<unknown> {
       result = await syncRepeatedFixtureContext();
     } else if (command === 'rebuild-elo') result = await rebuildScientificElo();
     else if (command === 'train-scientific') result = await trainScientificModel();
-    else if (command === 'generate') result = await generateRecommendations();
+    else if (command === 'train-scientific-v7') {
+      // PREDICTION_AI_V7: force the v7 path (market features + stacking +
+      // isotonic calibration) and save the artifact under the v7 purpose tag.
+      process.env.SCIENTIFIC_V7_ENABLED = 'true';
+      result = await trainScientificModel({
+        purpose: 'v7-production-training',
+      });
+    } else if (command === 'generate') result = await generateRecommendations();
     else if (command === 'settle') result = await settleRecommendations();
     else if (command === 'backtest') {
       result = await runBacktest({

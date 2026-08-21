@@ -2,7 +2,13 @@ import type { FixtureResponse } from '@football-ai/api-football';
 import { FixtureStatus, prisma, type InputJsonValue } from '@football-ai/database';
 import { getApiFootballClient } from './client.js';
 import { parseLeagueConfigurations } from './config.js';
-import { runTrackedSync, trackApiResult, type SyncSummary } from './tracking.js';
+import {
+  apiQuotaAllowsRequest,
+  apiQuotaReserveFromEnvironment,
+  runTrackedSync,
+  trackApiResult,
+  type SyncSummary,
+} from './tracking.js';
 
 function dateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -95,18 +101,30 @@ async function upsertFixture(item: FixtureResponse): Promise<'inserted' | 'updat
   return existing ? 'updated' : 'inserted';
 }
 
-export async function syncFixtures(options: {
-  from?: string;
-  to?: string;
-  leagueConfigurations?: Array<{ leagueId: number; season: number }>;
-} = {}): Promise<SyncSummary> {
+export async function syncFixtures(
+  options: {
+    from?: string;
+    to?: string;
+    leagueConfigurations?: Array<{ leagueId: number; season: number }>;
+  } = {},
+): Promise<SyncSummary> {
   return runTrackedSync('sync-fixtures', async () => {
+    // PREDICTION_AI_V7_QUOTA: fixture discovery can wait a few hours — back
+    // off when the daily budget is at or below the reserve.
+    const reserve = apiQuotaReserveFromEnvironment();
+    if (!(await apiQuotaAllowsRequest(reserve))) {
+      return {
+        processed: 0,
+        inserted: 0,
+        updated: 0,
+        metadata: { skipped: 'QUOTA_RESERVE', minimumRemaining: reserve },
+      };
+    }
     const client = getApiFootballClient();
     const now = new Date();
     const from =
       options.from ?? process.env.API_FOOTBALL_FIXTURES_FROM ?? dateOnly(addDays(now, -7));
-    const to =
-      options.to ?? process.env.API_FOOTBALL_FIXTURES_TO ?? dateOnly(addDays(now, 10));
+    const to = options.to ?? process.env.API_FOOTBALL_FIXTURES_TO ?? dateOnly(addDays(now, 10));
     const configurations = options.leagueConfigurations ?? parseLeagueConfigurations();
     if (configurations.length === 0) {
       throw new Error('Configure API_FOOTBALL_LEAGUES before running fixture sync.');
@@ -123,7 +141,9 @@ export async function syncFixtures(options: {
       });
       await trackApiResult('leagues', leagueResult);
       const leagueEntry = leagueResult.data[0];
-      const seasonEntry = leagueEntry?.seasons?.find((season) => season.year === configuration.season);
+      const seasonEntry = leagueEntry?.seasons?.find(
+        (season) => season.year === configuration.season,
+      );
       if (leagueEntry) {
         await prisma.league.upsert({
           where: {

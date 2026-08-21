@@ -2,6 +2,7 @@ import { clamp, normalizeProbabilities } from '@football-ai/engine';
 
 export const SCIENTIFIC_MODEL_KEY = 'SCIENTIFIC_MODEL_V1';
 export const SCIENTIFIC_MODEL_VERSION = 'scientific-ensemble-dixon-coles-v6';
+export const SCIENTIFIC_MODEL_VERSION_V7 = 'scientific-ensemble-dixon-coles-v7';
 
 export const SCIENTIFIC_FEATURE_NAMES = [
   'eloDiff',
@@ -21,6 +22,31 @@ export const SCIENTIFIC_FEATURE_NAMES = [
   'lineupOverAdjustment',
   'homeAdvantage',
 ] as const;
+
+// PREDICTION_AI_V7_FEATURES: append market-derived + context features to the
+// v6 vector. Order matters — both training and inference must produce the
+// exact same 29-wide vector. Feature index 15 (homeAdvantage) keeps its slot
+// for v6 artifact compatibility; v7 replaces the constant 1 with the real
+// team-specific home advantage signal.
+export const SCIENTIFIC_FEATURE_NAMES_V7 = [
+  ...SCIENTIFIC_FEATURE_NAMES.slice(0, 15),
+  'homeAdvantageTeam',
+  'marketHomeConsensus',
+  'marketDrawConsensus',
+  'marketAwayConsensus',
+  'marketOver25Consensus',
+  'marketBttsYesConsensus',
+  'marketMoveHome',
+  'marketMoveOver25',
+  'marketAvailable',
+  'marketOddsAgeHours',
+  'marketBookmakerCount',
+  'opponentAdjustedFormDiff',
+  'injuryWeightedDiff',
+  'fatigueDensityDiff',
+] as const;
+
+export type ScientificFeatureNameV7 = (typeof SCIENTIFIC_FEATURE_NAMES_V7)[number];
 
 export type ScientificFeatureName = (typeof SCIENTIFIC_FEATURE_NAMES)[number];
 
@@ -96,6 +122,369 @@ export interface ScientificModelArtifact {
   transform?: ScientificFeatureTransform;
   calibration?: ScientificCalibration;
   validationMetrics?: ScientificValidationMetrics;
+  // PREDICTION_AI_V7_STACKING: learned convex weights blending the component
+  // models (poisson / elo / ml / market) per market instead of hand-tuned ones.
+  stacking?: ScientificStackWeights;
+  // PREDICTION_AI_V7_ISOTONIC: non-parametric calibration for binary markets.
+  isotonic?: {
+    over15?: IsotonicCalibration;
+    over25?: IsotonicCalibration;
+    over35?: IsotonicCalibration;
+    btts?: IsotonicCalibration;
+  };
+}
+
+// ============================================================================
+// PREDICTION_AI_V7 — stacking meta-learner
+// ============================================================================
+
+/** Convex weights over the component models for one market. */
+export interface ScientificStackWeights {
+  /** [poisson, elo, ml, market] — must be non-negative and sum to 1. */
+  matchWinner: number[];
+  /** [poisson, ml, market] — must be non-negative and sum to 1. */
+  over25: number[];
+  /** [poisson, ml, market] — must be non-negative and sum to 1. */
+  btts: number[];
+  fittedAt: string;
+  sampleSize: number;
+  validationLogLoss: {
+    matchWinner: number | null;
+    over25: number | null;
+    btts: number | null;
+  };
+}
+
+/**
+ * One training row for the stacking meta-learner.
+ * Components are raw (uncalibrated) probability vectors from each sub-model.
+ */
+export interface StackTrainingRow {
+  matchWinnerComponents: number[][]; // 4 x 3: poisson, elo, ml, market
+  over25Components: number[][]; // 3 x 1 (OVER prob): poisson, ml, market
+  bttsComponents: number[][]; // 3 x 1 (YES prob): poisson, ml, market
+  matchWinnerClass: 0 | 1 | 2;
+  over25: 0 | 1;
+  btts: 0 | 1;
+}
+
+export interface StackTrainingOptions {
+  epochs?: number;
+  learningRate?: number;
+  l2?: number;
+  randomSeed?: number;
+}
+
+function multiclassLogLossForRows(predictions: number[][], labels: number[]): number {
+  let total = 0;
+  for (let index = 0; index < predictions.length; index += 1) {
+    const label = labels[index] ?? 0;
+    const probability = Math.max(1e-9, predictions[index]?.[label] ?? 1 / 3);
+    total -= Math.log(probability);
+  }
+  return predictions.length === 0 ? 0 : total / predictions.length;
+}
+
+function binaryLogLossForRows(predictions: number[], labels: number[]): number {
+  let total = 0;
+  for (let index = 0; index < predictions.length; index += 1) {
+    const label = labels[index] ?? 0;
+    const probability = clamp(predictions[index] ?? 0.5, 1e-9, 1 - 1e-9);
+    total -= label === 1 ? Math.log(probability) : Math.log(1 - probability);
+  }
+  return predictions.length === 0 ? 0 : total / predictions.length;
+}
+
+function blendComponents(components: number[][], weights: number[]): number[] {
+  const width = components[0]?.length ?? 1;
+  const result = new Array<number>(width).fill(0);
+  let totalWeight = 0;
+  for (let componentIndex = 0; componentIndex < components.length; componentIndex += 1) {
+    const weight = weights[componentIndex] ?? 0;
+    const component = components[componentIndex];
+    if (!component || weight <= 0) continue;
+    totalWeight += weight;
+    for (let index = 0; index < width; index += 1) {
+      result[index] = (result[index] ?? 0) + (component[index] ?? 0) * weight;
+    }
+  }
+  if (totalWeight <= 0) return new Array<number>(width).fill(1 / width);
+  // Binary case (width 1): the value IS a probability — blend without
+  // renormalizing, otherwise every blend collapses to 1.0.
+  if (width === 1) {
+    return [clamp(result[0]! / totalWeight, 1e-6, 1 - 1e-6)];
+  }
+  // Multiclass case: renormalize the probability vector to a valid simplex.
+  const total = result.reduce((sum, value) => sum + Math.max(0, value), 0);
+  if (total <= 0) return new Array<number>(width).fill(1 / width);
+  return result.map((value) => Math.max(0, value) / total);
+}
+
+/**
+ * PREDICTION_AI_V7: train convex stacking weights using coordinate ascent on
+ * the probability simplex (weights always stay non-negative and sum to 1).
+ * Equal-weight initialization means the learner starts from the current
+ * hand-tuned blend and only moves when a component genuinely adds information.
+ */
+export function trainStackingWeights(
+  rows: StackTrainingRow[],
+  options: StackTrainingOptions = {},
+): ScientificStackWeights {
+  const epochs = Math.max(20, Math.floor(options.epochs ?? 300));
+  const step = clamp(options.learningRate ?? 0.05, 0.005, 0.2);
+  const seed = Math.floor(options.randomSeed ?? 20260821);
+
+  const random = (() => {
+    let state = seed >>> 0;
+    return () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+  })();
+
+  // Deterministic coordinate ascent: every ordered pair is tried each epoch, so
+  // an improving direction can never be missed by bad luck. Stops when a full
+  // epoch produces no improvement.
+  const fitMulticlass = (
+    allComponents: number[][][],
+    allLabels: number[],
+    width: number,
+  ): number[] => {
+    if (allComponents.length < 5) return [0.45, 0.24, 0.23, 0.08].slice(0, width);
+    const weights = new Array<number>(width).fill(1 / width);
+    let bestLoss = multiclassLogLossForRows(
+      allComponents.map((components) => blendComponents(components, weights)),
+      allLabels,
+    );
+    for (let epoch = 0; epoch < epochs; epoch += 1) {
+      let improved = false;
+      for (let from = 0; from < width; from += 1) {
+        for (let to = 0; to < width; to += 1) {
+          if (from === to) continue;
+          const candidate = [...weights];
+          const delta = Math.min(step, candidate[from]!);
+          if (delta <= 1e-6) continue;
+          candidate[from]! -= delta;
+          candidate[to]! += delta;
+          const loss = multiclassLogLossForRows(
+            allComponents.map((components) => blendComponents(components, candidate)),
+            allLabels,
+          );
+          if (loss < bestLoss - 1e-9) {
+            bestLoss = loss;
+            weights.splice(0, weights.length, ...candidate);
+            improved = true;
+          }
+        }
+      }
+      if (!improved) break;
+    }
+    return weights;
+  };
+
+  const fitBinary = (allComponents: number[][][], allLabels: number[], width: number): number[] => {
+    if (allComponents.length < 5) return [0.6, 0.3, 0.1].slice(0, width);
+    const weights = new Array<number>(width).fill(1 / width);
+    let bestLoss = binaryLogLossForRows(
+      allComponents.map((components) => blendComponents(components, weights)[0] ?? 0.5),
+      allLabels,
+    );
+    for (let epoch = 0; epoch < epochs; epoch += 1) {
+      let improved = false;
+      for (let from = 0; from < width; from += 1) {
+        for (let to = 0; to < width; to += 1) {
+          if (from === to) continue;
+          const candidate = [...weights];
+          const delta = Math.min(step, candidate[from]!);
+          if (delta <= 1e-6) continue;
+          candidate[from]! -= delta;
+          candidate[to]! += delta;
+          const loss = binaryLogLossForRows(
+            allComponents.map((components) => blendComponents(components, candidate)[0] ?? 0.5),
+            allLabels,
+          );
+          if (loss < bestLoss - 1e-9) {
+            bestLoss = loss;
+            weights.splice(0, weights.length, ...candidate);
+            improved = true;
+          }
+        }
+      }
+      if (!improved) break;
+    }
+    return weights;
+  };
+
+  const matchWinner = fitMulticlass(
+    rows.map((row) => row.matchWinnerComponents),
+    rows.map((row) => row.matchWinnerClass),
+    4,
+  );
+  const over25 = fitBinary(
+    rows.map((row) => row.over25Components),
+    rows.map((row) => row.over25),
+    3,
+  );
+  const btts = fitBinary(
+    rows.map((row) => row.bttsComponents),
+    rows.map((row) => row.btts),
+    3,
+  );
+
+  return {
+    matchWinner,
+    over25,
+    btts,
+    fittedAt: new Date().toISOString(),
+    sampleSize: rows.length,
+    validationLogLoss: {
+      matchWinner: multiclassLogLossForRows(
+        rows.map((row) => blendComponents(row.matchWinnerComponents, matchWinner)),
+        rows.map((row) => row.matchWinnerClass),
+      ),
+      over25: binaryLogLossForRows(
+        rows.map((row) => blendComponents(row.over25Components, over25)[0] ?? 0.5),
+        rows.map((row) => row.over25),
+      ),
+      btts: binaryLogLossForRows(
+        rows.map((row) => blendComponents(row.bttsComponents, btts)[0] ?? 0.5),
+        rows.map((row) => row.btts),
+      ),
+    },
+  };
+}
+
+export function applyStackingMatchWinner(
+  weights: number[] | undefined,
+  components: number[][],
+  fallback: number[],
+): number[] {
+  if (!weights || weights.length !== components.length) return fallback;
+  return blendComponents(components, weights);
+}
+
+export function applyStackingBinary(
+  weights: number[] | undefined,
+  components: number[][],
+  fallback: number,
+): number {
+  if (!weights || weights.length !== components.length) return fallback;
+  return blendComponents(components, weights)[0] ?? fallback;
+}
+
+// ============================================================================
+// PREDICTION_AI_V7 — isotonic (PAV) calibration for binary markets
+// ============================================================================
+
+export interface IsotonicCalibration {
+  /** Increasing bin boundaries on [0,1]. */
+  thresholds: number[];
+  /** Fitted values (non-decreasing) for each bin. */
+  values: number[];
+  fittedAt: string;
+  sampleSize: number;
+}
+
+/**
+ * Binned isotonic regression via the Pool Adjacent Violators algorithm.
+ * Guarantees a non-decreasing calibration map on [0,1] without assuming a
+ * parametric form (Platt/temperature assume logistic shape).
+ */
+export function fitIsotonicRegression(
+  probabilities: number[],
+  labels: number[],
+  bins = 20,
+): IsotonicCalibration {
+  const safeBins = Math.max(4, Math.min(100, Math.floor(bins)));
+  const rows = probabilities
+    .map((probability, index) => ({
+      probability: clamp(probability, 0, 1),
+      label: labels[index] ?? 0,
+    }))
+    .filter((row) => Number.isFinite(row.probability));
+
+  if (rows.length < 10) {
+    return {
+      thresholds: [],
+      values: [],
+      fittedAt: new Date().toISOString(),
+      sampleSize: rows.length,
+    };
+  }
+
+  // Sort by probability then pool adjacent violators.
+  rows.sort((left, right) => left.probability - right.probability);
+  const pooled: Array<{ start: number; end: number; mean: number; weight: number }> = [];
+  for (const row of rows) {
+    pooled.push({ start: row.probability, end: row.probability, mean: row.label, weight: 1 });
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let index = 1; index < pooled.length; index += 1) {
+      const previous = pooled[index - 1]!;
+      const current = pooled[index]!;
+      if (previous.mean > current.mean) {
+        const totalWeight = previous.weight + current.weight;
+        const mergedMean =
+          (previous.mean * previous.weight + current.mean * current.weight) / totalWeight;
+        pooled[index - 1] = {
+          start: previous.start,
+          end: current.end,
+          mean: mergedMean,
+          weight: totalWeight,
+        };
+        pooled.splice(index, 1);
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  // Bucket into `safeBins` thresholds for storage compactness.
+  const thresholds: number[] = [];
+  const values: number[] = [];
+  for (let bin = 0; bin < safeBins; bin += 1) {
+    const lower = bin / safeBins;
+    const upper = (bin + 1) / safeBins;
+    const members = pooled.filter((segment) => segment.start < upper && segment.end >= lower);
+    if (members.length === 0) continue;
+    const value =
+      members.reduce((sum, segment) => sum + segment.mean * segment.weight, 0) /
+      members.reduce((sum, segment) => sum + segment.weight, 0);
+    thresholds.push(upper);
+    values.push(clamp(value, 1e-6, 1 - 1e-6));
+  }
+
+  return {
+    thresholds,
+    values,
+    fittedAt: new Date().toISOString(),
+    sampleSize: rows.length,
+  };
+}
+
+export function applyIsotonicRegression(
+  probability: number,
+  calibration: IsotonicCalibration | undefined,
+): number {
+  if (!calibration || calibration.thresholds.length === 0) return clamp(probability, 0.001, 0.999);
+  const bounded = clamp(probability, 0, 1);
+  const thresholds = calibration.thresholds;
+  const values = calibration.values;
+  if (bounded <= thresholds[0]!) return values[0]!;
+  for (let index = 1; index < thresholds.length; index += 1) {
+    if (bounded <= thresholds[index]!) {
+      const lowerX = thresholds[index - 1]!;
+      const upperX = thresholds[index]!;
+      const lowerY = values[index - 1]!;
+      const upperY = values[index]!;
+      if (upperX - lowerX <= 1e-12) return upperY;
+      const fraction = (bounded - lowerX) / (upperX - lowerX);
+      return clamp(lowerY + fraction * (upperY - lowerY), 0.001, 0.999);
+    }
+  }
+  return values[values.length - 1]!;
 }
 
 export interface ScientificPredictionUncertainty {
@@ -178,9 +567,7 @@ function mean(values: number[]): number {
 
 function standardDeviation(values: number[], average = mean(values)): number {
   if (values.length <= 1) return 0;
-  const variance =
-    values.reduce((sum, value) => sum + (value - average) ** 2, 0) /
-    values.length;
+  const variance = values.reduce((sum, value) => sum + (value - average) ** 2, 0) / values.length;
   return Math.sqrt(Math.max(0, variance));
 }
 
@@ -283,8 +670,7 @@ function standardizedRawFeatures(
   return Array.from({ length: width }, (_, index) => {
     const value = Number.isFinite(features[index]) ? Number(features[index]) : 0;
     return clamp(
-      (value - (means[index] ?? 0)) /
-        Math.max(Math.abs(standardDeviations[index] ?? 1), 1e-6),
+      (value - (means[index] ?? 0)) / Math.max(Math.abs(standardDeviations[index] ?? 1), 1e-6),
       -8,
       8,
     );
@@ -301,7 +687,7 @@ function expandFeatures(
   const active = transform.activeFeatureIndices.map((index) => standardized[index] ?? 0);
   const quadratic = transform.quadraticFeatureIndices.map((index) => {
     const value = standardized[index] ?? 0;
-    return clamp(Math.sign(value) * value ** 2 / 3, -8, 8);
+    return clamp((Math.sign(value) * value ** 2) / 3, -8, 8);
   });
   const interactions = transform.interactionPairs.map(([left, right]) =>
     clamp((standardized[left] ?? 0) * (standardized[right] ?? 0), -8, 8),
@@ -321,9 +707,7 @@ function multiclassLogLoss(probabilities: number[], label: number): number {
 function classWeights(labels: number[], classes: number): number[] {
   const counts = Array.from({ length: classes }, () => 0);
   for (const label of labels) counts[label] = (counts[label] ?? 0) + 1;
-  return counts.map((count) =>
-    count > 0 ? labels.length / (classes * count) : 1,
-  );
+  return counts.map((count) => (count > 0 ? labels.length / (classes * count) : 1));
 }
 
 function recentSampleWeights(samples: ScientificTrainingSample[]): number[] {
@@ -392,8 +776,7 @@ function trainBinaryLogistic(input: TrainingOptions): number[] {
       totalWeight += observationWeight;
       gradients[0] = (gradients[0] ?? 0) + error;
       for (let column = 0; column < width; column += 1) {
-        gradients[column + 1] =
-          (gradients[column + 1] ?? 0) + error * (row[column] ?? 0);
+        gradients[column + 1] = (gradients[column + 1] ?? 0) + error * (row[column] ?? 0);
       }
     }
 
@@ -407,7 +790,7 @@ function trainBinaryLogistic(input: TrainingOptions): number[] {
       const correctedSecond = (secondMoment[column] ?? 0) / (1 - 0.999 ** epoch);
       weights[column] =
         (weights[column] ?? 0) -
-        input.learningRate * correctedFirst / (Math.sqrt(correctedSecond) + 1e-8);
+        (input.learningRate * correctedFirst) / (Math.sqrt(correctedSecond) + 1e-8);
     }
 
     if (epoch % evaluationInterval !== 0 && epoch !== input.epochs) continue;
@@ -465,13 +848,11 @@ function trainSoftmax(input: TrainingOptions & { classes: number }): number[][] 
       const probabilities = softmax(weights.map((rowWeights) => dot(rowWeights, row)));
       for (let classIndex = 0; classIndex < input.classes; classIndex += 1) {
         const error =
-          ((probabilities[classIndex] ?? 0) - (classIndex === label ? 1 : 0)) *
-          observationWeight;
+          ((probabilities[classIndex] ?? 0) - (classIndex === label ? 1 : 0)) * observationWeight;
         const classGradient = gradients[classIndex] ?? [];
         classGradient[0] = (classGradient[0] ?? 0) + error;
         for (let column = 0; column < width; column += 1) {
-          classGradient[column + 1] =
-            (classGradient[column + 1] ?? 0) + error * (row[column] ?? 0);
+          classGradient[column + 1] = (classGradient[column + 1] ?? 0) + error * (row[column] ?? 0);
         }
       }
     }
@@ -492,7 +873,7 @@ function trainSoftmax(input: TrainingOptions & { classes: number }): number[][] 
         const correctedSecond = (classSecondMoment[column] ?? 0) / (1 - 0.999 ** epoch);
         classWeights[column] =
           (classWeights[column] ?? 0) -
-          input.learningRate * correctedFirst / (Math.sqrt(correctedSecond) + 1e-8);
+          (input.learningRate * correctedFirst) / (Math.sqrt(correctedSecond) + 1e-8);
       }
     }
 
@@ -522,9 +903,7 @@ function trainSoftmax(input: TrainingOptions & { classes: number }): number[][] 
 }
 
 function memberPrediction(member: ScientificModelMember, features: number[]): ModelProbabilities {
-  const matchWinner = softmax(
-    member.matchWinnerWeights.map((weights) => dot(weights, features)),
-  );
+  const matchWinner = softmax(member.matchWinnerWeights.map((weights) => dot(weights, features)));
   const over25 = sigmoid(dot(member.over25Weights, features));
   return {
     matchWinner,
@@ -577,15 +956,8 @@ function fitTemperature(probabilities: number[][], labels: number[]): number {
   return bestTemperature;
 }
 
-function fitBinaryCalibration(
-  probabilities: number[],
-  labels: number[],
-): BinaryCalibration {
-  if (
-    probabilities.length < 20 ||
-    !labels.includes(0) ||
-    !labels.includes(1)
-  ) {
+function fitBinaryCalibration(probabilities: number[], labels: number[]): BinaryCalibration {
+  if (probabilities.length < 20 || !labels.includes(0) || !labels.includes(1)) {
     return { scale: 1, bias: 0 };
   }
   let scale = 1;
@@ -614,18 +986,10 @@ function applyBinaryCalibration(
   calibration: BinaryCalibration | undefined,
 ): number {
   if (!calibration) return clamp(probability, 0.001, 0.999);
-  return clamp(
-    sigmoid(calibration.scale * logit(probability) + calibration.bias),
-    0.001,
-    0.999,
-  );
+  return clamp(sigmoid(calibration.scale * logit(probability) + calibration.bias), 0.001, 0.999);
 }
 
-function expectedCalibrationError(
-  probabilities: number[],
-  labels: number[],
-  bins = 10,
-): number {
+function expectedCalibrationError(probabilities: number[], labels: number[], bins = 10): number {
   if (probabilities.length === 0) return 0;
   let total = 0;
   for (let bin = 0; bin < bins; bin += 1) {
@@ -657,11 +1021,13 @@ function calculateValidationMetrics(input: {
   const matchWinnerBrier = mean(
     input.matchWinner.map((probabilities, rowIndex) => {
       const label = input.matchWinnerLabels[rowIndex] ?? 0;
-      return [0, 1, 2].reduce(
-        (sum, classIndex) =>
-          sum + ((probabilities[classIndex] ?? 0) - (classIndex === label ? 1 : 0)) ** 2,
-        0,
-      ) / 3;
+      return (
+        [0, 1, 2].reduce(
+          (sum, classIndex) =>
+            sum + ((probabilities[classIndex] ?? 0) - (classIndex === label ? 1 : 0)) ** 2,
+          0,
+        ) / 3
+      );
     }),
   );
   return {
@@ -687,9 +1053,7 @@ function calculateValidationMetrics(input: {
       ),
     ),
     bttsBrier: mean(
-      input.btts.map(
-        (probability, index) => (probability - (input.bttsLabels[index] ?? 0)) ** 2,
-      ),
+      input.btts.map((probability, index) => (probability - (input.bttsLabels[index] ?? 0)) ** 2),
     ),
     expectedCalibrationError:
       (expectedCalibrationError(input.over25, input.over25Labels) +
@@ -731,7 +1095,10 @@ export function trainScientificArtifact(input: {
   const ensembleMembers = Math.max(1, Math.min(9, Math.floor(input.ensembleMembers ?? 3)));
   const validationFraction = clamp(input.validationFraction ?? 0.2, 0.1, 0.35);
 
-  const requestedValidation = Math.max(20, Math.floor(normalizedSamples.length * validationFraction));
+  const requestedValidation = Math.max(
+    20,
+    Math.floor(normalizedSamples.length * validationFraction),
+  );
   const validationSize =
     normalizedSamples.length >= 60
       ? Math.min(requestedValidation, normalizedSamples.length - 35)
@@ -740,8 +1107,7 @@ export function trainScientificArtifact(input: {
   const trainingSamples = normalizedSamples.slice(0, splitIndex);
   const validationSamples = normalizedSamples.slice(splitIndex);
   const rawTrainingMatrix = trainingSamples.map((sample) => sample.features);
-  const { means, standardDeviations, activeFeatureIndices } =
-    buildStatistics(rawTrainingMatrix);
+  const { means, standardDeviations, activeFeatureIndices } = buildStatistics(rawTrainingMatrix);
   const transform = buildTransform(activeFeatureIndices);
 
   const trainingMatrix = rawTrainingMatrix.map((features) =>
@@ -842,7 +1208,14 @@ export function trainScientificArtifact(input: {
       l2,
       seed: seed + 67,
     });
-    members.push({ matchWinnerWeights, over15Weights, over25Weights, over35Weights, bttsWeights, seed });
+    members.push({
+      matchWinnerWeights,
+      over15Weights,
+      over25Weights,
+      over35Weights,
+      bttsWeights,
+      seed,
+    });
   }
 
   const rawValidationPredictions = validationMatrix.map((features) =>
@@ -872,10 +1245,7 @@ export function trainScientificArtifact(input: {
   };
 
   const calibratedValidation = rawValidationPredictions.map((prediction) => ({
-    matchWinner: applyTemperature(
-      prediction.matchWinner,
-      calibration.matchWinnerTemperature,
-    ),
+    matchWinner: applyTemperature(prediction.matchWinner, calibration.matchWinnerTemperature),
     over15: applyBinaryCalibration(prediction.over15, calibration.over15),
     over25: applyBinaryCalibration(prediction.over25, calibration.over25),
     over35: applyBinaryCalibration(prediction.over35, calibration.over35),
@@ -893,13 +1263,12 @@ export function trainScientificArtifact(input: {
   const firstMember = members[0]!;
   const trainedThrough = normalizedSamples[normalizedSamples.length - 1]!.kickoffAt;
   const requestedTrainedAt = input.trainedAt ?? new Date();
-  const trainedAt = new Date(
-    Math.max(requestedTrainedAt.getTime(), trainedThrough.getTime() + 1),
-  );
+  const trainedAt = new Date(Math.max(requestedTrainedAt.getTime(), trainedThrough.getTime() + 1));
   return {
     version: SCIENTIFIC_MODEL_VERSION,
-    featureNames: Array.from({ length: featureWidth }, (_, index) =>
-      SCIENTIFIC_FEATURE_NAMES[index] ?? `feature_${index}`,
+    featureNames: Array.from(
+      { length: featureWidth },
+      (_, index) => SCIENTIFIC_FEATURE_NAMES[index] ?? `feature_${index}`,
     ),
     means,
     standardDeviations,
@@ -925,11 +1294,59 @@ export function trainScientificArtifact(input: {
   };
 }
 
+/**
+ * PREDICTION_AI_V7: opponent-strength-adjusted points per game.
+ *
+ * Results against strong opponents carry more information about a team's true
+ * level. Each result's contribution is weighted by the opponent's Elo at that
+ * time (normalized around 1500). Rows without an opponent rating weight 1.
+ */
+export function opponentAdjustedPpg(
+  rows: Array<{ points: number; opponentRating: number | null }>,
+  fallback = 1.35,
+): number {
+  if (rows.length === 0) return fallback;
+  const weights = rows.map((row) =>
+    row.opponentRating == null ? 1 : clamp(0.6 + (row.opponentRating - 1500) / 750, 0.25, 1.5),
+  );
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (totalWeight <= 0) return fallback;
+  return rows.reduce((sum, row, index) => sum + row.points * weights[index]!, 0) / totalWeight;
+}
+
+/**
+ * PREDICTION_AI_V7: assemble the v7 artifact on top of a trained v6-style base.
+ * - sets the v7 version marker;
+ * - attaches learned stacking weights (poisson/elo/ml/market blend);
+ * - attaches isotonic calibration for binary markets;
+ * - keeps all base fields so prediction and audit keep working.
+ */
+export function buildScientificArtifactV7(input: {
+  base: ScientificModelArtifact;
+  stacking?: ScientificStackWeights | null;
+  isotonic?: ScientificModelArtifact['isotonic'];
+}): ScientificModelArtifact {
+  const stacking = input.stacking ?? undefined;
+  return {
+    ...input.base,
+    version: SCIENTIFIC_MODEL_VERSION_V7,
+    featureNames: [...SCIENTIFIC_FEATURE_NAMES_V7],
+    ...(stacking ? { stacking } : {}),
+    ...(input.isotonic && Object.keys(input.isotonic).length > 0
+      ? { isotonic: input.isotonic }
+      : {}),
+    algorithm: input.base.algorithm
+      ? `${input.base.algorithm} + v7 market features + learned stacking + isotonic calibration`
+      : 'v7 stacked ensemble (poisson + elo + ml + market) with isotonic calibration',
+  };
+}
+
 export function isScientificModelArtifact(value: unknown): value is ScientificModelArtifact {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<ScientificModelArtifact>;
   return (
-    candidate.version === SCIENTIFIC_MODEL_VERSION &&
+    (candidate.version === SCIENTIFIC_MODEL_VERSION ||
+      candidate.version === SCIENTIFIC_MODEL_VERSION_V7) &&
     Array.isArray(candidate.featureNames) &&
     Array.isArray(candidate.means) &&
     Array.isArray(candidate.standardDeviations) &&
@@ -963,30 +1380,51 @@ function legacyPrediction(
       DRAW: matchWinnerValues[1] ?? 1 / 3,
       AWAY: matchWinnerValues[2] ?? 1 / 3,
     }),
-    ...(over15 == null ? {} : { over15: normalizeProbabilities({ OVER: over15, UNDER: 1 - over15 }) }),
+    ...(over15 == null
+      ? {}
+      : { over15: normalizeProbabilities({ OVER: over15, UNDER: 1 - over15 }) }),
     over25: normalizeProbabilities({ OVER: over, UNDER: 1 - over }),
-    ...(over35 == null ? {} : { over35: normalizeProbabilities({ OVER: over35, UNDER: 1 - over35 }) }),
+    ...(over35 == null
+      ? {}
+      : { over35: normalizeProbabilities({ OVER: over35, UNDER: 1 - over35 }) }),
     btts: normalizeProbabilities({ YES: yes, NO: 1 - yes }),
     uncertainty: { matchWinner: 0.08, over25: 0.08, btts: 0.08, memberCount: 1 },
   };
 }
 
+/**
+ * PREDICTION_AI_V7: adapt a feature vector to the width the artifact was
+ * trained with. v6 artifacts get the first 16 features (their training width);
+ * v7 artifacts get the full 29-wide vector. Padding uses neutral fallbacks
+ * (0 except homeAdvantage slot = 1 for v6-style vectors).
+ */
+export function adaptFeatureWidth(features: number[], artifact: ScientificModelArtifact): number[] {
+  const expectedWidth = artifact.featureNames.length;
+  if (features.length === expectedWidth) return features;
+  if (features.length > expectedWidth) return features.slice(0, expectedWidth);
+  const padded = [...features];
+  for (let index = features.length; index < expectedWidth; index += 1) {
+    padded.push(SCIENTIFIC_FEATURE_NAMES[index] === 'homeAdvantage' ? 1 : 0);
+  }
+  return padded;
+}
+
 export function predictScientificModel(
   artifact: ScientificModelArtifact,
   features: number[],
+  options: { horizonMinutes?: number } = {},
 ): ScientificModelPrediction {
+  const adapted = adaptFeatureWidth(features, artifact);
   if (!artifact.members?.length || !artifact.transform) {
-    return legacyPrediction(artifact, features);
+    return legacyPrediction(artifact, adapted);
   }
   const transformed = expandFeatures(
-    features,
+    adapted,
     artifact.means,
     artifact.standardDeviations,
     artifact.transform,
   );
-  const memberPredictions = artifact.members.map((member) =>
-    memberPrediction(member, transformed),
-  );
+  const memberPredictions = artifact.members.map((member) => memberPrediction(member, transformed));
   const average = averageMemberPredictions(memberPredictions);
   const matchWinnerValues = applyTemperature(
     average.matchWinner,
@@ -1006,9 +1444,7 @@ export function predictScientificModel(
   const matchWinnerUncertainty = Math.max(
     ...[0, 1, 2].map((classIndex) =>
       probabilityStddev(
-        memberPredictions.map(
-          (prediction) => prediction.matchWinner[classIndex] ?? 1 / 3,
-        ),
+        memberPredictions.map((prediction) => prediction.matchWinner[classIndex] ?? 1 / 3),
       ),
     ),
   );
@@ -1018,9 +1454,13 @@ export function predictScientificModel(
       DRAW: matchWinnerValues[1] ?? 1 / 3,
       AWAY: matchWinnerValues[2] ?? 1 / 3,
     }),
-    ...(over15 == null ? {} : { over15: normalizeProbabilities({ OVER: over15, UNDER: 1 - over15 }) }),
+    ...(over15 == null
+      ? {}
+      : { over15: normalizeProbabilities({ OVER: over15, UNDER: 1 - over15 }) }),
     over25: normalizeProbabilities({ OVER: over, UNDER: 1 - over }),
-    ...(over35 == null ? {} : { over35: normalizeProbabilities({ OVER: over35, UNDER: 1 - over35 }) }),
+    ...(over35 == null
+      ? {}
+      : { over35: normalizeProbabilities({ OVER: over35, UNDER: 1 - over35 }) }),
     btts: normalizeProbabilities({ YES: yes, NO: 1 - yes }),
     uncertainty: {
       matchWinner: clamp(matchWinnerUncertainty, 0, 0.25),
@@ -1054,6 +1494,108 @@ export function predictScientificModel(
       ),
       memberCount: memberPredictions.length,
     },
+  };
+}
+
+/**
+ * PREDICTION_AI_V7: stack-aware prediction. Blends component models with the
+ * learned stacking weights when the artifact carries them, then applies
+ * isotonic calibration to the binary markets. Falls back to the plain
+ * predictScientificModel for v6 artifacts or missing components.
+ */
+export function predictScientificModelV7(input: {
+  artifact: ScientificModelArtifact;
+  features: number[];
+  poissonMatchWinner?: Record<'HOME' | 'DRAW' | 'AWAY', number>;
+  poissonOver25?: number;
+  poissonBttsYes?: number;
+  eloMatchWinner?: Record<'HOME' | 'DRAW' | 'AWAY', number>;
+  marketMatchWinner?: Record<'HOME' | 'DRAW' | 'AWAY', number> | null;
+  marketOver25?: number | null;
+  marketBttsYes?: number | null;
+  horizonMinutes?: number;
+}): ScientificModelPrediction {
+  const base = predictScientificModel(input.artifact, input.features, {
+    horizonMinutes: input.horizonMinutes,
+  });
+  const isV7 = input.artifact.version === SCIENTIFIC_MODEL_VERSION_V7;
+  const stacking = input.artifact.stacking;
+  if (!isV7 || !stacking) return base;
+  if (!input.poissonMatchWinner || input.poissonOver25 == null) return base;
+
+  const fitComponents = (components: number[][], trainedWeights: number[]): number[] | null => {
+    if (components.length === 0) return null;
+    if (components.length === trainedWeights.length) {
+      return blendComponents(components, trainedWeights);
+    }
+    if (components.length < trainedWeights.length) {
+      const effective = trainedWeights.slice(0, components.length);
+      const total = effective.reduce((sum, weight) => sum + weight, 0);
+      if (total <= 0) return null;
+      return blendComponents(
+        components,
+        effective.map((weight) => weight / total),
+      );
+    }
+    return null;
+  };
+
+  const matchWinnerComponents: number[][] = [
+    [input.poissonMatchWinner.HOME, input.poissonMatchWinner.DRAW, input.poissonMatchWinner.AWAY],
+    [
+      input.eloMatchWinner?.HOME ?? 1 / 3,
+      input.eloMatchWinner?.DRAW ?? 1 / 3,
+      input.eloMatchWinner?.AWAY ?? 1 / 3,
+    ],
+    [base.matchWinner.HOME, base.matchWinner.DRAW, base.matchWinner.AWAY],
+  ];
+  if (input.marketMatchWinner) {
+    matchWinnerComponents.push([
+      input.marketMatchWinner.HOME,
+      input.marketMatchWinner.DRAW,
+      input.marketMatchWinner.AWAY,
+    ]);
+  }
+  const stackedMatchWinner = fitComponents(matchWinnerComponents, stacking.matchWinner);
+  const matchWinner = stackedMatchWinner
+    ? normalizeProbabilities({
+        HOME: stackedMatchWinner[0] ?? base.matchWinner.HOME,
+        DRAW: stackedMatchWinner[1] ?? base.matchWinner.DRAW,
+        AWAY: stackedMatchWinner[2] ?? base.matchWinner.AWAY,
+      })
+    : base.matchWinner;
+
+  const over25Components: number[][] = [[input.poissonOver25], [base.over25.OVER]];
+  if (input.marketOver25 != null) over25Components.push([input.marketOver25]);
+  const stackedOver25 = fitComponents(over25Components, stacking.over25);
+  const over25Blend =
+    stackedOver25 == null ? base.over25.OVER : (stackedOver25[0] ?? base.over25.OVER);
+  const over25Calibrated = input.artifact.isotonic?.over25
+    ? applyIsotonicRegression(over25Blend, input.artifact.isotonic.over25)
+    : over25Blend;
+
+  const bttsComponents: number[][] = [
+    [input.poissonBttsYes ?? input.poissonOver25],
+    [base.btts.YES],
+  ];
+  if (input.marketBttsYes != null) bttsComponents.push([input.marketBttsYes]);
+  const stackedBtts = fitComponents(bttsComponents, stacking.btts);
+  const bttsBlend = stackedBtts == null ? base.btts.YES : (stackedBtts[0] ?? base.btts.YES);
+  const bttsCalibrated = input.artifact.isotonic?.btts
+    ? applyIsotonicRegression(bttsBlend, input.artifact.isotonic.btts)
+    : bttsBlend;
+
+  return {
+    ...base,
+    matchWinner,
+    over25: normalizeProbabilities({
+      OVER: clamp(over25Calibrated, 0.001, 0.999),
+      UNDER: clamp(1 - over25Calibrated, 0.001, 0.999),
+    }),
+    btts: normalizeProbabilities({
+      YES: clamp(bttsCalibrated, 0.001, 0.999),
+      NO: clamp(1 - bttsCalibrated, 0.001, 0.999),
+    }),
   };
 }
 
@@ -1109,8 +1651,7 @@ export function poissonGoalMarkets(
   for (let homeGoals = 0; homeGoals <= maximumGoals; homeGoals += 1) {
     const homeProbability = poissonProbability(safeHomeExpectedGoals, homeGoals);
     for (let awayGoals = 0; awayGoals <= maximumGoals; awayGoals += 1) {
-      const rawProbability =
-        homeProbability * poissonProbability(safeAwayExpectedGoals, awayGoals);
+      const rawProbability = homeProbability * poissonProbability(safeAwayExpectedGoals, awayGoals);
       const correctedProbability =
         rawProbability *
         dixonColesCorrection(
@@ -1199,11 +1740,7 @@ export function conservativeProbability(input: {
   const dataQuality = clamp(input.dataQuality ?? 0.65, 0, 1);
   const multiplier = clamp(input.penaltyMultiplier ?? 0.85, 0, 3);
   const qualityPenalty = (1 - dataQuality) * 0.015;
-  return clamp(
-    input.probability - uncertainty * multiplier - qualityPenalty,
-    0.001,
-    0.999,
-  );
+  return clamp(input.probability - uncertainty * multiplier - qualityPenalty, 0.001, 0.999);
 }
 
 export function calibrateTotalProbability(input: {
@@ -1224,9 +1761,5 @@ export function calibrateTotalProbability(input: {
     uncertainty: input.modelUncertainty,
     disagreement,
   });
-  return clamp(
-    inverseLogit(logit(input.lineProbability) + correction * weight),
-    0.001,
-    0.999,
-  );
+  return clamp(inverseLogit(logit(input.lineProbability) + correction * weight), 0.001, 0.999);
 }

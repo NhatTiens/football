@@ -8,6 +8,7 @@ export type FeatureSource =
   | 'EXTERNAL_PREDICTION'
   | 'MODEL_ARTIFACT'
   | 'ODDS'
+  | 'MARKET_FEATURES'
   | 'COVERAGE';
 
 export type FeatureMetadataValue = string | number | boolean | null;

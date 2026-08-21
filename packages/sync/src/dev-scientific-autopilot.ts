@@ -2,10 +2,7 @@ import { prisma } from '@football-ai/database';
 
 import { planUnallocatedScientificPaperStakes } from './bankroll-risk-engine.js';
 import { discoverEarlyPrematchOdds } from './early-odds-discovery.js';
-import {
-  collectFreshOddsDue,
-  planFreshOddsCheckpoints,
-} from './fresh-odds-collector-engine.js';
+import { collectFreshOddsDue, planFreshOddsCheckpoints } from './fresh-odds-collector-engine.js';
 import {
   getPersonalUpcomingAnalysis,
   refreshPersonalUpcomingAnalysis,
@@ -18,18 +15,11 @@ import {
   syncScientificStatistics,
 } from './scientific-sync.js';
 
-import {
-  captureDueCurrentSignalSnapshots,
-} from './current-signal-snapshot-engine.js';
+import { captureDueCurrentSignalSnapshots } from './current-signal-snapshot-engine.js';
 
 const VERSION = 'v7.0-r4.7-early-odds-market-movement';
 
-function integerEnv(
-  name: string,
-  fallback: number,
-  minimum: number,
-  maximum: number,
-): number {
+function integerEnv(name: string, fallback: number, minimum: number, maximum: number): number {
   const raw = process.env[name];
 
   if (raw == null || raw.trim() === '') return fallback;
@@ -37,9 +27,7 @@ function integerEnv(
   const value = Number(raw);
 
   if (!Number.isInteger(value) || value < minimum || value > maximum) {
-    throw new Error(
-      `${name} must be an integer between ${minimum} and ${maximum}.`,
-    );
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
   }
 
   return value;
@@ -59,9 +47,7 @@ function enabledEnv(name: string, fallback: boolean): boolean {
 }
 
 function recordOf(value: unknown): Record<string, unknown> | null {
-  return value != null && typeof value === 'object'
-    ? (value as Record<string, unknown>)
-    : null;
+  return value != null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
 
 function numberOf(value: unknown): number | null {
@@ -74,10 +60,7 @@ function sleep(milliseconds: number): Promise<void> {
   });
 }
 
-async function stage<T>(
-  label: string,
-  action: () => Promise<T>,
-): Promise<T | null> {
+async function stage<T>(label: string, action: () => Promise<T>): Promise<T | null> {
   const startedAt = Date.now();
 
   try {
@@ -130,9 +113,7 @@ async function reportBestBetCount(days: number): Promise<void> {
     );
 
     if (bestBetCount === 0) {
-      console.log(
-        '[science] No BEST BET currently passed the scientific/reliability gates.',
-      );
+      console.log('[science] No BEST BET currently passed the scientific/reliability gates.');
     }
 
     lastBestBetCount = bestBetCount;
@@ -143,48 +124,20 @@ async function main(): Promise<void> {
   const enabled = enabledEnv('DEV_SCIENTIFIC_AUTOPILOT_ENABLED', true);
 
   if (!enabled) {
-    console.log(
-      '[science] DEV_SCIENTIFIC_AUTOPILOT_ENABLED=false; autopilot disabled.',
-    );
+    console.log('[science] DEV_SCIENTIFIC_AUTOPILOT_ENABLED=false; autopilot disabled.');
     return;
   }
 
-  const tickSeconds = integerEnv(
-    'DEV_SCIENTIFIC_AUTOPILOT_TICK_SECONDS',
-    60,
-    30,
-    600,
-  );
-  const planMinutes = integerEnv(
-    'DEV_SCIENTIFIC_AUTOPILOT_PLAN_MINUTES',
-    15,
-    1,
-    180,
-  );
-  const refreshMinutes = integerEnv(
-    'DEV_SCIENTIFIC_AUTOPILOT_REFRESH_MINUTES',
-    120,
-    30,
-    1440,
-  );
-  const injuryWarmupMinutes = integerEnv(
-    'DEV_SCIENTIFIC_AUTOPILOT_INJURY_MINUTES',
-    60,
-    15,
-    360,
-  );
-  const statisticsMinutes = integerEnv(
-    'DEV_SCIENTIFIC_AUTOPILOT_STATISTICS_MINUTES',
-    60,
-    15,
-    360,
-  );
-  const days = integerEnv(
-    'DEV_SCIENTIFIC_AUTOPILOT_DAYS',
-    30,
-    1,
-    30,
-  );
+  // PREDICTION_AI_V7_QUOTA: conservative defaults. The old defaults (tick 60s,
+  // refresh 120m, statistics 60m, injuries 60m) burned thousands of API
+  // requests per day alongside the worker schedules. All values remain
+  // overridable via env.
+  const tickSeconds = integerEnv('DEV_SCIENTIFIC_AUTOPILOT_TICK_SECONDS', 300, 30, 600);
+  const planMinutes = integerEnv('DEV_SCIENTIFIC_AUTOPILOT_PLAN_MINUTES', 30, 1, 180);
+  const refreshMinutes = integerEnv('DEV_SCIENTIFIC_AUTOPILOT_REFRESH_MINUTES', 720, 30, 1440);
+  const injuryWarmupMinutes = integerEnv('DEV_SCIENTIFIC_AUTOPILOT_INJURY_MINUTES', 240, 15, 360);
+  const statisticsMinutes = integerEnv('DEV_SCIENTIFIC_AUTOPILOT_STATISTICS_MINUTES', 360, 15, 360);
+  const days = integerEnv('DEV_SCIENTIFIC_AUTOPILOT_DAYS', 30, 1, 30);
 
   console.log('============================================================');
   console.log(`Football AI ${VERSION}`);
@@ -237,10 +190,7 @@ async function main(): Promise<void> {
     const cycleStartedAt = Date.now();
 
     // 1) Refresh the current competition/fixture/prediction universe.
-    if (
-      lastRefreshAt === 0 ||
-      cycleStartedAt - lastRefreshAt >= refreshMinutes * 60_000
-    ) {
+    if (lastRefreshAt === 0 || cycleStartedAt - lastRefreshAt >= refreshMinutes * 60_000) {
       const refreshed = await stage(
         'current fixtures + provider predictions + fresh-odds bootstrap',
         async () =>
@@ -254,10 +204,7 @@ async function main(): Promise<void> {
         lastPlanAt = Date.now();
       } else if (lastRefreshAt === 0) {
         // Do not hammer the provider every minute if startup discovery fails.
-        lastRefreshAt = Date.now() - Math.max(
-          0,
-          refreshMinutes * 60_000 - 15 * 60_000,
-        );
+        lastRefreshAt = Date.now() - Math.max(0, refreshMinutes * 60_000 - 15 * 60_000);
       }
     }
 
@@ -265,26 +212,19 @@ async function main(): Promise<void> {
     // API-Football documents pre-match odds 1–14 days ahead and a ~3h
     // update cadence. The function self-throttles per fixture, so this
     // fast-loop call makes zero API requests when no fixture is due.
-    await stage(
-      'early pre-match odds discovery 1-14d / 3h cadence',
-      async () => discoverEarlyPrematchOdds(new Date()),
+    await stage('early pre-match odds discovery 1-14d / 3h cadence', async () =>
+      discoverEarlyPrematchOdds(new Date()),
     );
 
     // 3) Keep historical fixture statistics/xG coverage growing incrementally.
-    if (
-      lastStatisticsAt === 0 ||
-      Date.now() - lastStatisticsAt >= statisticsMinutes * 60_000
-    ) {
+    if (lastStatisticsAt === 0 || Date.now() - lastStatisticsAt >= statisticsMinutes * 60_000) {
       const stats = await stage(
         'historical fixture statistics/xG incremental sync',
         syncScientificStatistics,
       );
 
       if (stats != null) {
-        await stage(
-          'rebuild Elo from finished fixtures',
-          rebuildScientificElo,
-        );
+        await stage('rebuild Elo from finished fixtures', rebuildScientificElo);
         lastStatisticsAt = Date.now();
       }
     }
@@ -294,12 +234,10 @@ async function main(): Promise<void> {
       lastInjuryWarmupAt === 0 ||
       Date.now() - lastInjuryWarmupAt >= injuryWarmupMinutes * 60_000
     ) {
-      const injuries = await stage(
-        'general upcoming injury warmup',
-        async () =>
-          syncScientificInjuries({
-            now: new Date(),
-          }),
+      const injuries = await stage('general upcoming injury warmup', async () =>
+        syncScientificInjuries({
+          now: new Date(),
+        }),
       );
 
       if (injuries != null) {
@@ -309,22 +247,16 @@ async function main(): Promise<void> {
 
     // 5) Exact PIT context comes BEFORE odds/decision.
     //    Default horizons: T-90 / T-30 / T-5.
-    await stage(
-      'PIT lineup + injury context T-90/T-30/T-5',
-      async () =>
-        syncRepeatedFixtureContext({
-          now: new Date(),
-        }),
+    await stage('PIT lineup + injury context T-90/T-30/T-5', async () =>
+      syncRepeatedFixtureContext({
+        now: new Date(),
+      }),
     );
 
     // 6) Maintain fresh-odds checkpoint plan.
-    if (
-      lastPlanAt === 0 ||
-      Date.now() - lastPlanAt >= planMinutes * 60_000
-    ) {
-      const planned = await stage(
-        'fresh odds checkpoint plan',
-        async () => planFreshOddsCheckpoints(new Date()),
+    if (lastPlanAt === 0 || Date.now() - lastPlanAt >= planMinutes * 60_000) {
+      const planned = await stage('fresh odds checkpoint plan', async () =>
+        planFreshOddsCheckpoints(new Date()),
       );
 
       if (planned != null) {
@@ -333,46 +265,32 @@ async function main(): Promise<void> {
     }
 
     // 7) Collect real odds only when checkpoint is DUE.
-    await stage(
-      'collect DUE real fresh odds T-180/T-90/T-30/T-10/T-5',
-      async () => collectFreshOddsDue(new Date()),
+    await stage('collect DUE real fresh odds T-180/T-90/T-30/T-10/T-5', async () =>
+      collectFreshOddsDue(new Date()),
     );
 
     // 8) Decision always runs AFTER context + odds in this fast cycle.
     // Current research signals are snapshotted after fresh odds/context
     // and before the official BEST BET decision. This ledger is append-only.
-    await stage(
-      'current signal snapshot ledger T-180/T-90/T-60/T-30/T-5',
-      async () =>
-        captureDueCurrentSignalSnapshots({
-          now: new Date(),
-        }),
+    await stage('current signal snapshot ledger T-180/T-90/T-60/T-30/T-5', async () =>
+      captureDueCurrentSignalSnapshots({
+        now: new Date(),
+      }),
     );
 
-    await stage(
-      'scientific HDA/BTTS/O-U BEST BET / NO BET decision',
-      async () =>
-        runLiveScientificPaperBetDecisions({
-          now: new Date(),
-        }),
+    await stage('scientific HDA/BTTS/O-U BEST BET / NO BET decision', async () =>
+      runLiveScientificPaperBetDecisions({
+        now: new Date(),
+      }),
     );
 
     // 9) Paper bankroll/risk overlay.
-    await stage(
-      'bankroll/risk plan',
-      runRiskOverlay,
-    );
+    await stage('bankroll/risk plan', runRiskOverlay);
 
-    await stage(
-      'BEST BET board status',
-      async () => reportBestBetCount(days),
-    );
+    await stage('BEST BET board status', async () => reportBestBetCount(days));
 
     const elapsed = Date.now() - cycleStartedAt;
-    const waitMs = Math.max(
-      1_000,
-      tickSeconds * 1_000 - elapsed,
-    );
+    const waitMs = Math.max(1_000, tickSeconds * 1_000 - elapsed);
 
     await sleep(waitMs);
   }
